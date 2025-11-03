@@ -1,12 +1,11 @@
 ﻿#include <SFML/Graphics.hpp>
-#include <iostream>
 
-#include "../Core/Application.h"
+#include "Core/Application/Application.h"
 
 void MaximizeWindow(sf::RenderWindow &window);
 
-int main() {
-
+int main()
+{
 
     Application application;
     
