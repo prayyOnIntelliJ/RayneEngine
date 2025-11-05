@@ -25,6 +25,11 @@ void SceneManager::SetSceneByReference(Scene *newScene)
     this->currentScene = newScene;
 }
 
+void SceneManager::SetSceneByIndex(int index)
+{
+    this->currentScene = scenes[index].get();
+}
+
 Scene* SceneManager::GetSceneByName(std::string sceneName) const
 {
     for (auto& scene : scenes)

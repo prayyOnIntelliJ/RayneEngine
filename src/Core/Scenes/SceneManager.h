@@ -13,10 +13,13 @@ public:
     SceneManager();
 
     Scene* GetCurrentScene() const;
+    Scene* GetSceneByName(std::string sceneName) const;
+
     void AddScene(std::unique_ptr<Scene> newScene);
+
     void SetSceneByName(const std::string &sceneName);
     void SetSceneByReference(Scene* newScene);
-    Scene* GetSceneByName(std::string sceneName) const;
+    void SetSceneByIndex(int index);
 private:
     std::vector<std::unique_ptr<Scene>> scenes;
     Scene* currentScene = nullptr;
