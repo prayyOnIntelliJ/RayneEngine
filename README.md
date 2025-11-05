@@ -1,45 +1,44 @@
 # RayneEngine
 
-**RayneEngine** is a custom 2D/3D game engine built using [SFML](https://www.sfml-dev.org/).  
-It’s currently in early development and serves as a learning and experimentation project — aiming to grow into a flexible, lightweight engine for indie projects and technical exploration.
+**RayneEngine** is a small custom game engine built with [SFML](https://www.sfml-dev.org/).  
+It’s a **portfolio project** created as part of my training as a **Game Engineer** — focused on learning, experimenting, and exploring engine architecture in C++.
+
+This engine is not meant to become a large-scale framework, but rather a compact, understandable system that demonstrates how core engine components work together.
 
 ---
 
 ## 🚧 Development Status
-RayneEngine is still in its **early stages**.  
-Many systems are being prototyped and reworked as the architecture takes shape.  
-Expect rapid iteration and breaking changes for now.
+RayneEngine is still in **early development**.  
+Most systems are experimental and will change frequently as I refine the structure and design.
 
 ---
 
 ## ✨ Planned / Early Features
 
-- **Core Engine Architecture**
-  - Modular structure with clear separation between rendering, input, and game logic.
-  - Basic update loop and time management.
+- **Core Engine Structure**
+  - Main loop with delta time.
+  - Modular design (rendering, input, scene management).
 
-- **Rendering System**
+- **Rendering**
   - SFML-based 2D renderer.
   - Sprite and texture handling.
-  - View and camera control.
+  - Basic camera system.
 
-- **Input System**
-  - Keyboard and mouse input support.
-  - Event-based system using SFML’s event handling.
+- **Input**
+  - Keyboard and mouse input via SFML events.
 
 - **Scene Management**
-  - Early prototype of an entity/scene system.
-  - Basic resource loading pipeline.
+  - Early prototype of an entity and scene system.
+  - Simple resource loader.
 
 - **Utility Layer**
+  - Logging system.
   - Math helpers (vectors, transforms, etc.).
-  - Simple logging system.
 
 - **Future Goals**
-  - ECS (Entity Component System) architecture.
-  - Physics integration.
-  - Editor tooling.
-  - 3D rendering extensions.
+  - Basic ECS (Entity Component System).
+  - Physics prototype.
+  - Simple in-engine debugging tools.
 
 ---
 
