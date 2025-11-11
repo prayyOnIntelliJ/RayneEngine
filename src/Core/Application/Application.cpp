@@ -29,6 +29,8 @@ Application::Application()
     cube->position = {0, 0};
     circle->position = {200, 0};
     triangle->position = {0, 200};
+
+    std::cout << "Initialized!" << std::endl;
 }
 
 void Application::CreateWindow()
