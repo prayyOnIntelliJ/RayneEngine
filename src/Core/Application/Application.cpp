@@ -20,6 +20,7 @@ Application::Application()
     editorCamera.GetView().setCenter(0.f, 0.f);
 
     editorCamera.GetView().setViewport(sf::FloatRect(0.2f, 0.15f, 0.5f, 0.6f));
+    editorCamera.Apply();
 
     auto cube = primitiveManager.Create<RectanglePrimitive>(sf::Vector2f(100, 100), sf::Color::Cyan);
     auto circle = primitiveManager.Create<CirclePrimitive>(50.f, sf::Color::Yellow);
@@ -78,19 +79,16 @@ void Application::Render()
 {
     renderWindow.clear(sf::Color(10, 18, 25));
 
-    // --- Scene / Viewport ---
+    // --- Scene ---
     editorCamera.Apply();
     editorCamera.DrawGrid(editorCamera.GetView());
-    editorCamera.DrawBorder(sf::Color(180, 180, 220), 3.f);
-
-    // --- Primitives ---
     primitiveManager.Draw(renderWindow);
 
+    // --- Border direkt hier ---
+    editorCamera.DrawWorldBorder(3.f, sf::Color(200, 200, 250));
+
+    // --- UI danach ---
     renderWindow.setView(renderWindow.getDefaultView());
-
-    // --- UI-Bereich ---
-
-
     renderWindow.display();
 }
 

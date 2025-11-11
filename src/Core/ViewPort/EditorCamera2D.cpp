@@ -115,31 +115,27 @@ void EditorCamera2D::DrawGrid(const sf::View &view) const
     renderWindow->draw(cross, 4, sf::Lines);
 }
 
-void EditorCamera2D::DrawBorder(const sf::Color &color, float thickness) const
+void EditorCamera2D::DrawWorldBorder(float thicknessPixels, sf::Color color) const
 {
-    auto previousView = renderWindow->getView();
-    renderWindow->setView(renderWindow->getDefaultView());
+    renderWindow->setView(view);
 
-    sf::Vector2u windowSize = renderWindow->getSize();
-    sf::FloatRect viewport = view.getViewport();
+    const sf::Vector2f c = view.getCenter();
+    const sf::Vector2f s = view.getSize();
+    const float l = c.x - s.x * 0.5f;
+    const float r = c.x + s.x * 0.5f;
+    const float t = c.y - s.y * 0.5f;
+    const float b = c.y + s.y * 0.5f;
 
-    sf::FloatRect rect(
-        viewport.left * windowSize.x,
-        viewport.top * windowSize.y,
-        viewport.width * windowSize.x,
-        viewport.height * windowSize.y
-    );
+    sf::Vertex lines[] = {
+        sf::Vertex({l, t}, color), sf::Vertex({r, t}, color),
+        sf::Vertex({r, t}, color), sf::Vertex({r, b}, color),
+        sf::Vertex({r, b}, color), sf::Vertex({l, b}, color),
+        sf::Vertex({l, b}, color), sf::Vertex({l, t}, color),
+    };
 
-    sf::RectangleShape border;
-    border.setPosition(rect.left, rect.top);
-    border.setSize({rect.width, rect.height});
-    border.setFillColor(sf::Color::Transparent);
-    border.setOutlineColor(color);
-    border.setOutlineThickness(thickness);
-
-    renderWindow->draw(border);
-
-    renderWindow->setView(previousView);
+    renderWindow->draw(lines, 8, sf::Lines);
 }
+
+
 
 sf::View & EditorCamera2D::GetView() { return view; }

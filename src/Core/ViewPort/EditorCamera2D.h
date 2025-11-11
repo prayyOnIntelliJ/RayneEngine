@@ -12,7 +12,7 @@ public:
     void Update(float deltaTime);
     void Apply() const;
     void DrawGrid(const sf::View& view) const;
-    void DrawBorder(const sf::Color& color = sf::Color::White, float thickness = 2.f) const;
+    void DrawWorldBorder(float thicknessPixels = 2.f, sf::Color color = sf::Color::White) const;
 
     sf::View& GetView();
 
