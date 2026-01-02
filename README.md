@@ -52,7 +52,7 @@ Most systems are experimental and will change frequently as I refine the structu
 ## 📦 Building the Project
 
 ```bash
-git clone https://github.com/<your-username>/RayneEngine.git
+git clone https://github.com/prayyOnIntelliJ/RayneEngine.git
 cd RayneEngine
 mkdir build && cd build
 cmake ..
