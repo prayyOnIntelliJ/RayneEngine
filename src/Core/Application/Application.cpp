@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "../MathR/MathR.h"
 #include "../Primitives/CirclePrimitive.h"
 #include "../Primitives/RectanglePrimitive.h"
 #include "../Primitives/TrianglePrimitive.h"
