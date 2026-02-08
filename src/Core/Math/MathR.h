@@ -7,22 +7,22 @@ class MathR
 {
 public:
     // Clamp
-    template<typename T>
+    template <typename T>
     static T Clamp(T value, T min, T max);
-    template<typename T>
+    template <typename T>
     static T Clamp01(T value);
     // Abs
-    template<typename T>
+    template <typename T>
     static T Abs(T value);
     // Ceil, Floor
-    template<typename T>
+    template <typename T>
     static T Ceil(T value);
-    template<typename T>
+    template <typename T>
     static T Floor(T value);
     // Lerp
-    template<typename T>
+    template <typename T>
     static T Lerp(T start, T end, T factor);
-    template<typename T>
+    template <typename T>
     static T InverseLerp(T start, T end, T value);
 };
 

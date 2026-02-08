@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "../Math/MathR.h"
+#include "../Math/Vector.h"
 #include "../Primitives/CirclePrimitive.h"
 #include "../Primitives/RectanglePrimitive.h"
 #include "../Primitives/TrianglePrimitive.h"
@@ -36,7 +37,7 @@ Application::Application()
 
 void Application::CreateWindow()
 {
-    std::cout << "Starting RayneEngine...\n";
+    std::cout << "Starting...\n";
 
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     renderWindow.create(desktop, "RayneEngine");

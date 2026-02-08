@@ -25,8 +25,8 @@ add_executable(RayneEngine
         src/Core/Primitives/CirclePrimitive.h
         src/Core/Primitives/TrianglePrimitive.h
         src/Core/Primitives/PrimitiveManager.h
-        src/Core/Math/MathR.cpp
         src/Core/Math/MathR.h
+        src/Core/Math/Vector.h
 )
 
 # --- link SFML module ---
