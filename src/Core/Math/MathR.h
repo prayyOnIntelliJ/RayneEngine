@@ -1,6 +1,6 @@
 #ifndef RAYNEENGINE_MATHR_H
 #define RAYNEENGINE_MATHR_H
-#include <valarray>
+#include <cmath>
 
 
 class MathR
@@ -14,12 +14,16 @@ public:
     // Abs
     template<typename T>
     static T Abs(T value);
-    // Ceil
+    // Ceil, Floor
     template<typename T>
     static T Ceil(T value);
-    // Floor
     template<typename T>
     static T Floor(T value);
+    // Lerp
+    template<typename T>
+    static T Lerp(T start, T end, T factor);
+    template<typename T>
+    static T InverseLerp(T start, T end, T value);
 };
 
 template <typename T>
@@ -52,6 +56,20 @@ template <typename T>
 T MathR::Floor(T value)
 {
     return std::floor(value);
+}
+
+template <typename T>
+T MathR::Lerp(T start, T end, T factor)
+{
+    factor = Clamp(factor, 0.0f, 1.0f);
+    return start + factor * (end - start);
+}
+
+template <typename T>
+T MathR::InverseLerp(T start, T end, T value)
+{
+    value = Clamp(value, start, end);
+    return (value - start) / (end - start);
 }
 
 
