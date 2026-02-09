@@ -17,11 +17,11 @@ private:
     void Render();
     void SetEvents();
 
-    sf::RenderWindow renderWindow;
-    EditorCamera2D editorCamera;
-    PrimitiveManager primitiveManager;
-    SceneManager sceneManager;
-    sf::Clock deltaTimeClock;
+    sf::RenderWindow m_renderWindow;
+    EditorCamera2D m_editorCamera;
+    PrimitiveManager m_primitiveManager;
+    SceneManager m_sceneManager;
+    sf::Clock m_deltaTimeClock;
 };
 
 

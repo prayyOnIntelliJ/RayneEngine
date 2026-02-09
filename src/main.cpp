@@ -6,9 +6,7 @@ void MaximizeWindow(sf::RenderWindow &window);
 
 int main()
 {
-
     Application application;
     
     application.Run();
-
 }
