@@ -41,7 +41,10 @@ if(NOT lua_source_POPULATED)
     file(GLOB LUA_SOURCES "${lua_source_SOURCE_DIR}/*.c")
     list(REMOVE_ITEM LUA_SOURCES "${lua_source_SOURCE_DIR}/lua.c" "${lua_source_SOURCE_DIR}/luac.c")
 
-    add_library(lua_lib STATIC ${LUA_SOURCES})
+    add_library(lua_lib STATIC ${LUA_SOURCES}
+            src/Core/ECS/Entity.h
+            src/Core/ECS/Pool.cpp
+            src/Core/ECS/Pool.h)
 
     # Wichtig für Linux/Mac: dl (dynamic link) Bibliothek linken
     if(UNIX)
