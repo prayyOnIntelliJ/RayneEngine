@@ -42,9 +42,7 @@ if(NOT lua_source_POPULATED)
     list(REMOVE_ITEM LUA_SOURCES "${lua_source_SOURCE_DIR}/lua.c" "${lua_source_SOURCE_DIR}/luac.c")
 
     add_library(lua_lib STATIC ${LUA_SOURCES}
-            src/Core/ECS/Entity.h
-            src/Core/ECS/Pool.cpp
-            src/Core/ECS/Pool.h)
+            )
 
     # Wichtig für Linux/Mac: dl (dynamic link) Bibliothek linken
     if(UNIX)
@@ -77,6 +75,12 @@ add_executable(RayneEngine
         src/Core/Scripting/LuaState.cpp
         src/Core/Scripting/LuaState.h
         src/Core/Math/MathR.cpp
+        src/Core/ECS/Entity.h
+        src/Core/ECS/Pool.cpp
+        src/Core/ECS/Pool.h
+        src/Core/ECS/Registry.cpp
+        src/Core/ECS/Registry.h
+        src/Core/ECS/Components.h
 )
 
 # --- Link Libraries ---
