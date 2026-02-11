@@ -8,7 +8,7 @@ public:
     Scene(std::string sceneName);
     ~Scene();
 
-    std::string name;
+    std::string m_Name;
 };
 
 

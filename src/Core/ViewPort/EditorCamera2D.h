@@ -17,11 +17,11 @@ public:
     sf::View& GetView();
 
 private:
-    sf::View view;
-    float zoomLevel = 1.f;
-    sf::Vector2i lastMousePosition;
-    bool isDragging = false;
-    sf::RenderWindow* renderWindow = nullptr;
+    sf::View m_View;
+    float m_ZoomLevel = 1.f;
+    sf::Vector2i m_LastMousePosition;
+    bool m_bIsDragging = false;
+    sf::RenderWindow* m_RenderWindow = nullptr;
 };
 
 

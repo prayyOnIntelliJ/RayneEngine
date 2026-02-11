@@ -12,14 +12,14 @@ public:
     {
         shape.setRadius(radius);
         shape.setOrigin(radius, radius);
-        color = col;
-        shape.setFillColor(color);
+        m_color = col;
+        shape.setFillColor(m_color);
     }
 
     void Update(float deltaTime) override
     {
-        shape.setPosition(position);
-        shape.setRotation(rotation);
+        shape.setPosition(m_position);
+        shape.setRotation(m_rotation);
     }
 
     void Draw(sf::RenderWindow& window) override

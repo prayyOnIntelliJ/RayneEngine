@@ -6,25 +6,25 @@
 
 class RectanglePrimitive : public Primitive {
 public:
-    sf::RectangleShape shape;
+    sf::RectangleShape m_shape;
 
     RectanglePrimitive(const sf::Vector2f& size, const sf::Color& col)
     {
-        shape.setSize(size);
-        shape.setOrigin(size / 2.f);
-        color = col;
-        shape.setFillColor(color);
+        m_shape.setSize(size);
+        m_shape.setOrigin(size / 2.f);
+        m_color = col;
+        m_shape.setFillColor(m_color);
     }
 
     void Update(float deltaTime) override
     {
-        shape.setPosition(position);
-        shape.setRotation(rotation);
+        m_shape.setPosition(m_position);
+        m_shape.setRotation(m_rotation);
     }
 
     void Draw(sf::RenderWindow& window) override
     {
-        window.draw(shape);
+        window.draw(m_shape);
     }
 };
 

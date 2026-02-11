@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-Scene::Scene(std::string sceneName) : name(sceneName)
+Scene::Scene(std::string sceneName) : m_Name(sceneName)
 {
     std::cout << "Created Scene " << sceneName << std::endl;
 }

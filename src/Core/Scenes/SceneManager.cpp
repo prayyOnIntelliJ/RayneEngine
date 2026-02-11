@@ -2,39 +2,39 @@
 
 SceneManager::SceneManager()
 {
-    currentScene = nullptr;
+    m_CurrentScene = nullptr;
 }
 
 Scene* SceneManager::GetCurrentScene() const
 {
-    return this->currentScene;
+    return this->m_CurrentScene;
 }
 
 void SceneManager::AddScene(std::unique_ptr<Scene> newScene)
 {
-    scenes.push_back(std::move(newScene));
+    m_Scenes.push_back(std::move(newScene));
 }
 
 void SceneManager::SetSceneByName(const std::string &sceneName)
 {
-    this->currentScene = GetSceneByName(sceneName);
+    this->m_CurrentScene = GetSceneByName(sceneName);
 }
 
 void SceneManager::SetSceneByReference(Scene *newScene)
 {
-    this->currentScene = newScene;
+    this->m_CurrentScene = newScene;
 }
 
 void SceneManager::SetSceneByIndex(int index)
 {
-    this->currentScene = scenes[index].get();
+    this->m_CurrentScene = m_Scenes[index].get();
 }
 
 Scene* SceneManager::GetSceneByName(std::string sceneName) const
 {
-    for (auto& scene : scenes)
+    for (auto& scene : m_Scenes)
     {
-        if (scene->name == sceneName)
+        if (scene->m_Name == sceneName)
             return scene.get();
     }
 

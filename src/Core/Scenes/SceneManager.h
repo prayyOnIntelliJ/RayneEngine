@@ -21,8 +21,8 @@ public:
     void SetSceneByReference(Scene* newScene);
     void SetSceneByIndex(int index);
 private:
-    std::vector<std::unique_ptr<Scene>> scenes;
-    Scene* currentScene = nullptr;
+    std::vector<std::unique_ptr<Scene>> m_Scenes;
+    Scene* m_CurrentScene = nullptr;
 };
 
 
