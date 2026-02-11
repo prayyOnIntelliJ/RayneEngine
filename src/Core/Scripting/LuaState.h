@@ -4,11 +4,12 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include "sol/sol.hpp"
 
+class Registry;
 
 class LuaState
 {
 public:
-    static void Init();
+    static void Init(Registry& registry);
     static sol::state& GetLua();
 
 private:

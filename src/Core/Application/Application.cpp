@@ -2,11 +2,7 @@
 
 #include <iostream>
 
-#include "../Math/MathR.h"
-#include "../Math/Vector.h"
-#include "../Primitives/CirclePrimitive.h"
-#include "../Primitives/RectanglePrimitive.h"
-#include "../Primitives/TrianglePrimitive.h"
+#include "../ECS/Components.h"
 #include "../Scripting/LuaState.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Window/Event.hpp"
@@ -16,26 +12,18 @@ Application::Application()
     CreateWindow();
     SetIcon();
 
-    m_editorCamera = EditorCamera2D(sf::Vector2f(0.f, 0.f), 1.f, &m_renderWindow);
+    m_EditorCamera = EditorCamera2D(sf::Vector2f(0.f, 0.f), 1.f, &m_RenderWindow);
 
-    sf::Vector2u size = m_renderWindow.getSize();
-    m_editorCamera.GetView().setSize(static_cast<float>(size.x), static_cast<float>(size.y));
-    m_editorCamera.GetView().setCenter(0.f, 0.f);
+    const sf::Vector2u size = m_RenderWindow.getSize();
+    m_EditorCamera.GetView().setSize(static_cast<float>(size.x), static_cast<float>(size.y));
+    m_EditorCamera.GetView().setCenter(0.f, 0.f);
 
-    m_editorCamera.GetView().setViewport(sf::FloatRect(0.2f, 0.15f, 0.5f, 0.6f));
-    m_editorCamera.Apply();
+    m_EditorCamera.GetView().setViewport(sf::FloatRect(0.2f, 0.15f, 0.5f, 0.6f));
+    m_EditorCamera.Apply();
 
-    const auto cube = m_primitiveManager.Create<RectanglePrimitive>(sf::Vector2f(100, 100), sf::Color::Cyan);
-    const auto circle = m_primitiveManager.Create<CirclePrimitive>(50.f, sf::Color::Yellow);
-    const auto triangle = m_primitiveManager.Create<TrianglePrimitive>(60.f, sf::Color::Green);
+    std::cout << "Initialized!\n";
 
-    cube->position = {0, 0};
-    circle->position = {200, 0};
-    triangle->position = {0, 200};
-
-    std::cout << "Initialized!" << std::endl;
-
-    LuaState::Init();
+    LuaState::Init(m_Registry);
 }
 
 void Application::CreateWindow()
@@ -43,7 +31,7 @@ void Application::CreateWindow()
     std::cout << "Starting...\n";
 
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
-    m_renderWindow.create(desktop, "RayneEngine");
+    m_RenderWindow.create(desktop, "RayneEngine");
 
     std::cout << "Window created!\n";
 }
@@ -51,9 +39,9 @@ void Application::CreateWindow()
 void Application::Run()
 {
 
-    while (m_renderWindow.isOpen())
+    while (m_RenderWindow.isOpen())
     {
-        sf::Time dt = m_deltaTimeClock.restart();
+        sf::Time dt = m_DeltaTimeClock.restart();
         float deltaTime = dt.asSeconds();
 
         SetEvents();
@@ -71,49 +59,62 @@ void Application::SetIcon()
     std::string filePath = "assets/window/rayne_icon.png";
 
     if (icon.loadFromFile(filePath))
-        m_renderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
+        m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
     else
         std::cout << "Failed to load icon from " << filePath << std::endl;
 }
 
 void Application::Update(float deltaTime)
 {
-    m_editorCamera.Update(deltaTime);
-    m_primitiveManager.Update(deltaTime);
+    m_EditorCamera.Update(deltaTime);
+    m_PrimitiveManager.Update(deltaTime);
+
+    m_EditorCamera.Update(deltaTime);
+    m_PrimitiveManager.Update(deltaTime);
+
+    auto view = m_Registry.GetView<TransformComponent, VelocityComponent>();
+
+    for (Entity entity : view) {
+        auto& transform = m_Registry.GetComponent<TransformComponent>(entity);
+        auto& velocity = m_Registry.GetComponent<VelocityComponent>(entity);
+
+        transform.x += velocity.dx * deltaTime;
+        transform.y += velocity.dy * deltaTime;
+
+        std::cout << "Entity " << entity << " at " << transform.x << std::endl;
+    }
 }
 
 void Application::Render()
 {
-    m_renderWindow.clear(sf::Color(10, 18, 25));
+    m_RenderWindow.clear(sf::Color(10, 18, 25));
+    m_EditorCamera.Apply();
 
-    // --- Scene ---
-    m_editorCamera.Apply();
-    m_editorCamera.DrawGrid(m_editorCamera.GetView());
-    m_primitiveManager.Draw(m_renderWindow);
+    m_EditorCamera.DrawGrid(m_EditorCamera.GetView());
 
-    // --- Border direkt hier ---
-    m_editorCamera.DrawWorldBorder(3.f, sf::Color(200, 200, 250));
+    // --- Border ---
+    m_EditorCamera.DrawWorldBorder(3.f, sf::Color(200, 200, 250));
 
-    // --- UI danach ---
-    m_renderWindow.setView(m_renderWindow.getDefaultView());
-    m_renderWindow.display();
+    // --- UI ---
+    m_RenderWindow.setView(m_RenderWindow.getDefaultView());
+    m_RenderWindow.display();
 }
 
 void Application::SetEvents()
 {
     sf::Event event;
 
-    while (m_renderWindow.pollEvent(event))
+    while (m_RenderWindow.pollEvent(event))
     {
         if (event.type == sf::Event::Closed)
-            m_renderWindow.close();
+            m_RenderWindow.close();
 
         if (event.type == sf::Event::MouseWheelScrolled)
         {
             if (event.mouseWheelScroll.delta > 0)
-                m_editorCamera.GetView().zoom(0.9f);
+                m_EditorCamera.GetView().zoom(0.9f);
             else
-                m_editorCamera.GetView().zoom(1.1f);
+                m_EditorCamera.GetView().zoom(1.1f);
         }
     }
 }

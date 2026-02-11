@@ -5,6 +5,7 @@
 
 #include "Entity.h"
 #include "Pool.h"
+#include "View.h"
 
 
 class Registry
@@ -15,7 +16,15 @@ private:
     std::vector<Entity> m_EntitiesToAdd;
 
 public:
-    Entity CreateEntity();
+    Entity CreateEntity() const;
+
+    void DestroyEntity(Entity entity)
+    {
+        for (auto const& [type, pool] : m_ComponentPools)
+            {
+            pool->Remove(entity);
+        }
+    }
 
     template <typename T>
     void AddComponent(Entity entity, T component)
@@ -35,11 +44,19 @@ public:
         return GetPool<T>()->Has(entity);
     }
 
+    template <typename... Components>
+    View<Components...> GetView()
+    {
+        return View<Components...>(
+            std::make_tuple(GetPool<Components>().get()...),
+            GetPool<std::tuple_element_t<0, std::tuple<Components...>>>()->entities);
+    }
+
 private:
     template <typename T>
     std::shared_ptr<Pool<T>> GetPool()
     {
-        std::type_index typeIndex = std::type_index(typeid(T));
+        const auto typeIndex = std::type_index(typeid(T));
 
         if (m_ComponentPools.find(typeIndex) == m_ComponentPools.end())
         {
@@ -49,6 +66,9 @@ private:
         return std::static_pointer_cast<Pool<T>>(m_ComponentPools[typeIndex]);
     }
 };
+
+inline Entity Registry::CreateEntity() const
+{ return m_EntityCounter; }
 
 
 #endif

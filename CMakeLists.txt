@@ -76,11 +76,10 @@ add_executable(RayneEngine
         src/Core/Scripting/LuaState.h
         src/Core/Math/MathR.cpp
         src/Core/ECS/Entity.h
-        src/Core/ECS/Pool.cpp
         src/Core/ECS/Pool.h
-        src/Core/ECS/Registry.cpp
         src/Core/ECS/Registry.h
         src/Core/ECS/Components.h
+        src/Core/ECS/View.h
 )
 
 # --- Link Libraries ---

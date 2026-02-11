@@ -1,5 +1,6 @@
 ﻿#ifndef RAYNEENGINE_APPLICATION_H
 #define RAYNEENGINE_APPLICATION_H
+#include "../ECS/Registry.h"
 #include "../Primitives/PrimitiveManager.h"
 #include "../Scenes/SceneManager.h"
 #include "../ViewPort/EditorCamera2D.h"
@@ -10,6 +11,8 @@ public:
     Application();
     void Run();
 
+    Registry m_Registry;
+
 private:
     void CreateWindow();
     void SetIcon();
@@ -17,11 +20,11 @@ private:
     void Render();
     void SetEvents();
 
-    sf::RenderWindow m_renderWindow;
-    EditorCamera2D m_editorCamera;
-    PrimitiveManager m_primitiveManager;
-    SceneManager m_sceneManager;
-    sf::Clock m_deltaTimeClock;
+    sf::RenderWindow m_RenderWindow;
+    EditorCamera2D m_EditorCamera;
+    PrimitiveManager m_PrimitiveManager;
+    SceneManager m_SceneManager;
+    sf::Clock m_DeltaTimeClock;
 };
 
 
