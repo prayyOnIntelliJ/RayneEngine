@@ -7,13 +7,13 @@ This engine is not meant to become a large-scale framework, but rather a compact
 
 ---
 
-## 🚧 Development Status
+## Development Status
 RayneEngine is still in **early development**.  
 Most systems are experimental and will change frequently as I refine the structure and design.
 
 ---
 
-## ✨ Planned / Early Features
+## Planned / Early Features
 
 - **Core Engine Structure**
   - Main loop with delta time.
@@ -42,14 +42,14 @@ Most systems are experimental and will change frequently as I refine the structu
 
 ---
 
-## 🛠️ Technologies
+## Technologies
 - **Language:** C++
 - **Framework:** [SFML 2.6+](https://www.sfml-dev.org/)
 - **Build System:** CMake
 
 ---
 
-## 📦 Building the Project
+## Building the Project
 
 ```bash
 git clone https://github.com/prayyOnIntelliJ/RayneEngine.git
