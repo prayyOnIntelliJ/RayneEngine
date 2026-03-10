@@ -1,6 +1,5 @@
 #ifndef RAYNEENGINE_MATHR_H
 #define RAYNEENGINE_MATHR_H
-#include <cmath>
 
 #include "sol/state.hpp"
 
