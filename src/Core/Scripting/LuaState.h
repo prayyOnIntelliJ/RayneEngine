@@ -6,11 +6,21 @@
 
 class Registry;
 
+struct LuaApiDoc
+{
+    std::string name;
+    std::string returnType;
+    std::vector<std::pair<std::string, std::string>> params;
+    std::string description;
+};
+
 class LuaState
 {
 public:
     static void Init(Registry& registry);
     static sol::state& GetLua();
+
+    static void GenerateApiStub(const std::string& path);
 
 private:
     static sol::state s_Lua;
