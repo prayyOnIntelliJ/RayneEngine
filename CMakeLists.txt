@@ -21,12 +21,11 @@ FetchContent_MakeAvailable(SFML)
 FetchContent_Declare(
         sol2
         GIT_REPOSITORY https://github.com/ThePhD/sol2.git
-        GIT_TAG main  # Wir nutzen den aktuellen Stand, da v3.3.1 Probleme mit C++20 hat
+        GIT_TAG main
 )
 FetchContent_MakeAvailable(sol2)
 
 # --- 3. Lua manuell laden & konfigurieren ---
-# Wir nutzen das offizielle Mirror-Repo von Lua.org
 FetchContent_Declare(
         lua_source
         GIT_REPOSITORY https://github.com/lua/lua.git
@@ -36,24 +35,23 @@ FetchContent_GetProperties(lua_source)
 if(NOT lua_source_POPULATED)
     FetchContent_Populate(lua_source)
 
-    # Hier erstellen wir manuell das Lua-Library-Target
-    # Wir nehmen alle .c Dateien außer lua.c (CLI) und luac.c (Compiler)
     file(GLOB LUA_SOURCES "${lua_source_SOURCE_DIR}/*.c")
-    list(REMOVE_ITEM LUA_SOURCES "${lua_source_SOURCE_DIR}/lua.c" "${lua_source_SOURCE_DIR}/luac.c")
+    list(REMOVE_ITEM LUA_SOURCES
+            "${lua_source_SOURCE_DIR}/lua.c"
+            "${lua_source_SOURCE_DIR}/luac.c"
+            "${lua_source_SOURCE_DIR}/onelua.c"
+    )
 
     add_library(lua_lib STATIC ${LUA_SOURCES}
             )
 
-    # Wichtig für Linux/Mac: dl (dynamic link) Bibliothek linken
     if(UNIX)
         target_link_libraries(lua_lib PUBLIC dl)
     endif()
 
-    # Include-Pfad setzen (damit sol2 <lua.h> findet)
     target_include_directories(lua_lib PUBLIC ${lua_source_SOURCE_DIR})
 
-    # Compile-Optionen für C++ Kompatibilität
-    target_compile_options(lua_lib PRIVATE -O2)
+    target_compile_options(lua_lib PRIVATE $<$<CONFIG:Release>:/O2>)
 endif()
 
 # --- Engine Executable ---
@@ -89,8 +87,8 @@ target_link_libraries(RayneEngine
         sfml-window
         sfml-graphics
         sfml-audio
-        sol2::sol2    # Sol2 Header
-        lua_lib       # Unsere manuell gebaute Lua Lib
+        sol2::sol2
+        lua_lib
 )
 
 # --- Assets kopieren ---
