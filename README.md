@@ -11,6 +11,45 @@ This engine is not meant to become a large-scale framework, but rather a compact
 RayneEngine is still in **early development**.  
 Most systems are experimental and will change frequently as I refine the structure and design.
 
+The following Code...
+
+<pre>
+
+Lua
+
+local speed = 100
+local amplitude = 100
+local timer = 0
+local startY = nil
+
+function OnCreate()
+    print(&quot;Lua: Started Player Script&quot;)
+end
+
+function OnUpdate(dt)
+    local pos = GetTransform(self)
+    timer = timer + dt
+
+    if startY == nil then
+        startY = pos.y
+    end
+
+    local newX = pos.x + speed * dt
+    local newY = startY + MathR.Sin(timer * 1) * amplitude
+
+    SetPosition(self, newX, newY)
+
+    print(&quot;Player is now on Position: &quot; .. pos.x .. &quot;, &quot; .. pos.y)
+end
+</pre>
+
+results in the following pictures...
+
+![Engine](https://github.com/user-attachments/assets/939ad1b6-3de2-44d1-97d1-38adfb8ab955)
+
+
+NOTE: This is experimental and needs further development to be completely functional.
+
 ---
 
 ## Planned / Early Features
