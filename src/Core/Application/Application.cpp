@@ -4,6 +4,7 @@
 
 #include "../ECS/Components.h"
 #include "../Scripting/LuaState.h"
+#include "../Scripting/ScriptComponent.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Window/Event.hpp"
 
@@ -56,9 +57,8 @@ void Application::Run()
 void Application::SetIcon()
 {
     sf::Image icon;
-    std::string filePath = "assets/window/rayne_icon.png";
 
-    if (icon.loadFromFile(filePath))
+    if (const std::string filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
     else
         std::cout << "Failed to load icon from " << filePath << std::endl;
@@ -72,16 +72,19 @@ void Application::Update(float deltaTime)
     m_EditorCamera.Update(deltaTime);
     m_PrimitiveManager.Update(deltaTime);
 
-    auto view = m_Registry.GetView<TransformComponent, VelocityComponent>();
+    for (auto ScriptView = m_Registry.GetView<ScriptComponent>(); Entity entity : ScriptView)
+    {
+        auto& script = m_Registry.GetComponent<ScriptComponent>(entity);
+        script.OnUpdate(deltaTime);
+    }
 
-    for (Entity entity : view) {
+    auto MoveView = m_Registry.GetView<TransformComponent, VelocityComponent>();
+    for (Entity entity : MoveView)
+    {
         auto& transform = m_Registry.GetComponent<TransformComponent>(entity);
         auto& velocity = m_Registry.GetComponent<VelocityComponent>(entity);
-
         transform.x += velocity.dx * deltaTime;
         transform.y += velocity.dy * deltaTime;
-
-        std::cout << "Entity " << entity << " at " << transform.x << std::endl;
     }
 }
 
