@@ -75,6 +75,7 @@ add_executable(RayneEngine
         src/Core/ECS/Registry.h
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
+        src/Core/Scripting/LuaMacros.h
 )
 
 # --- Link Libraries ---
@@ -108,3 +109,5 @@ add_custom_command(TARGET RayneEngine POST_BUILD
 set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
+
+target_compile_definitions(RayneEngine PRIVATE ASSET_PATH="${CMAKE_SOURCE_DIR}/assets/")

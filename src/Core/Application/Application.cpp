@@ -13,6 +13,9 @@ Application::Application()
     CreateWindow();
     SetIcon();
 
+
+    LuaState::Init(m_Registry);
+
     m_EditorCamera = EditorCamera2D(sf::Vector2f(0.f, 0.f), 1.f, &m_RenderWindow);
 
     const sf::Vector2u size = m_RenderWindow.getSize();
@@ -24,7 +27,13 @@ Application::Application()
 
     std::cout << "Initialized!\n";
 
-    LuaState::Init(m_Registry);
+    Entity player = m_Registry.CreateEntity();
+    m_Registry.AddComponent(player, TransformComponent{ 400.f, 400.f });
+    m_Registry.AddComponent(player, RenderComponent{ sf::Color::Cyan, { 40, 40 } });
+
+    auto& script = m_Registry.AddComponent(player, ScriptComponent(LuaState::GetLua(), ASSET_PATH "scripting/test.lua"));
+    script.SetEntity(player);
+    script.OnCreate();
 }
 
 void Application::CreateWindow()
@@ -78,8 +87,7 @@ void Application::Update(float deltaTime)
         script.OnUpdate(deltaTime);
     }
 
-    auto MoveView = m_Registry.GetView<TransformComponent, VelocityComponent>();
-    for (Entity entity : MoveView)
+    for (auto MoveView = m_Registry.GetView<TransformComponent, VelocityComponent>(); Entity entity : MoveView)
     {
         auto& transform = m_Registry.GetComponent<TransformComponent>(entity);
         auto& velocity = m_Registry.GetComponent<VelocityComponent>(entity);
@@ -100,6 +108,18 @@ void Application::Render()
 
     // --- UI ---
     m_RenderWindow.setView(m_RenderWindow.getDefaultView());
+
+    for (auto RenderView = m_Registry.GetView<TransformComponent, RenderComponent>(); Entity entity : RenderView)
+    {
+        auto& pos = m_Registry.GetComponent<TransformComponent>(entity);
+        auto& gfx = m_Registry.GetComponent<RenderComponent>(entity);
+
+        sf::RectangleShape shape(gfx.size);
+        shape.setFillColor(gfx.color);
+        shape.setPosition(pos.x, pos.y);
+        m_RenderWindow.draw(shape);
+    }
+
     m_RenderWindow.display();
 }
 

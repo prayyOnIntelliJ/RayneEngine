@@ -29,3 +29,7 @@ private:
 
 
 #endif
+
+#ifndef ASSET_PATH
+#define ASSET_PATH "assets/"
+#endif

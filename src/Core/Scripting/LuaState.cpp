@@ -1,10 +1,13 @@
 #include "LuaState.h"
 
+#include <fstream>
+
 #include "../ECS/Components.h"
 #include "../ECS/Registry.h"
 #include "../Math/MathR.h"
 
 sol::state LuaState::s_Lua;
+std::vector<LuaApiDoc> s_ApiDocs;
 
 void LuaState::Init(Registry& registry)
 {
@@ -35,9 +38,9 @@ void LuaState::Init(Registry& registry)
         registry.AddComponent(e, VelocityComponent{dx, dy});
     });
 
-    s_Lua.set_function("GetTransform", [&](const Entity e)
+    s_Lua.set_function("GetTransform", [&](const Entity e) -> TransformComponent*
     {
-        return std::ref(registry.GetComponent<TransformComponent>(e));
+        return &registry.GetComponent<TransformComponent>(e);
     });
 
     s_Lua.set_function("CreateEntity", [&]()
@@ -71,4 +74,33 @@ sol::state& LuaState::GetLua()
 void LuaState::RegisterStatics()
 {
     MathR::RegisterLua(s_Lua);
+}
+
+
+void LuaState::GenerateApiStub(const std::string &path)
+{
+    std::ofstream file(path);
+
+    file << "-- AUTO GENERATED --\n";
+    file << "-- Generated at the Engine-Start\n";
+
+    for (const auto& doc : s_ApiDocs)
+    {
+        file << "--- " << doc.description << "\n";
+
+        for (const auto& [pName, pType] : doc.params)
+            file << "---@param " << pName << " " << pType << "\n";
+
+        file << "---@return " << doc.returnType << "\n";
+
+        file << "function " << doc.name << "(";
+        for (size_t i = 0; i < doc.params.size(); i++)
+        {
+            if (i > 0) file << ", ";
+            file << doc.params[i].first;
+        }
+        file << ") end\n\n";
+    }
+
+    std::cout << "Generated API Stub: " << path << " (" << s_ApiDocs.size() << " Functions)\n";
 }
