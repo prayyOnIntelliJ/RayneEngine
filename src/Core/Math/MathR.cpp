@@ -45,6 +45,32 @@ float MathR::InverseLerp(const float start, const float end, float value)
     return (value - start) / (end - start);
 }
 
+float MathR::Sin(float x)
+{
+    // normalize x
+    while (x > PI) x -= 2 * PI;
+    while (x < -PI) x += 2 * PI;
+
+    float result = 0.f;
+    float term = x; // first term of row
+    float x_sq = x * x;
+
+    for (int i = 1; i <= 10; i++)
+    {
+        result += term;
+        // term = term * (-x^2 / (n * (n+1)))
+        const int n = 2 * i;
+        term *= -x_sq / (static_cast<float>(n) * (n + 1));
+    }
+    return result;
+}
+
+float MathR::Cos(float x)
+{
+    // cos (x) = sin (x + PI / 2)
+    return Sin(x + (PI / 2.f));
+}
+
 float MathR::Ceil(const float value)
 {
     return -Floor(-value);
@@ -62,4 +88,6 @@ void MathR::RegisterLua(sol::state& lua)
     math.set_function("Floor", &Floor);
     math.set_function("Lerp", &Lerp);
     math.set_function("InverseLerp", &InverseLerp);
+    math.set_function("Sin", &Sin);
+    math.set_function("Cos", &Cos);
 }
