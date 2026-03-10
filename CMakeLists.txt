@@ -9,7 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include(FetchContent)
 
-# --- 1. SFML laden ---
 FetchContent_Declare(
         SFML
         GIT_REPOSITORY https://github.com/SFML/SFML.git
@@ -17,7 +16,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(SFML)
 
-# --- 2. Sol2 laden ---
 FetchContent_Declare(
         sol2
         GIT_REPOSITORY https://github.com/ThePhD/sol2.git
@@ -25,7 +23,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(sol2)
 
-# --- 3. Lua manuell laden & konfigurieren ---
 FetchContent_Declare(
         lua_source
         GIT_REPOSITORY https://github.com/lua/lua.git
@@ -91,11 +88,20 @@ target_link_libraries(RayneEngine
         lua_lib
 )
 
-# --- Assets kopieren ---
+# --- Copy assets ---
 add_custom_command(TARGET RayneEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/assets
         $<TARGET_FILE_DIR:RayneEngine>/assets
+)
+
+add_custom_command(TARGET RayneEngine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:sfml-system>
+        $<TARGET_FILE:sfml-window>
+        $<TARGET_FILE:sfml-graphics>
+        $<TARGET_FILE:sfml-audio>
+        $<TARGET_FILE_DIR:RayneEngine>
 )
 
 # --- Working Directory ---
