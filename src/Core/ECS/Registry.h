@@ -27,9 +27,9 @@ public:
     }
 
     template <typename T>
-    void AddComponent(Entity entity, T component)
+    T& AddComponent(Entity entity, T component)
     {
-        GetPool<T>()->Add(entity, component);
+        return GetPool<T>()->Add(entity, component);
     }
 
     template <typename T>

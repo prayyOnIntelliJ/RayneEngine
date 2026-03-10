@@ -27,13 +27,15 @@ public:
         return entityToIndex.find(e) != entityToIndex.end();
     }
 
-    void Add(const Entity e, T component)
+    T& Add(const Entity e, T component)
     {
-        if (Has(e)) return;
+        if (Has(e)) return Get(e);
 
         entityToIndex[e] = data.size();
         data.push_back(component);
         entities.push_back(e);
+
+        return data.back();
     }
 
     void Remove(Entity e) override
