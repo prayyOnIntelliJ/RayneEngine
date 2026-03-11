@@ -1,5 +1,7 @@
 # RayneEngine
 
+<img width="1536" height="600" alt="CoverRayne" src="https://github.com/user-attachments/assets/98536ef6-3e47-4e01-a0af-c2e264530ad6" />
+
 **RayneEngine** is a small custom 2D game engine built with [SFML](https://www.sfml-dev.org/).  
 It’s a **portfolio project** created as part of my training as a **Game Engineer** — focused on learning, experimenting, and exploring engine architecture in C++.
 
