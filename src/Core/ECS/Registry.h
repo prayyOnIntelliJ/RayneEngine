@@ -16,7 +16,7 @@ private:
     std::vector<Entity> m_EntitiesToAdd;
 
 public:
-    Entity CreateEntity() const;
+    Entity CreateEntity();
 
     void DestroyEntity(Entity entity)
     {
@@ -67,8 +67,10 @@ private:
     }
 };
 
-inline Entity Registry::CreateEntity() const
-{ return m_EntityCounter; }
+inline Entity Registry::CreateEntity()
+{
+    return m_EntityCounter++;
+}
 
 
 #endif
