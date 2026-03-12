@@ -17,6 +17,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(SFML)
 
 FetchContent_Declare(
+        nlohmann_json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+)
+FetchContent_MakeAvailable(nlohmann_json)
+
+FetchContent_Declare(
         sol2
         GIT_REPOSITORY https://github.com/ThePhD/sol2.git
         GIT_TAG main
@@ -56,8 +62,6 @@ add_executable(RayneEngine
         src/main.cpp
         src/Core/Application/Application.cpp
         src/Core/Scenes/SceneManager.cpp
-        src/Core/Scenes/Scene.cpp
-        src/Core/ViewPort/EditorCamera2D.cpp
         src/Core/Primitives/Primitive.h
         src/Core/Primitives/RectanglePrimitive.h
         src/Core/Primitives/CirclePrimitive.h
@@ -76,6 +80,8 @@ add_executable(RayneEngine
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
         src/Core/Scripting/LuaMacros.h
+        src/Core/Scenes/EditorScene.cpp
+        src/Core/Scenes/EditorScene.h
 )
 
 # --- Link Libraries ---
@@ -87,6 +93,7 @@ target_link_libraries(RayneEngine
         sfml-audio
         sol2::sol2
         lua_lib
+        nlohmann_json::nlohmann_json
 )
 
 # --- Copy assets ---
