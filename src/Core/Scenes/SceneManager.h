@@ -2,27 +2,35 @@
 #define RAYNEENGINE_SCENEMANAGER_H
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "Scene.h"
 
+class Scene;
 
 class SceneManager
 {
 public:
-    SceneManager();
+    template<typename T, typename... Args>
+    void RegisterScene(const std::string& name, Args&&... args)
+    {
+        m_scenes[name] = std::make_unique<T>(*this, std::forward<Args>(args)...);
+    }
 
-    Scene* GetCurrentScene() const;
-    Scene* GetSceneByName(std::string sceneName) const;
+    void SwitchSceneTo(const std::string& name);
 
-    void AddScene(std::unique_ptr<Scene> newScene);
+    void HandleEvent(const sf::Event& event);
+    void Update(float dt);
+    void Render(sf::RenderWindow& window);
 
-    void SetSceneByName(const std::string &sceneName);
-    void SetSceneByReference(Scene* newScene);
-    void SetSceneByIndex(int index);
+    [[nodiscard]] bool HasScene(const std::string& name) const;
+    [[nodiscard]] const std::string& CurrentName() const;
+
 private:
-    std::vector<std::unique_ptr<Scene>> m_Scenes;
-    Scene* m_CurrentScene = nullptr;
+    std::unordered_map<std::string, std::unique_ptr<Scene>> m_scenes;
+    Scene* m_current = nullptr;
+    std::string m_currentName;
 };
 
 

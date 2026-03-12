@@ -1,42 +1,52 @@
 ﻿#include "SceneManager.h"
 
-SceneManager::SceneManager()
-{
-    m_CurrentScene = nullptr;
-}
+#include <iostream>
 
-Scene* SceneManager::GetCurrentScene() const
+void SceneManager::SwitchSceneTo(const std::string &name)
 {
-    return this->m_CurrentScene;
-}
-
-void SceneManager::AddScene(std::unique_ptr<Scene> newScene)
-{
-    m_Scenes.push_back(std::move(newScene));
-}
-
-void SceneManager::SetSceneByName(const std::string &sceneName)
-{
-    this->m_CurrentScene = GetSceneByName(sceneName);
-}
-
-void SceneManager::SetSceneByReference(Scene *newScene)
-{
-    this->m_CurrentScene = newScene;
-}
-
-void SceneManager::SetSceneByIndex(int index)
-{
-    this->m_CurrentScene = m_Scenes[index].get();
-}
-
-Scene* SceneManager::GetSceneByName(std::string sceneName) const
-{
-    for (auto& scene : m_Scenes)
+    auto it = m_scenes.find(name);
+    if (it == m_scenes.end())
     {
-        if (scene->m_Name == sceneName)
-            return scene.get();
+        throw std::runtime_error("[SceneManager] Scene not found: " + name);
     }
 
-    return nullptr;
+    if (m_current)
+    {
+        m_current->OnExit();
+        std::cout << "[SceneManager] Exit: " << m_currentName << "\n";
+    }
+
+    m_current = it->second.get();
+    m_currentName = name;
+    m_current->OnEnter();
+
+    std::cout << "[SceneManager] Enter: " << m_currentName << "\n";
+}
+
+void SceneManager::HandleEvent(const sf::Event &event)
+{
+    if (m_current)
+        m_current->HandleEvent(event);
+}
+
+void SceneManager::Update(float dt)
+{
+    if (m_current)
+        m_current->Update(dt);
+}
+
+void SceneManager::Render(sf::RenderWindow &window)
+{
+    if (m_current)
+        m_current->Render(window);
+}
+
+bool SceneManager::HasScene(const std::string &name) const
+{
+    return m_scenes.contains(name);
+}
+
+const std::string & SceneManager::CurrentName() const
+{
+    return m_currentName;
 }
