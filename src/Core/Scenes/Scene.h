@@ -1,16 +1,27 @@
 #ifndef SCENE_H
 #define SCENE_H
-#include <string>
 
+#include "SFML/Graphics/RenderWindow.hpp"
+
+class SceneManager;
 
 class Scene {
 public:
-    Scene(std::string sceneName);
-    ~Scene();
+    explicit Scene(SceneManager& manager) : m_manager(manager) {}
 
-    std::string m_Name;
+    virtual ~Scene() = default;
+
+    virtual void HandleEvent(const sf::Event& event) = 0;
+    virtual void Update(float deltaTime) = 0;
+    virtual void Render(sf::RenderWindow& window) = 0;
+
+    virtual void OnEnter() {};
+    virtual void OnExit() {}
+    virtual void OnPause() {}
+    virtual void OnResume() {}
+
+protected:
+    SceneManager& m_manager;
 };
-
-
 
 #endif
