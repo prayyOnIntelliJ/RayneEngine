@@ -1,6 +1,8 @@
 # RayneEngine
 
-**RayneEngine** is a small custom game engine built with [SFML](https://www.sfml-dev.org/).  
+<img width="1536" height="600" alt="CoverRayne" src="https://github.com/user-attachments/assets/98536ef6-3e47-4e01-a0af-c2e264530ad6" />
+
+**RayneEngine** is a small custom 2D game engine built with [SFML](https://www.sfml-dev.org/).  
 It’s a **portfolio project** created as part of my training as a **Game Engineer** — focused on learning, experimenting, and exploring engine architecture in C++.
 
 This engine is not meant to become a large-scale framework, but rather a compact, understandable system that demonstrates how core engine components work together.
@@ -13,10 +15,7 @@ Most systems are experimental and will change frequently as I refine the structu
 
 The following Code...
 
-<pre>
-
-Lua
-
+```Lua
 local speed = 100
 local amplitude = 100
 local timer = 0
@@ -41,7 +40,7 @@ function OnUpdate(dt)
 
     print(&quot;Player is now on Position: &quot; .. pos.x .. &quot;, &quot; .. pos.y)
 end
-</pre>
+```
 
 results in the following pictures...
 
@@ -55,29 +54,29 @@ NOTE: This is experimental and needs further development to be completely functi
 ## Planned / Early Features
 
 - **Core Engine Structure**
-  - Main loop with delta time.
-  - Modular design (rendering, input, scene management).
+  - Main loop with delta time
+  - Modular design (rendering, input, scene management)
+  - Basic ECS (Entity Component System)
 
 - **Rendering**
-  - SFML-based 2D renderer.
-  - Sprite and texture handling.
-  - Basic camera system.
+  - SFML-based 2D renderer
+  - Sprite and texture handling
+  - Basic camera system
 
 - **Input**
-  - Keyboard and mouse input via SFML events.
+  - Keyboard and mouse input via SFML events, but planned to be in Lua events
 
 - **Scene Management**
-  - Early prototype of an entity and scene system.
-  - Simple resource loader.
+  - Early prototype of an entity and scene system
+  - Simple resource loader - PLANNED
 
 - **Utility Layer**
-  - Logging system.
-  - Math helpers (vectors, transforms, etc.).
+  - Logging system - PLANNED
+  - Math helpers (vectors, transforms, etc.) with Lua integration
 
 - **Future Goals**
-  - Basic ECS (Entity Component System).
-  - Physics prototype.
-  - Simple in-engine debugging tools.
+  - Physics prototype
+  - Simple in-engine debugging tools
 
 ---
 
