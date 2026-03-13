@@ -79,9 +79,14 @@ add_executable(RayneEngine
         src/Core/ECS/Registry.h
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
-        src/Core/Scripting/LuaMacros.h
         src/Core/Scenes/EditorScene.cpp
         src/Core/Scenes/EditorScene.h
+        src/Core/Scenes/GameScene.cpp
+        src/Core/Scenes/GameScene.h
+        src/Core/Input/InputManager.cpp
+        src/Core/Input/InputManager.h
+        src/Core/Scripting/EventManager.cpp
+        src/Core/Scripting/EventManager.h
 )
 
 # --- Link Libraries ---
