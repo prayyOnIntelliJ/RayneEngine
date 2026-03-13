@@ -81,10 +81,18 @@ function MathR.Cos(x) end
 --- GLOBAL FUNCTIONS ---
 
 ---Called at construction of the Entity
-function OnCreate() end
+---@param self Entity
+function OnCreate(self) end
 
 ---Called every frame
-function OnUpdate(dt) end
+---@param self Entity
+---@param dt number
+function OnUpdate(self, dt) end
+
+---Called when this entity collides with another
+---@param self Entity
+---@param other Entity
+function OnCollision(self, other) end
 
 ---Creates a new Entity ID
 ---@return Entity
@@ -113,3 +121,98 @@ function DestroyEntity(e) end
 
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
+
+--- INPUT ---
+
+---@class Input
+Input = {}
+
+---Returns true while the key is held down
+---@param key number
+---@return boolean
+function Input.IsKeyDown(key) end
+
+---Returns true on the frame the key was pressed
+---@param key number
+---@return boolean
+function Input.IsKeyPressed(key) end
+
+---Returns true on the frame the key was released
+---@param key number
+---@return boolean
+function Input.IsKeyReleased(key) end
+
+---Returns true while the mouse button is held down
+---@param button number
+---@return boolean
+function Input.IsMouseDown(button) end
+
+---Returns true on the frame the mouse button was pressed
+---@param button number
+---@return boolean
+function Input.IsMousePressed(button) end
+
+---Returns true on the frame the mouse button was released
+---@param button number
+---@return boolean
+function Input.IsMouseReleased(button) end
+
+---Returns the mouse X position in screen coordinates
+---@return number
+function Input.MouseX() end
+
+---Returns the mouse Y position in screen coordinates
+---@return number
+function Input.MouseY() end
+
+---Returns the mouse scroll delta this frame
+---@return number
+function Input.MouseScroll() end
+
+---@class Key
+---@field A number
+---@field B number
+---@field C number
+---@field D number
+---@field E number
+---@field F number
+---@field G number
+---@field H number
+---@field I number
+---@field J number
+---@field K number
+---@field L number
+---@field M number
+---@field N number
+---@field O number
+---@field P number
+---@field Q number
+---@field R number
+---@field S number
+---@field T number
+---@field U number
+---@field V number
+---@field W number
+---@field X number
+---@field Y number
+---@field Z number
+---@field Space number
+---@field Enter number
+---@field Escape number
+---@field LShift number
+---@field RShift number
+---@field LCtrl number
+---@field RCtrl number
+---@field Left number
+---@field Right number
+---@field Up number
+---@field Down number
+---@field Tab number
+---@field Delete number
+Key = {}
+
+---@class Mouse
+---@field Left number
+---@field Right number
+---@field Middle number
+Mouse = {}
