@@ -52,6 +52,13 @@ public:
             GetPool<std::tuple_element_t<0, std::tuple<Components...>>>()->entities);
     }
 
+    template <typename... Components, typename Func>
+    void ForEach(Func&& func)
+    {
+        for (Entity entity : GetView<Components...>())
+            func(entity, GetComponent<Components>(entity)...);
+    }
+
 private:
     template <typename T>
     std::shared_ptr<Pool<T>> GetPool()
