@@ -6,7 +6,9 @@
 #include <windows.h>
 
 #include "../ECS/Components.h"
+#include "../Input/InputManager.h"
 #include "../Scenes/EditorScene.h"
+#include "../Scenes/GameScene.h"
 #include "../Scripting/LuaState.h"
 #include "../Scripting/ScriptComponent.h"
 #include "SFML/Window/Event.hpp"
@@ -19,16 +21,9 @@ Application::Application()
     LuaState::Init(m_Registry);
 
     m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);
+    m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
 
     m_SceneManager.SwitchSceneTo("editor");
-
-    Entity player = m_Registry.CreateEntity();
-    m_Registry.AddComponent(player, TransformComponent{ 400.f, 400.f });
-    m_Registry.AddComponent(player, RenderComponent{ sf::Color::Cyan, { 40, 40 } });
-
-    auto& script = m_Registry.AddComponent(player, ScriptComponent(LuaState::GetLua(), ASSET_PATH "scripting/test.lua"));
-    script.SetEntity(player);
-    script.OnCreate();
 
     std::cout << "Initialized!\n";
 }
@@ -52,6 +47,7 @@ void Application::Run()
         float deltaTime = dt.asSeconds();
 
         SetEvents();
+        InputManager::Get().EndFrame();
         Update(deltaTime);
         Render();
     }
@@ -73,12 +69,6 @@ void Application::Update(float deltaTime)
 {
     m_SceneManager.Update(deltaTime);
     m_PrimitiveManager.Update(deltaTime);
-
-    for (auto ScriptView = m_Registry.GetView<ScriptComponent>(); Entity entity : ScriptView)
-    {
-        auto& script = m_Registry.GetComponent<ScriptComponent>(entity);
-        script.OnUpdate(deltaTime);
-    }
 }
 
 void Application::Render()
@@ -90,7 +80,7 @@ void Application::Render()
 
 void Application::SetEvents()
 {
-    sf::Event event;
+    sf::Event event{};
 
     while (m_RenderWindow.pollEvent(event))
     {
@@ -98,5 +88,6 @@ void Application::SetEvents()
             m_RenderWindow.close();
 
         m_SceneManager.HandleEvent(event);
+        InputManager::Get().HandleEvent(event);
     }
 }
