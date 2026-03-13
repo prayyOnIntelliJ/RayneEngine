@@ -13,6 +13,7 @@ public:
 
     void OnCreate() const;
     void OnUpdate(float dt) const;
+    void OnCollision(Entity other) const;
     void SetEntity(Entity e);
     sol::environment& GetEnv() { return m_Env; }
 
@@ -22,6 +23,7 @@ private:
 
     sol::function m_OnCreate;
     sol::function m_OnUpdate;
+    sol::function m_OnCollision;
 };
 
 #endif

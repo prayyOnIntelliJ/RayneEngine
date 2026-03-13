@@ -33,12 +33,17 @@ ScriptComponent::ScriptComponent(sol::state& lua, const std::string& path)
 
 void ScriptComponent::OnCreate() const
 {
-    if (m_OnCreate.valid()) m_OnCreate();
+    if (m_OnCreate.valid()) m_OnCreate(m_Env["self"].get_or(0));
 }
 
 void ScriptComponent::OnUpdate(float dt) const
 {
-    if (m_OnUpdate.valid()) m_OnUpdate(dt);
+    if (m_OnUpdate.valid()) m_OnUpdate(m_Env["self"].get_or(0), dt);
+}
+
+void ScriptComponent::OnCollision(Entity other) const
+{
+    if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
 }
 
 void ScriptComponent::SetEntity(Entity e)
