@@ -24,6 +24,7 @@ struct EditorObject
     sf::RectangleShape shape;
     sf::Color color;
     bool selected = false;
+    std::string scriptPath;
 };
 
 struct InspectorButton
@@ -80,6 +81,10 @@ private:
     std::string m_ScriptInputText;
     sf::FloatRect m_ScriptInputBounds;
 
+    bool m_NameInputActive = false;
+    std::string m_NameInputText;
+    sf::FloatRect m_NameInputBounds;
+
     void AddObject(sf::Vector2f pos);
     void DeleteSelected();
     void SaveToJson(const std::string& path);
@@ -95,6 +100,7 @@ private:
     void DrawInspector(sf::RenderWindow& window);
     float DrawSectionHeader(sf::RenderWindow& window, const std::string& title, sf::Color accent, float x, float y);
     float DrawRow(sf::RenderWindow& window, const std::string& key, const std::string& val, float x, float y);
+    float DrawEditableRow(sf::RenderWindow& window, const std::string& key, const std::string& val, const std::string& action, sf::FloatRect& boundsOut, float x, float y);
     float DrawAddButton(sf::RenderWindow& window, const std::string& label, const std::string& action, float x, float y);
     float DrawScriptInput(sf::RenderWindow& window, float x, float y);
     void HandleInspectorClick(sf::Vector2f pos);

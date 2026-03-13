@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <fstream>
 
+#include "../../../cmake-build-debug/_deps/sfml-src/src/SFML/Window/Win32/CursorImpl.hpp"
 #include "../Scripting/ScriptComponent.h"
 
 EditorScene::EditorScene(SceneManager& manager, sf::RenderWindow& window, Registry& registry)
@@ -62,6 +63,29 @@ void EditorScene::OnExit()
 
 void EditorScene::HandleEvent(const sf::Event& event)
 {
+    if (event.type == sf::Event::TextEntered && m_NameInputActive)
+    {
+        if (event.text.unicode == '\b')
+        {
+            if (!m_NameInputText.empty())
+                m_NameInputText.pop_back();
+        }
+        else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        {
+            if (m_Selected && !m_NameInputText.empty())
+            {
+                m_Selected->id = m_NameInputText;
+                UpdateStatusText();
+            }
+            m_NameInputActive = false;
+            m_NameInputText.clear();
+        }
+        else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        {
+            m_NameInputText += static_cast<char>(event.text.unicode);
+        }
+        return;
+    }
     if (event.type == sf::Event::TextEntered && m_ScriptInputActive)
     {
         if (event.text.unicode == '\b')
@@ -92,6 +116,7 @@ void EditorScene::HandleEvent(const sf::Event& event)
                 auto& sc = m_Registry.AddComponent(m_Selected->entity, ScriptComponent(LuaState::GetLua(), fullPath));
                 sc.SetEntity(m_Selected->entity);
                 sc.OnCreate();
+                m_Selected->scriptPath = fullPath;
                 std::cout << "[Inspector] Created script: " << fullPath << "\n";
             }
             m_ScriptInputActive = false;
@@ -158,7 +183,7 @@ void EditorScene::HandleEvent(const sf::Event& event)
     if (event.type == sf::Event::MouseButtonPressed &&
         event.mouseButton.button == sf::Mouse::Left)
     {
-        sf::Vector2f screenPos = { (float)event.mouseButton.x, (float)event.mouseButton.y };
+        sf::Vector2f screenPos = m_MouseScreenPos;
 
         if (screenPos.x >= m_Window.getSize().x - InspectorWidth)
         {
@@ -253,6 +278,7 @@ void EditorScene::HandleEvent(const sf::Event& event)
 
         if (event.key.code == sf::Keyboard::Escape)
         {
+            if (m_NameInputActive) { m_NameInputActive = false; m_NameInputText.clear(); }
             if (m_Selected) m_Selected->selected = false;
             m_Selected = nullptr;
             UpdateStatusText();
@@ -351,7 +377,7 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
 
     // Name / Entity
     y = DrawSectionHeader(window, "Object", sf::Color(100, 180, 255), x, y);
-    y = DrawRow(window, "Name", m_Selected->id, x, y);
+    y = DrawEditableRow(window, "Name", m_NameInputActive ? m_NameInputText + "|" : m_Selected->id, "edit_name", m_NameInputBounds, x, y);
     y = DrawRow(window, "Entity", std::to_string(m_Selected->entity), x, y);
     y += 6.f;
 
@@ -397,8 +423,15 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
         m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
         y = DrawSectionHeader(window, "Script", sf::Color(220, 100, 100), x, y);
+
+        std::string scriptName = m_Selected->scriptPath;
+        const size_t slash = scriptName.find_last_of("/\\");
+
+        if (slash != std::string::npos) scriptName = scriptName.substr(slash + 1);
+        y = DrawRow(window, "file", scriptName, x, y);
         y = DrawRow(window, "OnCreate", "bound", x, y);
         y = DrawRow(window, "OnUpdate", "bound", x, y);
+        y = DrawAddButton(window, "Open Script", "open_script", x, y);
         y += 6.f;
     }
     else if (m_Selected->entity != 0)
@@ -456,8 +489,44 @@ float EditorScene::DrawRow(sf::RenderWindow& window, const std::string& key,
     return y + 18.f;
 }
 
+float EditorScene::DrawEditableRow(sf::RenderWindow& window, const std::string& key, const std::string& val,
+    const std::string& action, sf::FloatRect& boundsOut, float x, float y)
+{
+    sf::Text keyText;
+    keyText.setFont(m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(sf::Color(140, 140, 160));
+    keyText.setString(key);
+    keyText.setPosition(x + InspectorPad + 8.f, y);
+    window.draw(keyText);
+
+    const float valX = x + InspectorWidth * 0.55f;
+    const float valW = InspectorWidth - InspectorWidth * 0.55f - InspectorPad;
+    boundsOut = sf::FloatRect(valX - 2.f, y - 1.f, valW, 16.f);
+    bool hovered = boundsOut.contains(m_MouseScreenPos);
+
+    sf::RectangleShape bg({ boundsOut.width, boundsOut.height });
+    bg.setPosition(boundsOut.left, boundsOut.top);
+    bg.setFillColor(hovered ? sf::Color(50, 50, 80, 200) : sf::Color(35, 35, 55, 150));
+    bg.setOutlineColor(hovered ? sf::Color(120, 120, 120) : sf::Color(60, 60, 90));
+    bg.setOutlineThickness(1.f);
+    window.draw(bg);
+
+    sf::Text valText;
+    valText.setFont(m_Font);
+    valText.setCharacterSize(12);
+    valText.setFillColor(sf::Color(220, 220, 255));
+    valText.setString(val);
+    valText.setPosition(valX, y);
+    window.draw(valText);
+
+    m_InspectorButtons.push_back({ boundsOut, action });
+
+    return y + 18.f;
+}
+
 float EditorScene::DrawAddButton(sf::RenderWindow& window, const std::string& label,
-    const std::string& action, float x, float y)
+                                 const std::string& action, float x, float y)
 {
     sf::FloatRect btnRect(x + InspectorPad, y, InspectorWidth - InspectorPad * 2, 22.f);
     bool hovered = btnRect.contains(m_MouseScreenPos);
@@ -530,6 +599,21 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ScriptInputActive = true;
         }
+        else if (btn.action == "edit_name" && m_Selected)
+        {
+            m_NameInputActive = true;
+            m_NameInputText = m_Selected->id;
+        }
+        else if (btn.action == "open_script" && m_Selected && !m_Selected->scriptPath.empty())
+        {
+#ifdef _WIN32
+            ShellExecuteA(nullptr, "open", m_Selected->scriptPath.c_str(), nullptr, nullptr, SW_SHOW);
+#elif __APPLE__
+            system(("open \"" + m_Selected->scriptPath + "\"").c_str());
+#else
+            system(("xdg-open \"" + m_Selected->scriptPath + "\"").c_str());
+#endif
+        }
         break;
     }
 }
@@ -585,6 +669,17 @@ void EditorScene::SaveToJson(const std::string& path)
         j["height"] = obj.shape.getSize().y;
         j["color"]  = { obj.color.r, obj.color.g, obj.color.b };
         data["objects"].push_back(j);
+
+        if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity))
+        {
+            auto& vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
+            j["velocity"] = { { "dx", vel.dx }, { "dy", vel.dy }};
+        }
+
+        if (!obj.scriptPath.empty())
+            j["script"] = obj.scriptPath;
+
+        data["objects"].push_back(j);
     }
 
     std::ofstream file(path);
@@ -621,6 +716,21 @@ void EditorScene::LoadFromJson(const std::string& path)
         obj.entity = m_Registry.CreateEntity();
         m_Registry.AddComponent(obj.entity, TransformComponent{ j["x"], j["y"] });
         m_Registry.AddComponent(obj.entity, RenderComponent{ obj.color, obj.shape.getSize() });
+
+        if (j.contains("velocity"))
+        {
+            m_Registry.AddComponent(obj.entity, VelocityComponent
+                {j["velocity"]["dx"], j["velocity"]["dy"]});
+        }
+
+        if (j.contains("script"))
+        {
+            std::string scriptPath = j["script"];
+            auto& sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), scriptPath));
+            sc.SetEntity(obj.entity);
+            sc.OnCreate();
+            obj.scriptPath = scriptPath;
+        }
 
         m_Objects.push_back(std::move(obj));
     }
