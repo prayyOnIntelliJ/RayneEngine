@@ -20,8 +20,6 @@ public:
     static void Init(Registry& registry);
     static sol::state& GetLua();
 
-    static void GenerateApiStub(const std::string& path);
-
 private:
     static sol::state s_Lua;
 
