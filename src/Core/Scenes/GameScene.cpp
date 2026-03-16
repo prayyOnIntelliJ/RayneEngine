@@ -38,8 +38,6 @@ void GameScene::OnEnter()
     {
         sc.OnCreate();
     });
-
-    CheckCollisions();
 }
 
 void GameScene::OnExit()
