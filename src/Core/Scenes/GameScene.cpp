@@ -114,12 +114,21 @@ void GameScene::Render(sf::RenderWindow& window)
     window.setView(m_Camera);
 
     m_Registry.ForEach<TransformComponent, RenderComponent>(
-        [&window](Entity, TransformComponent& t, RenderComponent& r)
+        [&](Entity e, TransformComponent& t, RenderComponent& r)
         {
-            sf::RectangleShape shape(r.size);
+            if (m_Registry.HasComponent<ScriptComponent>(e))
+            {
+                auto& sc = m_Registry.GetComponent<SpriteComponent>(e);
+                sc.sprite.setPosition(t.x, t.y);
+                window.draw(sc.sprite);
+            }
+            else
+            {
+                sf::RectangleShape shape(r.size);
             shape.setPosition(t.x, t.y);
             shape.setFillColor(r.color);
             window.draw(shape);
+            }
         });
 
     window.setView(window.getDefaultView());

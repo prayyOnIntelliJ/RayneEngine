@@ -87,6 +87,8 @@ add_executable(RayneEngine
         src/Core/Input/InputManager.h
         src/Core/Scripting/EventManager.cpp
         src/Core/Scripting/EventManager.h
+        src/Core/Scenes/ContentBrowser.cpp
+        src/Core/Scenes/ContentBrowser.h
 )
 
 # --- Link Libraries ---
