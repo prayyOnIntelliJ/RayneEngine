@@ -34,7 +34,7 @@ void Application::CreateEngineWindow()
 
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     m_RenderWindow.create(desktop, "RayneEngine");
-    ShowWindow(m_RenderWindow.getSystemHandle(), SW_MAXIMIZE);
+    // ShowWindow(m_RenderWindow.getSystemHandle(), SW_MAXIMIZE);
 
     std::cout << "Window created!\n";
 }
