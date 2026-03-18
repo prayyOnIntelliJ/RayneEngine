@@ -5,10 +5,10 @@
 #include <string>
 #include <nlohmann/json.hpp>
 
+#include "ContentBrowser.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/Text.hpp"
 #include "SFML/Graphics/Font.hpp"
-#include "SFML/Window/Event.hpp"
 
 #include "../Scenes/Scene.h"
 #include "../ECS/Registry.h"
@@ -16,6 +16,8 @@
 #include "../Scripting/ScriptComponent.h"
 
 using json = nlohmann::json;
+
+enum class ObjectType { Rectangle, Sprite };
 
 struct EditorObject
 {
@@ -25,6 +27,11 @@ struct EditorObject
     sf::Color color;
     bool selected = false;
     std::string scriptPath;
+
+    ObjectType objectType = ObjectType::Rectangle;
+    std::string spritePath;
+    std::shared_ptr<sf::Texture> previewTexture;
+    sf::Sprite previewSprite;
 };
 
 struct InspectorButton
@@ -74,8 +81,17 @@ private:
 
     static constexpr float InspectorWidth = 270.f;
     static constexpr float InspectorPad = 10.f;
+    static constexpr float BrowserHeight = 160.f;
     sf::RectangleShape m_InspectorPanel;
     std::vector<InspectorButton> m_InspectorButtons;
+
+    std::unique_ptr<ContentBrowser> m_ContentBrowser;
+
+    ObjectType m_PlacementType = ObjectType::Rectangle;
+    std::string m_PlacementSpritePath;
+    std::shared_ptr<sf::Texture> m_PlacementTexture;
+    static constexpr float ChooserWidth = 120.f;
+    std::vector<std::pair<sf::FloatRect, ObjectType>> m_ChooserButtons;
 
     bool m_ScriptInputActive = false;
     std::string m_ScriptInputText;
@@ -86,6 +102,8 @@ private:
     sf::FloatRect m_NameInputBounds;
 
     void AddObject(sf::Vector2f pos);
+    void AddObjectWithSprite(sf::Vector2f pos, const std::string& spritePath);
+    void ApplySpriteToObject(EditorObject& obj, const std::string& spritePath);
     void DeleteSelected();
     void SaveToJson(const std::string& path);
     void LoadFromJson(const std::string& path);
@@ -98,6 +116,7 @@ private:
     std::string NextId();
 
     void DrawInspector(sf::RenderWindow& window);
+    void DrawObjectChooser(sf::RenderWindow& window);
     float DrawSectionHeader(sf::RenderWindow& window, const std::string& title, sf::Color accent, float x, float y);
     float DrawRow(sf::RenderWindow& window, const std::string& key, const std::string& val, float x, float y);
     float DrawEditableRow(sf::RenderWindow& window, const std::string& key, const std::string& val, const std::string& action, sf::FloatRect& boundsOut, float x, float y);
