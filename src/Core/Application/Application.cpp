@@ -32,11 +32,20 @@ void Application::CreateEngineWindow()
 {
     std::cout << "Creating Window...\n";
 
+    SetProcessDPIAware();
+
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     m_RenderWindow.create(desktop, "RayneEngine");
-    // ShowWindow(m_RenderWindow.getSystemHandle(), SW_MAXIMIZE);
 
-    std::cout << "Window created!\n";
+    std::cout << "Created window" << std::endl;
+
+    HWND hwnd = m_RenderWindow.getSystemHandle();
+    ShowWindow(hwnd, SW_MAXIMIZE);
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+    m_RenderWindow.setSize({ (unsigned)(rect.right - rect.left), (unsigned)(rect.bottom - rect.top) });
+
+    std::cout << "Maximized Window" << std::endl;
 }
 
 void Application::Run()
@@ -60,7 +69,10 @@ void Application::SetIcon()
     sf::Image icon;
 
     if (const std::string& filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
+    {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
+        std::cout << "Icon taken from: " << filePath << std::endl;
+    }
     else
         std::cout << "Failed to load icon from " << filePath << std::endl;
 }

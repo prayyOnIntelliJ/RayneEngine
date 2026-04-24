@@ -1,6 +1,7 @@
 ﻿#ifndef RAYNEENGINE_SCENEMANAGER_H
 #define RAYNEENGINE_SCENEMANAGER_H
 
+#include <iostream>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -16,6 +17,7 @@ public:
     void RegisterScene(const std::string& name, Args&&... args)
     {
         m_scenes[name] = std::make_unique<T>(*this, std::forward<Args>(args)...);
+        std::cout << "[SceneManager] Register scene " << name << "\n";
     }
 
     void SwitchSceneTo(const std::string& name);
