@@ -1,4 +1,4 @@
-﻿#include "Application.h"
+#include "Application.h"
 
 #include <iostream>
 
@@ -41,9 +41,9 @@ void Application::CreateEngineWindow()
 
     HWND hwnd = m_RenderWindow.getSystemHandle();
     ShowWindow(hwnd, SW_MAXIMIZE);
-    RECT rect;
-    GetClientRect(hwnd, &rect);
-    m_RenderWindow.setSize({ (unsigned)(rect.right - rect.left), (unsigned)(rect.bottom - rect.top) });
+
+    sf::Event e;
+    while (m_RenderWindow.pollEvent(e)) {}
 
     std::cout << "Maximized Window" << std::endl;
 }

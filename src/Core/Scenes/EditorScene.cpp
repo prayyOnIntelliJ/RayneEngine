@@ -3,10 +3,19 @@
 #include <iostream>
 #include <algorithm>
 #include <fstream>
+#include <filesystem>
 
-#include "../../../cmake-build-debug/_deps/sfml-src/src/SFML/Window/Win32/CursorImpl.hpp"
 #include "../Scripting/ScriptComponent.h"
 #include "SFML/Window/Event.hpp"
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <shellapi.h>
+#undef CreateWindow
+#endif
+
+namespace fs = std::filesystem;
 
 EditorScene::EditorScene(SceneManager& manager, sf::RenderWindow& window, Registry& registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
@@ -17,30 +26,19 @@ EditorScene::EditorScene(SceneManager& manager, sf::RenderWindow& window, Regist
 
     m_camera = window.getDefaultView();
     sf::View adjustedView = m_camera;
-    adjustedView.setViewport(
-        {
+    adjustedView.setViewport({
         0.f, 0.f,
         1.f - (InspectorWidth / window.getSize().x),
         1.f - (BrowserHeight / window.getSize().y)
-        });
+    });
     m_camera = adjustedView;
 
-    m_ToolboxSize.x = window.getSize().x;
+    UpdateBounds();
 
     m_Preview.setSize({ m_GridSize, m_GridSize });
     m_Preview.setFillColor(sf::Color(100, 200, 100, 80));
     m_Preview.setOutlineColor(sf::Color(100, 255, 100));
     m_Preview.setOutlineThickness(1.f);
-
-    m_Toolbar.setFillColor(sf::Color(30, 30, 30, 220));
-
-    m_HelpText.setFont(m_Font);
-    m_HelpText.setCharacterSize(24);
-    m_HelpText.setFillColor(sf::Color(180, 180, 180));
-    m_HelpText.setString(
-        "LMB: Place / Select   RMB: Delete   Drag: Move   "
-        "G: Grid   Entf: Delete   Strg+S: Save   Strg+L: Load   F5: Play"
-    );
 
     m_StatusText.setFont(m_Font);
     m_StatusText.setCharacterSize(13);
@@ -53,9 +51,20 @@ EditorScene::EditorScene(SceneManager& manager, sf::RenderWindow& window, Regist
     UpdateStatusText();
 }
 
+void EditorScene::UpdateBounds()
+{
+    const float w = static_cast<float>(m_Window.getSize().x);
+    const float h = static_cast<float>(m_Window.getSize().y);
+
+    m_ChooserBounds   = { 0.f,          h - BrowserHeight, ChooserWidth,                         BrowserHeight };
+    m_BrowserBounds   = { ChooserWidth, h - BrowserHeight, w - InspectorWidth - ChooserWidth,    BrowserHeight };
+    m_InspectorBounds = { w - InspectorWidth, 0.f,         InspectorWidth,                       h             };
+}
+
 void EditorScene::OnEnter()
 {
     std::cout << "[EditorScene] Active\n";
+    UpdateBounds();
     UpdateStatusText();
 }
 
@@ -66,11 +75,11 @@ void EditorScene::OnExit()
 
 void EditorScene::HandleEvent(const sf::Event& event)
 {
-    const float winW = static_cast<float>(m_Window.getSize().x);
-    const float winH = static_cast<float>(m_Window.getSize().y);
-    const bool inBrowser = m_MouseScreenPos.y >= winH - BrowserHeight &&
-                           m_MouseScreenPos.x >= ChooserWidth &&
-                           m_MouseScreenPos.x < winW - InspectorWidth;
+    UpdateBounds();
+
+    const bool inBrowser  = m_BrowserBounds.contains(m_MouseScreenPos);
+    const bool inChooser  = m_ChooserBounds.contains(m_MouseScreenPos);
+    const bool inInspector= m_InspectorBounds.contains(m_MouseScreenPos);
 
     if (inBrowser || m_ContentBrowser->HasDraggedAsset())
         m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
@@ -125,7 +134,22 @@ void EditorScene::HandleEvent(const sf::Event& event)
         }
     }
 
-    if (event.type == sf::Event::MouseWheelScrolled && inBrowser || event.type == sf::Event::MouseButtonPressed && inBrowser) return;
+    if (event.type == sf::Event::MouseButtonPressed &&
+        event.mouseButton.button == sf::Mouse::Left && inChooser)
+    {
+        for (auto& [rect, type] : m_ChooserButtons)
+        {
+            if (rect.contains(m_MouseScreenPos))
+            {
+                m_PlacementType = type;
+                break;
+            }
+        }
+        return;
+    }
+
+    if ((event.type == sf::Event::MouseWheelScrolled || event.type == sf::Event::MouseButtonPressed)
+        && (inBrowser || inChooser)) return;
 
     if (event.type == sf::Event::TextEntered && m_NameInputActive)
     {
@@ -199,11 +223,11 @@ void EditorScene::HandleEvent(const sf::Event& event)
         const float newH = static_cast<float>(event.size.height);
 
         sf::FloatRect vp = m_camera.getViewport();
-        vp.width = 1.f - (InspectorWidth / newW);
-        vp.height = 1.f - (BrowserHeight / newH);
+        vp.width  = 1.f - (InspectorWidth / newW);
+        vp.height = 1.f - (BrowserHeight  / newH);
         m_camera.setViewport(vp);
 
-        m_ToolboxSize.x = newW - InspectorWidth;
+        UpdateBounds();
     }
 
     if (event.type == sf::Event::MouseWheelScrolled)
@@ -251,16 +275,7 @@ void EditorScene::HandleEvent(const sf::Event& event)
     {
         sf::Vector2f screenPos = m_MouseScreenPos;
 
-        for (auto& [rect, type] : m_ChooserButtons)
-        {
-            if (rect.contains(screenPos))
-            {
-                m_PlacementType = type;
-                return;
-            }
-        }
-
-        if (screenPos.x >= m_Window.getSize().x - InspectorWidth)
+        if (inInspector)
         {
             if (m_ScriptInputBounds.contains(screenPos))
             {
@@ -405,20 +420,21 @@ void EditorScene::Render(sf::RenderWindow& window)
     if (!m_Dragging)
         window.draw(m_Preview);
 
-    window.setView(window.getDefaultView());
-    const float winH = static_cast<float>(window.getSize().y);
-    const float winW = static_cast<float>(window.getSize().x);
+    sf::View uiView(sf::FloatRect(0.f, 0.f,
+        static_cast<float>(m_Window.getSize().x),
+        static_cast<float>(m_Window.getSize().y)));
+    window.setView(uiView);
+    UpdateBounds();
+    const float winH = m_ChooserBounds.top + BrowserHeight;
+    const float winW = m_InspectorBounds.left + InspectorWidth;
 
-    m_ContentBrowser->Render(window, ChooserWidth, winH - BrowserHeight, winW - InspectorWidth - ChooserWidth, BrowserHeight);
-
-    m_Toolbar.setPosition(0.f, winH - m_ToolboxSize.y);
-    m_Toolbar.setSize({ winW - InspectorWidth, m_ToolboxSize.y });
-    window.draw(m_Toolbar);
-
-    m_HelpText.setPosition(8.f, m_Toolbar.getPosition().y);
-    window.draw(m_HelpText);
+    m_ContentBrowser->Render(window, m_BrowserBounds.left, m_BrowserBounds.top, m_BrowserBounds.width, m_BrowserBounds.height);
 
     m_StatusText.setPosition(8.f, 8.f);
+    m_StatusText.setString(
+        "Mouse(" + std::to_string((int)m_MouseScreenPos.x) + ", " + std::to_string((int)m_MouseScreenPos.y) + ")"
+        "  Win(" + std::to_string(m_Window.getSize().x) + "x" + std::to_string(m_Window.getSize().y) + ")"
+    );
     window.draw(m_StatusText);
 
     DrawObjectChooser(window);
@@ -429,10 +445,9 @@ void EditorScene::DrawObjectChooser(sf::RenderWindow& window)
 {
     m_ChooserButtons.clear();
 
-    const float winH = static_cast<float>(window.getSize().y);
-    const float x = 0.f;
-    const float y = winH - BrowserHeight;
-    const float panelH = BrowserHeight;
+    const float x = m_ChooserBounds.left;
+    const float y = m_ChooserBounds.top;
+    const float panelH = m_ChooserBounds.height;
 
     const bool isDraggingImage = m_ContentBrowser->HasDraggedAsset() &&
                                  m_ContentBrowser->GetDraggedAsset().type == AssetType::Image;
@@ -458,7 +473,6 @@ void EditorScene::DrawObjectChooser(sf::RenderWindow& window)
     headerLabel.setPosition(x + 8.f, y + 5.f);
     window.draw(headerLabel);
 
-    // Rectangle button
     {
         const bool active = m_PlacementType == ObjectType::Rectangle;
         sf::FloatRect btnRect(x + 6.f, y + 30.f, ChooserWidth - 12.f, 26.f);
@@ -486,7 +500,6 @@ void EditorScene::DrawObjectChooser(sf::RenderWindow& window)
         window.draw(t);
     }
 
-    // Sprite dropzone
     {
         const bool active = m_PlacementType == ObjectType::Sprite;
         const float dzY = y + 64.f;
@@ -553,10 +566,8 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
 {
     m_InspectorButtons.clear();
 
-    const float winW = static_cast<float>(window.getSize().x);
-    const float winH = static_cast<float>(window.getSize().y);
-    const float x = winW - InspectorWidth;
-    const float maxH = winH - m_ToolboxSize.y;
+    const float x = m_InspectorBounds.left;
+    const float maxH = m_InspectorBounds.height;
 
     m_InspectorPanel.setPosition(x, 0.f);
     m_InspectorPanel.setSize({ InspectorWidth, maxH });
@@ -590,19 +601,19 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
 
     float y = 34.f;
 
-    // Name / Entity
+
     y = DrawSectionHeader(window, "Object", sf::Color(100, 180, 255), x, y);
     y = DrawEditableRow(window, "Name", m_NameInputActive ? m_NameInputText + "|" : m_Selected->id, "edit_name", m_NameInputBounds, x, y);
     y = DrawRow(window, "Entity", std::to_string(m_Selected->entity), x, y);
     y += 6.f;
 
-    // TransformComponent
+
     y = DrawSectionHeader(window, "Transform", sf::Color(120, 220, 120), x, y);
     y = DrawRow(window, "x", std::to_string((int)m_Selected->shape.getPosition().x), x, y);
     y = DrawRow(window, "y", std::to_string((int)m_Selected->shape.getPosition().y), x, y);
     y += 6.f;
 
-    // RenderComponent
+
     y = DrawSectionHeader(window, "Render", sf::Color(220, 180, 80), x, y);
     y = DrawRow(window, "width",  std::to_string((int)m_Selected->shape.getSize().x), x, y);
     y = DrawRow(window, "height", std::to_string((int)m_Selected->shape.getSize().y), x, y);
@@ -633,7 +644,7 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
     }
     y += 6.f;
 
-    // VelocityComponent
+
     if (m_Selected->entity != 0 &&
         m_Registry.HasComponent<VelocityComponent>(m_Selected->entity))
     {
@@ -648,7 +659,7 @@ void EditorScene::DrawInspector(sf::RenderWindow& window)
         y = DrawAddButton(window, "+ Add VelocityComponent", "add_velocity", x, y);
     }
 
-    // ScriptComponent
+
     if (m_Selected->entity != 0 &&
         m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {

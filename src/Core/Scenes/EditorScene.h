@@ -72,11 +72,9 @@ private:
 
     bool m_SnapToGrid = true;
     float m_GridSize = 40.f;
-    sf::Vector2f m_ToolboxSize = { 0.f, 50.f };
 
     sf::Font m_Font;
     sf::Text m_StatusText;
-    sf::Text m_HelpText;
     sf::RectangleShape m_Toolbar;
 
     static constexpr float InspectorWidth = 270.f;
@@ -86,6 +84,13 @@ private:
     std::vector<InspectorButton> m_InspectorButtons;
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
+
+    sf::FloatRect m_BrowserBounds;
+    sf::FloatRect m_ChooserBounds;
+    sf::FloatRect m_InspectorBounds;
+    float m_ExtraOffsetY = 0.f;
+    float m_RenderW = 0.f;
+    float m_RenderH = 0.f;
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;
@@ -104,6 +109,7 @@ private:
     void AddObject(sf::Vector2f pos);
     void AddObjectWithSprite(sf::Vector2f pos, const std::string& spritePath);
     void ApplySpriteToObject(EditorObject& obj, const std::string& spritePath);
+    void UpdateBounds();
     void DeleteSelected();
     void SaveToJson(const std::string& path);
     void LoadFromJson(const std::string& path);
