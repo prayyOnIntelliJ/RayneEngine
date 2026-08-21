@@ -83,6 +83,7 @@ public:
     void Refresh();
 
     bool IsInputActive() const { return m_SearchActive || m_NewScriptPrompt; }
+    bool IsContextMenuOpen() const { return m_ContextMenuOpen; }
 
 private:
     const sf::Font &m_Font;
@@ -112,6 +113,7 @@ private:
     sf::FloatRect m_NewScriptBtnBounds;
     sf::FloatRect m_SearchBoxBounds;
     sf::FloatRect m_SearchClearBounds;
+    sf::FloatRect m_Bounds;
 
     bool m_ContextMenuOpen = false;
     sf::Vector2f m_ContextMenuPos;

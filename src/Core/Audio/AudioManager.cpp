@@ -9,7 +9,6 @@ AudioManager::AudioManager()
 
 void AudioManager::Update()
 {
-    // Clean up sounds that finished playing
     std::erase_if(m_ActiveSounds, [](const std::unique_ptr<sf::Sound>& sound) {
         return sound->getStatus() == sf::SoundSource::Status::Stopped;
     });
@@ -28,7 +27,6 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
 
     if (m_ActiveSounds.size() >= MaxSoundChannels)
     {
-        // Remove oldest sound to make room
         m_ActiveSounds.erase(m_ActiveSounds.begin());
     }
 

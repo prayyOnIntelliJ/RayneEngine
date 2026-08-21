@@ -273,27 +273,32 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Right)
     {
         m_ContextMenuOpen = false;
-        for (auto &[rect, idx]: m_ItemBounds)
+        
+        if (m_Bounds.contains(mouseScreenPos))
         {
-            if (rect.contains(mouseScreenPos) && idx < m_FilteredEntries.size())
+            for (auto &[rect, idx]: m_ItemBounds)
             {
-                const ContentEntry &entry = m_FilteredEntries[idx];
-                m_SelectedPath = entry.fullPath;
-                m_ContextMenuTarget = entry.fullPath;
-                m_ContextMenuPos = mouseScreenPos;
-                m_ContextMenuOpen = true;
-                return;
+                if (rect.contains(mouseScreenPos) && idx < m_FilteredEntries.size())
+                {
+                    const ContentEntry &entry = m_FilteredEntries[idx];
+                    m_SelectedPath = entry.fullPath;
+                    m_ContextMenuTarget = entry.fullPath;
+                    m_ContextMenuPos = mouseScreenPos;
+                    m_ContextMenuOpen = true;
+                    return;
+                }
             }
-        }
 
-        m_ContextMenuTarget = m_CurrentPath;
-        m_ContextMenuPos = mouseScreenPos;
-        m_ContextMenuOpen = true;
+            m_ContextMenuTarget = m_CurrentPath;
+            m_ContextMenuPos = mouseScreenPos;
+            m_ContextMenuOpen = true;
+        }
     }
 }
 
 void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float width, float height)
 {
+    m_Bounds = sf::FloatRect(x, y, width, height);
     m_ItemBounds.clear();
     m_Breadcrumbs.clear();
     m_FilterBounds.clear();

@@ -79,7 +79,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
     const bool inChooser = m_ChooserBounds.contains(m_MouseScreenPos);
     const bool inInspector = m_InspectorBounds.contains(m_MouseScreenPos);
 
-    if (inBrowser || m_ContentBrowser->HasDraggedAsset() || m_ContentBrowser->IsInputActive())
+    if (inBrowser || m_ContentBrowser->HasDraggedAsset() || m_ContentBrowser->IsInputActive() || m_ContentBrowser->IsContextMenuOpen())
     {
         m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
         if (m_ContentBrowser->IsInputActive() && (
@@ -342,21 +342,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         m_Dragging = false;
     }
 
-    if (event.type == sf::Event::MouseButtonPressed &&
-        event.mouseButton.button == sf::Mouse::Right)
-    {
-        if (EditorObject *hit = ObjectAt(MouseWorldPos()))
-        {
-            if (hit->entity != 0)
-                m_Registry.DestroyEntity(hit->entity);
 
-            if (m_Selected == hit) m_Selected = nullptr;
-
-            std::erase_if(m_Objects,
-                          [hit](const EditorObject &o) { return &o == hit; });
-            UpdateStatusText();
-        }
-    }
 
     if (event.type == sf::Event::KeyPressed)
     {
