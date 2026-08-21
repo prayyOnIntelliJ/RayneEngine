@@ -39,7 +39,6 @@ void ContentBrowser::Refresh()
     if (current != root && current.has_parent_path())
     {
         fs::path parent = current.parent_path();
-        // Nicht über Root hinaus navigieren
         if (parent.string().find(m_RootPath) != std::string::npos || parent == root)
         {
             ContentEntry back;
@@ -107,7 +106,6 @@ void ContentBrowser::HandleEvent(const sf::Event& event, sf::Vector2f mouseScree
             return;
         }
 
-        // Item click - einmal klicken startet Drag fuer Dateien
         for (auto& [rect, idx] : m_ItemBounds)
         {
             if (!rect.contains(mouseScreenPos)) continue;
@@ -126,7 +124,6 @@ void ContentBrowser::HandleEvent(const sf::Event& event, sf::Vector2f mouseScree
             }
             else if (entry.isDirectory)
             {
-                // Einzelklick auf Ordner navigiert direkt
                 NavigateTo(entry.fullPath);
             }
             else
@@ -170,7 +167,6 @@ void ContentBrowser::Render(sf::RenderWindow& window, float x, float y, float wi
     headerText.setPosition(x + 8.f, y + 5.f);
     window.draw(headerText);
 
-    // Refresh button - bounds fuer HandleEvent speichern
     m_RefreshBtnBounds = sf::FloatRect(x + width - 60.f, y + 2.f, 54.f, 20.f);
     bool refreshHovered = m_RefreshBtnBounds.contains(m_MousePos);
     sf::RectangleShape refreshShape({ m_RefreshBtnBounds.width, m_RefreshBtnBounds.height });
