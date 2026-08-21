@@ -9,17 +9,21 @@
 class ScriptComponent
 {
 public:
-    ScriptComponent(sol::state& lua, const std::string& path);
+    ScriptComponent(sol::state &lua, const std::string &path);
 
     void OnCreate() const;
+
     void OnUpdate(float dt) const;
+
     void OnCollision(Entity other) const;
+
     void SetEntity(Entity e);
-    sol::environment& GetEnv() { return m_Env; }
+
+    sol::environment &GetEnv() { return m_Env; }
 
 private:
     sol::environment m_Env;
-    sol::state* m_Lua;
+    sol::state *m_Lua;
 
     sol::function m_OnCreate;
     sol::function m_OnUpdate;

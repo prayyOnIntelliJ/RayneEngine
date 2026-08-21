@@ -4,11 +4,12 @@
 #include "SFML/Graphics/RectangleShape.hpp"
 
 
-class RectanglePrimitive : public Primitive {
+class RectanglePrimitive : public Primitive
+{
 public:
     sf::RectangleShape m_shape;
 
-    RectanglePrimitive(const sf::Vector2f& size, const sf::Color& col)
+    RectanglePrimitive(const sf::Vector2f &size, const sf::Color &col)
     {
         m_shape.setSize(size);
         m_shape.setOrigin(size / 2.f);
@@ -22,12 +23,8 @@ public:
         m_shape.setRotation(m_rotation);
     }
 
-    void Draw(sf::RenderWindow& window) override
-    {
-        window.draw(m_shape);
-    }
+    void Draw(sf::RenderWindow &window) override { window.draw(m_shape); }
 };
-
 
 
 #endif

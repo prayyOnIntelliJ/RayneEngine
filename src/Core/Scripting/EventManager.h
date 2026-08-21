@@ -13,19 +13,22 @@ struct CollisionEvent
 class EventManager
 {
 public:
-    static EventManager& Get()
+    static EventManager &Get()
     {
         static EventManager instance;
         return instance;
     }
 
     void SubscribeCollision(std::function<void(CollisionEvent)> callback);
+
     void FireCollision(Entity a, Entity b);
+
     void Clear();
 
 private:
     EventManager() = default;
-    std::vector<std::function<void(CollisionEvent)>> m_CollisionCallbacks;
+
+    std::vector<std::function<void(CollisionEvent)> > m_CollisionCallbacks;
 };
 
 

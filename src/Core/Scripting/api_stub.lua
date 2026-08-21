@@ -119,8 +119,150 @@ function GetTransform(e) end
 ---@param e Entity
 function DestroyEntity(e) end
 
+---Checks if an Entity has a Transform Component
+---@param e Entity
+---@return boolean
+function HasTransform(e) end
+
+---Adds a Velocity Component to an Entity
+---@param e Entity
+---@param dx number
+---@param dy number
+function AddVelocity(e, dx, dy) end
+
+---Returns the Velocity Component of an Entity
+---@param e Entity
+---@return Velocity
+function GetVelocity(e) end
+
+---Sets the Velocity of an Entity
+---@param e Entity
+---@param dx number
+---@param dy number
+function SetVelocity(e, dx, dy) end
+
+---Checks if an Entity has a Velocity Component
+---@param e Entity
+---@return boolean
+function HasVelocity(e) end
+
+---Adds a Sprite Component to an Entity
+---@param e Entity
+---@param path string
+---@param width number
+---@param height number
+function AddSprite(e, path, width, height) end
+
+---Sets or replaces the Sprite texture of an Entity
+---@param e Entity
+---@param path string
+function SetSprite(e, path) end
+
+---Sets the rendered Sprite size of an Entity
+---@param e Entity
+---@param width number
+---@param height number
+function SetSpriteSize(e, width, height) end
+
+---Checks if an Entity has a Sprite Component
+---@param e Entity
+---@return boolean
+function HasSprite(e) end
+
+---Sets the render color of an Entity (tint or shape color)
+---@param e Entity
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+function SetColor(e, r, g, b, a) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
+
+--- RESOURCE MANAGEMENT ---
+
+---@class Resource
+Resource = {}
+
+---Preloads and caches a texture
+---@param path string
+---@return boolean
+function Resource.PreloadTexture(path) end
+
+---Preloads and caches a font
+---@param path string
+---@return boolean
+function Resource.PreloadFont(path) end
+
+---Preloads and caches a sound buffer
+---@param path string
+---@return boolean
+function Resource.PreloadSound(path) end
+
+---Clears all cached textures
+function Resource.ClearTextures() end
+
+---Clears all cached fonts
+function Resource.ClearFonts() end
+
+---Clears all cached sounds
+function Resource.ClearSounds() end
+
+---Clears all cached assets
+function Resource.ClearAll() end
+
+---Returns the number of cached textures
+---@return number
+function Resource.TextureCount() end
+
+---Returns the number of cached fonts
+---@return number
+function Resource.FontCount() end
+
+---Returns the number of cached sound buffers
+---@return number
+function Resource.SoundCount() end
+
+---Prints resource cache statistics to console
+function Resource.PrintStats() end
+
+--- AUDIO ---
+
+---@class Audio
+Audio = {}
+
+---Plays a sound effect
+---@param path string
+---@param volume? number Default: 100
+---@param pitch? number Default: 1.0
+function Audio.PlaySound(path, volume, pitch) end
+
+---Stops all playing sound effects
+function Audio.StopAllSounds() end
+
+---Plays background music
+---@param path string
+---@param loop? boolean Default: true
+---@param volume? number Default: 100
+function Audio.PlayMusic(path, loop, volume) end
+
+---Stops background music
+function Audio.StopMusic() end
+
+---Pauses background music
+function Audio.PauseMusic() end
+
+---Resumes paused background music
+function Audio.ResumeMusic() end
+
+---Sets music volume (0 - 100)
+---@param volume number
+function Audio.SetMusicVolume(volume) end
+
+---Sets master volume for both sound effects and music (0 - 100)
+---@param volume number
+function Audio.SetMasterVolume(volume) end
 
 --- INPUT ---
 
@@ -128,32 +270,32 @@ self_entity = nil -- The ID of the current Entity
 Input = {}
 
 ---Returns true while the key is held down
----@param key number
+---@param key number|string Key code (e.g. Key.W) or key name (e.g. "W", "Space", "Left")
 ---@return boolean
 function Input.IsKeyDown(key) end
 
 ---Returns true on the frame the key was pressed
----@param key number
+---@param key number|string Key code or key name
 ---@return boolean
 function Input.IsKeyPressed(key) end
 
 ---Returns true on the frame the key was released
----@param key number
+---@param key number|string Key code or key name
 ---@return boolean
 function Input.IsKeyReleased(key) end
 
 ---Returns true while the mouse button is held down
----@param button number
+---@param button number|string Mouse button code (e.g. Mouse.Left) or name ("Left", "Right", "Middle")
 ---@return boolean
 function Input.IsMouseDown(button) end
 
 ---Returns true on the frame the mouse button was pressed
----@param button number
+---@param button number|string Mouse button code or name
 ---@return boolean
 function Input.IsMousePressed(button) end
 
 ---Returns true on the frame the mouse button was released
----@param button number
+---@param button number|string Mouse button code or name
 ---@return boolean
 function Input.IsMouseReleased(button) end
 

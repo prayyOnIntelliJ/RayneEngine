@@ -11,27 +11,33 @@
 class InputManager
 {
 public:
-    static InputManager& Get()
+    static InputManager &Get()
     {
         static InputManager instance;
         return instance;
     }
 
-    void HandleEvent(const sf::Event& event);
+    void HandleEvent(const sf::Event &event);
+
     void EndFrame();
 
     static bool IsKeyDown(sf::Keyboard::Key key);
+
     static bool IsKeyPressed(sf::Keyboard::Key key);
+
     static bool IsKeyReleased(sf::Keyboard::Key key);
 
     static bool IsMouseDown(sf::Mouse::Button button);
+
     static bool IsMousePressed(sf::Mouse::Button button);
+
     static bool IsMouseReleased(sf::Mouse::Button button);
 
     static sf::Vector2i MousePosition();
+
     static float MouseScrollDelta();
 
-    static void RegisterLua(sol::state& lua);
+    static void RegisterLua(sol::state &lua);
 
 private:
     InputManager() = default;

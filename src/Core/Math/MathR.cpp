@@ -1,29 +1,14 @@
 #include "MathR.h"
 
-float MathR::ClampI(const int value, const int min, const int max)
-{
-    return Clamp(value, min, max);
-}
+float MathR::ClampI(const int value, const int min, const int max) { return Clamp(value, min, max); }
 
-float MathR::ClampF(const float value, const float min, const float max)
-{
-    return Clamp(value, min, max);
-}
+float MathR::ClampF(const float value, const float min, const float max) { return Clamp(value, min, max); }
 
-float MathR::ClampF01(const float value)
-{
-    return Clamp(value, 0.f, 1.f);
-}
+float MathR::ClampF01(const float value) { return Clamp(value, 0.f, 1.f); }
 
-float MathR::AbsI(const int value)
-{
-    return Abs(value);
-}
+float MathR::AbsI(const int value) { return Abs(value); }
 
-float MathR::AbsF(const int value)
-{
-    return Abs(value);
-}
+float MathR::AbsF(const int value) { return Abs(value); }
 
 float MathR::Floor(const float value)
 {
@@ -71,12 +56,9 @@ float MathR::Cos(float x)
     return Sin(x + (PI / 2.f));
 }
 
-float MathR::Ceil(const float value)
-{
-    return -Floor(-value);
-}
+float MathR::Ceil(const float value) { return -Floor(-value); }
 
-void MathR::RegisterLua(sol::state& lua)
+void MathR::RegisterLua(sol::state &lua)
 {
     auto math = lua.create_named_table("MathR");
     math.set_function("ClampI", &ClampI);

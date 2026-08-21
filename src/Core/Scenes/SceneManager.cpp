@@ -5,10 +5,7 @@
 void SceneManager::SwitchSceneTo(const std::string &name)
 {
     auto it = m_scenes.find(name);
-    if (it == m_scenes.end())
-    {
-        throw std::runtime_error("[SceneManager] Scene not found: " + name);
-    }
+    if (it == m_scenes.end()) { throw std::runtime_error("[SceneManager] Scene not found: " + name); }
 
     if (m_current)
     {
@@ -41,12 +38,6 @@ void SceneManager::Render(sf::RenderWindow &window)
         m_current->Render(window);
 }
 
-bool SceneManager::HasScene(const std::string &name) const
-{
-    return m_scenes.contains(name);
-}
+bool SceneManager::HasScene(const std::string &name) const { return m_scenes.contains(name); }
 
-const std::string & SceneManager::CurrentName() const
-{
-    return m_currentName;
-}
+const std::string &SceneManager::CurrentName() const { return m_currentName; }

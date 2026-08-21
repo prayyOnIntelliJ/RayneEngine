@@ -8,34 +8,46 @@ class MathR
 {
 public:
     static constexpr float PI = 3.1415926535f;
+
     // Clamp
     static float ClampI(int value, int min, int max);
+
     static float ClampF(float value, float min, float max);
+
     static float ClampF01(float value);
+
     // Abs
     static float AbsI(int value);
+
     static float AbsF(int value);
+
     // Ceil, Floor
     static float Ceil(float value);
+
     static float Floor(float value);
+
     // Lerp
     static float Lerp(float start, float end, float factor);
+
     static float InverseLerp(float start, float end, float value);
+
     // Sin / Cos
     static float Sin(float x);
+
     static float Cos(float x);
 
     // Lua
-    static void RegisterLua(sol::state& lua);
+    static void RegisterLua(sol::state &lua);
 
 private:
-    template <typename T>
+    template<typename T>
     static T Clamp(T value, T min, T max);
-    template <typename T>
+
+    template<typename T>
     static T Abs(T value);
 };
 
-template <typename T>
+template<typename T>
 T MathR::Clamp(T value, T min, T max)
 {
     if (value < min) return min;
@@ -44,7 +56,7 @@ T MathR::Clamp(T value, T min, T max)
     return value;
 }
 
-template <typename T>
+template<typename T>
 T MathR::Abs(T value)
 {
     if (value <= 0) return -value;

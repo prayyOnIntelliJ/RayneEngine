@@ -7,11 +7,8 @@ void EventManager::SubscribeCollision(std::function<void(CollisionEvent)> callba
 
 void EventManager::FireCollision(Entity a, Entity b)
 {
-    for (auto& cb : m_CollisionCallbacks)
-        cb( { a, b } );
+    for (auto &cb: m_CollisionCallbacks)
+        cb({a, b});
 }
 
-void EventManager::Clear()
-{
-    m_CollisionCallbacks.clear();
-}
+void EventManager::Clear() { m_CollisionCallbacks.clear(); }

@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
@@ -89,6 +89,10 @@ add_executable(RayneEngine
         src/Core/Scripting/EventManager.h
         src/Core/Scenes/ContentBrowser.cpp
         src/Core/Scenes/ContentBrowser.h
+        src/Core/Resources/ResourceManager.cpp
+        src/Core/Resources/ResourceManager.h
+        src/Core/Audio/AudioManager.cpp
+        src/Core/Audio/AudioManager.h
 )
 
 # --- Link Libraries ---
@@ -118,6 +122,20 @@ add_custom_command(TARGET RayneEngine POST_BUILD
         $<TARGET_FILE:sfml-audio>
         $<TARGET_FILE_DIR:RayneEngine>
 )
+
+if(WIN32)
+    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+        set(SFML_OPENAL_DLL "${sfml_SOURCE_DIR}/extlibs/bin/x64/openal32.dll")
+    else()
+        set(SFML_OPENAL_DLL "${sfml_SOURCE_DIR}/extlibs/bin/x86/openal32.dll")
+    endif()
+
+    add_custom_command(TARGET RayneEngine POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${SFML_OPENAL_DLL}"
+            $<TARGET_FILE_DIR:RayneEngine>
+    )
+endif()
 
 # --- Working Directory ---
 set_target_properties(RayneEngine PROPERTIES

@@ -10,15 +10,16 @@ struct LuaApiDoc
 {
     std::string name;
     std::string returnType;
-    std::vector<std::pair<std::string, std::string>> params;
+    std::vector<std::pair<std::string, std::string> > params;
     std::string description;
 };
 
 class LuaState
 {
 public:
-    static void Init(Registry& registry);
-    static sol::state& GetLua();
+    static void Init(Registry &registry);
+
+    static sol::state &GetLua();
 
 private:
     static sol::state s_Lua;

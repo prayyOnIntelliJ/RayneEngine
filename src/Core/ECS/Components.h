@@ -6,6 +6,7 @@
 
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Texture.hpp"
+#include "../Resources/ResourceManager.h"
 
 struct TransformComponent
 {
@@ -30,18 +31,23 @@ struct SpriteComponent
     sf::Sprite sprite;
     sf::Vector2f size;
 
-    explicit SpriteComponent(const std::string& path, sf::Vector2f size)
+    SpriteComponent() = default;
+
+    explicit SpriteComponent(const std::string &path, sf::Vector2f size)
         : texturePath(path), size(size)
     {
-        texture = std::make_shared<sf::Texture>();
-        if (texture->loadFromFile(path))
+        texture = ResourceManager::Get().GetTexture(path);
+        if (texture)
         {
             sprite.setTexture(*texture);
             const sf::Vector2u texSize = texture->getSize();
-            sprite.setScale(
-                size.x / static_cast<float>(texSize.x),
-                size.y / static_cast<float>(texSize.y)
-            );
+            if (texSize.x > 0 && texSize.y > 0)
+            {
+                sprite.setScale(
+                    size.x / static_cast<float>(texSize.x),
+                    size.y / static_cast<float>(texSize.y)
+                );
+            }
         }
     }
 };

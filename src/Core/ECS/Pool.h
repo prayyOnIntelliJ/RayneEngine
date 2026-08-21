@@ -9,11 +9,13 @@
 struct IPool
 {
     virtual ~IPool() = default;
+
     virtual bool Has(Entity e) = 0;
+
     virtual void Remove(Entity e) = 0;
 };
 
-template <typename T>
+template<typename T>
 class Pool : public IPool
 {
 public:
@@ -22,12 +24,9 @@ public:
 
     std::unordered_map<Entity, size_t> entityToIndex;
 
-    bool Has(const Entity e) override
-    {
-        return entityToIndex.find(e) != entityToIndex.end();
-    }
+    bool Has(const Entity e) override { return entityToIndex.find(e) != entityToIndex.end(); }
 
-    T& Add(const Entity e, T component)
+    T &Add(const Entity e, T component)
     {
         if (Has(e)) return Get(e);
 
@@ -56,10 +55,7 @@ public:
         entityToIndex.erase(e);
     }
 
-    T& Get(const Entity e)
-    {
-        return data[entityToIndex[e]];
-    }
+    T &Get(const Entity e) { return data[entityToIndex[e]]; }
 };
 
 

@@ -4,11 +4,12 @@
 #include "SFML/Graphics/ConvexShape.hpp"
 
 
-class TrianglePrimitive : public Primitive {
+class TrianglePrimitive : public Primitive
+{
 public:
     sf::ConvexShape m_shape;
 
-    TrianglePrimitive(float size, const sf::Color& col)
+    TrianglePrimitive(float size, const sf::Color &col)
     {
         m_shape.setPointCount(3);
         m_shape.setPoint(0, {0.f, -size});
@@ -25,12 +26,8 @@ public:
         m_shape.setRotation(m_rotation);
     }
 
-    void Draw(sf::RenderWindow &window) override
-    {
-        window.draw(m_shape);
-    }
+    void Draw(sf::RenderWindow &window) override { window.draw(m_shape); }
 };
-
 
 
 #endif

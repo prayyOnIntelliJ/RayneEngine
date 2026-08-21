@@ -19,25 +19,13 @@ struct Vector
 
     Vector() = default;
 
-    Vector operator+(const Vector& o) const
-    {
-        return {x + o.x, y + o.y, z + o.z};
-    }
+    Vector operator+(const Vector &o) const { return {x + o.x, y + o.y, z + o.z}; }
 
-    Vector operator-(const Vector& o) const
-    {
-        return {x - o.x, y - o.y, z - o.z};
-    }
+    Vector operator-(const Vector &o) const { return {x - o.x, y - o.y, z - o.z}; }
 
-    Vector operator*(float s) const
-    {
-        return {x * s, y * s, z * s};
-    }
+    Vector operator*(float s) const { return {x * s, y * s, z * s}; }
 
-    float Length() const
-    {
-        return std::sqrt(x * x + y * y + z * z);
-    }
+    float Length() const { return std::sqrt(x * x + y * y + z * z); }
 
     Vector Normalized() const
     {
@@ -46,12 +34,9 @@ struct Vector
         return {x / len, y / len, z / len};
     }
 
-    static float Dot(const Vector& a, const Vector& b)
-    {
-        return a.x * b.x + a.y * b.y + a.z * b.z;
-    }
+    static float Dot(const Vector &a, const Vector &b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
 
-    static Vector Cross(const Vector& a, const Vector& b)
+    static Vector Cross(const Vector &a, const Vector &b)
     {
         return {
             a.y * b.z - a.z * b.y,

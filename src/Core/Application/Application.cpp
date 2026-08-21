@@ -68,12 +68,11 @@ void Application::SetIcon()
 {
     sf::Image icon;
 
-    if (const std::string& filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
+    if (const std::string &filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
     {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
         std::cout << "Icon taken from: " << filePath << std::endl;
-    }
-    else
+    } else
         std::cout << "Failed to load icon from " << filePath << std::endl;
 }
 

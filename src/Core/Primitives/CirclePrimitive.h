@@ -4,11 +4,12 @@
 #include "SFML/Graphics/CircleShape.hpp"
 
 
-class CirclePrimitive : public Primitive {
+class CirclePrimitive : public Primitive
+{
 public:
     sf::CircleShape shape;
 
-    CirclePrimitive(float radius, const sf::Color& col)
+    CirclePrimitive(float radius, const sf::Color &col)
     {
         shape.setRadius(radius);
         shape.setOrigin(radius, radius);
@@ -22,12 +23,8 @@ public:
         shape.setRotation(m_rotation);
     }
 
-    void Draw(sf::RenderWindow& window) override
-    {
-        window.draw(shape);
-    }
+    void Draw(sf::RenderWindow &window) override { window.draw(shape); }
 };
-
 
 
 #endif
