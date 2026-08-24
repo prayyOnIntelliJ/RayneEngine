@@ -100,7 +100,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 auto &sc = m_Registry.AddComponent(hit->entity, ScriptComponent(LuaState::GetLua(), drag.path));
                 sc.SetEntity(hit->entity);
-                sc.OnCreate();
                 hit->scriptPath = drag.path;
                 std::cout << "[ContentBrowser] Script dropped onto " << hit->id << "\n";
             }
@@ -192,7 +191,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     auto &sc = m_Registry.AddComponent(m_Selected->entity,
                                                        ScriptComponent(LuaState::GetLua(), fullPath));
                     sc.SetEntity(m_Selected->entity);
-                    sc.OnCreate();
                     m_Selected->scriptPath = fullPath;
                     std::cout << "[Inspector] Created script: " << fullPath << "\n";
                 } else if (m_ActiveField == EditField::TransformX || m_ActiveField == EditField::TransformY)
