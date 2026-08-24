@@ -95,6 +95,13 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
 
     InitMenus();
     UpdateStatusText();
+
+    const std::string defaultScenePath = ASSET_PATH "scenes/game.json";
+    if (std::filesystem::exists(defaultScenePath))
+    {
+        std::cout << "[INFO] [EditorScene] Auto-loading default scene at startup...\n";
+        LoadFromJson(defaultScenePath);
+    }
 }
 
 void EditorScene::InitMenus()
@@ -139,7 +146,7 @@ void EditorScene::InitMenus()
 
 void EditorScene::OnEnter()
 {
-    std::cout << "[EditorScene] Active\n";
+    std::cout << "[INFO] [EditorScene] Activated Editor Layout\n";
     UpdateBounds();
     UpdateStatusText();
 }
@@ -161,11 +168,11 @@ void EditorScene::HandleMenuAction(const std::string &action)
     if (action == "save")
     {
         SaveToJson(ASSET_PATH "scenes/game.json");
-        std::cout << "[EditorScene] Saved\n";
+        std::cout << "[INFO] [EditorScene] Scene saved successfully\n";
     } else if (action == "load")
     {
         LoadFromJson(ASSET_PATH "scenes/game.json");
-        std::cout << "[EditorScene] Loaded\n";
+        std::cout << "[INFO] [EditorScene] Scene loaded successfully\n";
     } else if (action == "quit") { m_Window.close(); } else if (action == "delete")
     {
         DeleteSelected();
@@ -254,7 +261,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 auto &sc = m_Registry.AddComponent(hit->entity, ScriptComponent(LuaState::GetLua(), drag.path));
                 sc.SetEntity(hit->entity);
                 hit->scriptPath = drag.path;
-                std::cout << "[ContentBrowser] Script dropped onto " << hit->id << "\n";
+                std::cout << "[INFO] [ContentBrowser] Script dropped onto Entity " << hit->id << "\n";
             }
             handled = true;
         } else if (drag.type == AssetType::Image)
@@ -307,14 +314,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         newFile << "function OnCreate()\n\nend\n\n";
                         newFile << "function OnUpdate(dt)\n\nend\n";
                         newFile.close();
-                        std::cout << "[Inspector] Created script: " << fullPath << "\n";
+                        std::cout << "[INFO] [Inspector] Created new Lua script file: " << fullPath << "\n";
                     }
                     check.close();
                     auto &sc = m_Registry.AddComponent(m_Selected->entity,
                                                        ScriptComponent(LuaState::GetLua(), fullPath));
                     sc.SetEntity(m_Selected->entity);
                     m_Selected->scriptPath = fullPath;
-                    std::cout << "[Inspector] Script assigned: " << fullPath << "\n";
+                    std::cout << "[INFO] [Inspector] Script assigned to entity: " << fullPath << "\n";
                 } else if (m_ActiveField == EditField::TransformX || m_ActiveField == EditField::TransformY)
                 {
                     try
@@ -1664,11 +1671,11 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         if (btn.action == "add_velocity")
         {
             m_Registry.AddComponent(m_Selected->entity, VelocityComponent{0.f, 0.f});
-            std::cout << "[Inspector] VelocityComponent added to " << m_Selected->id << "\n";
+            std::cout << "[INFO] [Inspector] VelocityComponent added to " << m_Selected->id << "\n";
         } else if (btn.action == "remove_velocity")
         {
             m_Registry.RemoveComponent<VelocityComponent>(m_Selected->entity);
-            std::cout << "[Inspector] VelocityComponent removed from " << m_Selected->id << "\n";
+            std::cout << "[INFO] [Inspector] VelocityComponent removed from " << m_Selected->id << "\n";
         } else if (btn.action == "add_camera")
         {
             // Remove CameraComponent from all others (only 1 active camera)
@@ -1676,11 +1683,11 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 m_Registry.RemoveComponent<CameraComponent>(e);
             });
             m_Registry.AddComponent(m_Selected->entity, CameraComponent{true});
-            std::cout << "[Inspector] CameraComponent added to " << m_Selected->id << "\n";
+            std::cout << "[INFO] [Inspector] CameraComponent added to " << m_Selected->id << "\n";
         } else if (btn.action == "remove_camera")
         {
             m_Registry.RemoveComponent<CameraComponent>(m_Selected->entity);
-            std::cout << "[Inspector] CameraComponent removed from " << m_Selected->id << "\n";
+            std::cout << "[INFO] [Inspector] CameraComponent removed from " << m_Selected->id << "\n";
         } else if (btn.action == "add_script")
         {
             m_ActiveField = EditField::Script;
@@ -1693,7 +1700,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_Registry.RemoveComponent<ScriptComponent>(m_Selected->entity);
             m_Selected->scriptPath = "";
-            std::cout << "[Inspector] ScriptComponent removed from " << m_Selected->id << "\n";
+            std::cout << "[INFO] [Inspector] ScriptComponent removed from " << m_Selected->id << "\n";
         } else if (btn.action == "edit_name" && m_Selected)
         {
             m_ActiveField = EditField::Name;
@@ -1837,7 +1844,7 @@ void EditorScene::ApplySpriteToObject(EditorObject &obj, const std::string &spri
             m_Registry.AddComponent(obj.entity, SpriteComponent(spritePath, obj.shape.getSize()));
     }
 
-    std::cout << "[Editor] Sprite applied: " << spritePath << "\n";
+    std::cout << "[INFO] [EditorScene] Sprite texture applied: " << spritePath << "\n";
 }
 
 void EditorScene::DeleteSelected()
@@ -1904,7 +1911,7 @@ void EditorScene::LoadFromJson(const std::string &path)
     std::ifstream file(path);
     if (!file.is_open())
     {
-        std::cerr << "[EditorScene] File not found: " << path << "\n";
+        std::cerr << "[ERROR] [EditorScene] Scene file not found or unreadable: " << path << "\n";
         return;
     }
 

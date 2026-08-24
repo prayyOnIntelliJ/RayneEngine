@@ -21,7 +21,7 @@ GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &
 
 void GameScene::OnEnter()
 {
-    std::cout << "[GameScene] Started\n";
+    std::cout << "[INFO] [GameScene] Starting simulation...\n";
 
     m_Camera = m_Window.getDefaultView();
     m_LastCollisions.clear();
@@ -34,13 +34,14 @@ void GameScene::OnEnter()
             m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
     });
 
+    std::cout << "[INFO] [GameScene] Firing OnCreate() for all active scripts...\n";
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
 }
 
 void GameScene::OnExit()
 {
     m_LastCollisions.clear();
-    std::cout << "[GameScene] Stopped\n";
+    std::cout << "[INFO] [GameScene] Stopping simulation, clearing collision state.\n";
 }
 
 void GameScene::CheckCollisions()

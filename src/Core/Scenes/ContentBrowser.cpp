@@ -90,6 +90,8 @@ void ContentBrowser::Refresh()
     for (auto &d: dirs) m_Entries.push_back(d);
     for (auto &f: files) m_Entries.push_back(f);
 
+    std::cout << "[INFO] [ContentBrowser] Refreshed directory: " << m_CurrentPath << " (Found " << dirs.size() << " folders, " << files.size() << " files)\n";
+
     UpdateFilteredEntries();
 }
 
@@ -910,7 +912,7 @@ void ContentBrowser::CreateNewScript(const std::string &name)
         file << "    -- Collision logic\n";
         file << "end\n";
         file.close();
-        std::cout << "[ContentBrowser] Created script: " << fullPath << "\n";
+        std::cout << "[INFO] [ContentBrowser] Created new Lua script file: " << fullPath << "\n";
     }
 
     Refresh();
@@ -931,7 +933,7 @@ void ContentBrowser::DeleteAsset(const std::string &path)
     fs::remove_all(path, ec);
     if (!ec)
     {
-        std::cout << "[ContentBrowser] Deleted: " << path << "\n";
+        std::cout << "[INFO] [ContentBrowser] Deleted file/folder: " << path << "\n";
         Refresh();
     }
 }

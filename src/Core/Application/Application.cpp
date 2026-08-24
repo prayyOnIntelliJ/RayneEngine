@@ -15,29 +15,33 @@
 
 Application::Application()
 {
+    std::cout << "[INFO] [Application] Booting RayneEngine...\n";
     CreateEngineWindow();
     SetIcon();
 
+    std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
     LuaState::Init(m_Registry);
 
+    std::cout << "[INFO] [Application] Registering Scenes...\n";
     m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);
     m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
 
+    std::cout << "[INFO] [Application] Switching to Editor Scene...\n";
     m_SceneManager.SwitchSceneTo("editor");
 
-    std::cout << "Initialized!\n";
+    std::cout << "[INFO] [Application] Engine Initialization Complete!\n";
 }
 
 void Application::CreateEngineWindow()
 {
-    std::cout << "Creating Window...\n";
+    std::cout << "[INFO] [Window] Creating main window...\n";
 
     SetProcessDPIAware();
 
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     m_RenderWindow.create(desktop, "RayneEngine");
 
-    std::cout << "Created window" << std::endl;
+    std::cout << "[INFO] [Window] Created window with resolution " << desktop.width << "x" << desktop.height << "\n";
 
     HWND hwnd = m_RenderWindow.getSystemHandle();
     ShowWindow(hwnd, SW_MAXIMIZE);
@@ -45,11 +49,12 @@ void Application::CreateEngineWindow()
     sf::Event e;
     while (m_RenderWindow.pollEvent(e)) {}
 
-    std::cout << "Maximized Window" << std::endl;
+    std::cout << "[INFO] [Window] Window maximized successfully.\n";
 }
 
 void Application::Run()
 {
+    std::cout << "[INFO] [Application] Entering main application loop...\n";
     while (m_RenderWindow.isOpen())
     {
         sf::Time dt = m_DeltaTimeClock.restart();
@@ -61,7 +66,7 @@ void Application::Run()
         Render();
     }
 
-    std::cout << "Exited cleanly.\n";
+    std::cout << "[INFO] [Application] Exited cleanly.\n";
 }
 
 void Application::SetIcon()
@@ -71,9 +76,11 @@ void Application::SetIcon()
     if (const std::string &filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
     {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
-        std::cout << "Icon taken from: " << filePath << std::endl;
+        std::cout << "[INFO] [Window] Loaded window icon from " << filePath << "\n";
     } else
-        std::cout << "Failed to load icon from " << filePath << std::endl;
+    {
+        std::cout << "[WARN] [Window] Failed to load window icon from " << filePath << "\n";
+    }
 }
 
 void Application::Update(float deltaTime)
@@ -96,7 +103,10 @@ void Application::SetEvents()
     while (m_RenderWindow.pollEvent(event))
     {
         if (event.type == sf::Event::Closed)
+        {
+            std::cout << "[INFO] [Application] Window closed event received. Shutting down...\n";
             m_RenderWindow.close();
+        }
 
         m_SceneManager.HandleEvent(event);
         InputManager::Get().HandleEvent(event);

@@ -10,12 +10,11 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
     if (!loadResult.valid())
     {
         sol::error err = loadResult;
-        std::cerr << "Lua Load Error (" << path << "): " << err.what() << std::endl;
+        std::cerr << "[ERROR] [Script] Failed to load Lua script (" << path << "): " << err.what() << std::endl;
         return;
     }
 
     sol::protected_function scriptFunc = loadResult;
-
     sol::set_environment(m_Env, scriptFunc);
 
     sol::protected_function_result execResult = scriptFunc();
@@ -23,9 +22,11 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
     if (!execResult.valid())
     {
         sol::error err = execResult;
-        std::cerr << "Lua Execution Error (" << path << "): " << err.what() << std::endl;
+        std::cerr << "[ERROR] [Script] Execution error in Lua script (" << path << "): " << err.what() << std::endl;
         return;
     }
+
+    std::cout << "[INFO] [Script] Successfully compiled and attached script: " << path << "\n";
 
     m_OnCreate = m_Env["OnCreate"];
     m_OnUpdate = m_Env["OnUpdate"];

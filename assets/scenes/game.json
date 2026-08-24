@@ -1,4 +1,18 @@
 {
     "name": "game",
-    "objects": []
+    "objects": [
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 200.0,
+            "y": 120.0
+        }
+    ]
 }

@@ -5,6 +5,7 @@
 
 AudioManager::AudioManager()
 {
+    std::cout << "[INFO] [AudioManager] Subsystem initialized.\n";
 }
 
 void AudioManager::Update()
@@ -19,7 +20,7 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
     auto buffer = ResourceManager::Get().GetSoundBuffer(path);
     if (!buffer)
     {
-        std::cerr << "[AudioManager] Cannot play sound: " << path << "\n";
+        std::cerr << "[ERROR] [AudioManager] Failed to play sound (buffer missing): " << path << "\n";
         return;
     }
 
@@ -27,8 +28,11 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
 
     if (m_ActiveSounds.size() >= MaxSoundChannels)
     {
+        std::cout << "[WARN] [AudioManager] Max channels reached (" << MaxSoundChannels << "), dropping oldest sound.\n";
         m_ActiveSounds.erase(m_ActiveSounds.begin());
     }
+
+    std::cout << "[INFO] [AudioManager] Playing sound: " << path << " (Vol: " << volume << ", Pitch: " << pitch << ")\n";
 
     auto sound = std::make_unique<sf::Sound>();
     sound->setBuffer(*buffer);
@@ -41,6 +45,7 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
 
 void AudioManager::StopAllSounds()
 {
+    std::cout << "[INFO] [AudioManager] Stopping all active sounds (" << m_ActiveSounds.size() << " playing).\n";
     for (auto& sound : m_ActiveSounds)
     {
         sound->stop();
@@ -52,9 +57,11 @@ void AudioManager::PlayMusic(const std::string& path, bool loop, float volume)
 {
     if (!m_Music.openFromFile(path))
     {
-        std::cerr << "[AudioManager] Cannot load music file: " << path << "\n";
+        std::cerr << "[ERROR] [AudioManager] Cannot load music file: " << path << "\n";
         return;
     }
+
+    std::cout << "[INFO] [AudioManager] Playing background music: " << path << " (Loop: " << (loop ? "yes" : "no") << ", Vol: " << volume << ")\n";
 
     m_MusicVolume = volume;
     m_Music.setLoop(loop);

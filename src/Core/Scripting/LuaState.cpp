@@ -15,6 +15,7 @@ std::vector<LuaApiDoc> s_ApiDocs;
 
 void LuaState::Init(Registry &registry)
 {
+    std::cout << "[INFO] [Lua] Opening base standard libraries...\n";
     s_Lua.open_libraries(
         sol::lib::base,
         sol::lib::math,
@@ -22,7 +23,10 @@ void LuaState::Init(Registry &registry)
         sol::lib::string
     );
 
+    std::cout << "[INFO] [Lua] Registering engine statics and math functions...\n";
     RegisterStatics();
+
+    std::cout << "[INFO] [Lua] Registering ECS component bindings...\n";
 
     s_Lua.new_usertype<TransformComponent>("Transform",
                                            "x", &TransformComponent::x,

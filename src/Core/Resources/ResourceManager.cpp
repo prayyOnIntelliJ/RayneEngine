@@ -9,16 +9,17 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
     if (it != m_Textures.end())
         return it->second;
 
+    std::cout << "[INFO] [ResourceManager] Loading texture from disk: " << path << "...\n";
     auto texture = std::make_shared<sf::Texture>();
     if (!texture->loadFromFile(path))
     {
-        std::cerr << "[ResourceManager] Failed to load texture: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load texture: " << path << "\n";
         return nullptr;
     }
 
     texture->setSmooth(false); // pixel-perfect by default
     m_Textures[path] = texture;
-    std::cout << "[ResourceManager] Loaded texture: " << path << "\n";
+    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << path << " (" << texture->getSize().x << "x" << texture->getSize().y << ")\n";
     return texture;
 }
 
@@ -31,15 +32,16 @@ std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
     if (it != m_Fonts.end())
         return it->second;
 
+    std::cout << "[INFO] [ResourceManager] Loading font from disk: " << path << "...\n";
     auto font = std::make_shared<sf::Font>();
     if (!font->loadFromFile(path))
     {
-        std::cerr << "[ResourceManager] Failed to load font: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load font: " << path << "\n";
         return nullptr;
     }
 
     m_Fonts[path] = font;
-    std::cout << "[ResourceManager] Loaded font: " << path << "\n";
+    std::cout << "[INFO] [ResourceManager] Successfully loaded font: " << path << "\n";
     return font;
 }
 
@@ -52,15 +54,16 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
     if (it != m_Sounds.end())
         return it->second;
 
+    std::cout << "[INFO] [ResourceManager] Loading sound buffer from disk: " << path << "...\n";
     auto buffer = std::make_shared<sf::SoundBuffer>();
     if (!buffer->loadFromFile(path))
     {
-        std::cerr << "[ResourceManager] Failed to load sound: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load sound buffer: " << path << "\n";
         return nullptr;
     }
 
     m_Sounds[path] = buffer;
-    std::cout << "[ResourceManager] Loaded sound: " << path << "\n";
+    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << path << " (" << buffer->getDuration().asSeconds() << "s)\n";
     return buffer;
 }
 
