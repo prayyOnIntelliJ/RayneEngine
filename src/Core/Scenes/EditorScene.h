@@ -6,8 +6,8 @@
 #include <nlohmann/json.hpp>
 
 #include "ContentBrowser.h"
-#include "../Resources/ResourceManager.h"
 #include "SFML/Graphics/RectangleShape.hpp"
+#include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Graphics/Text.hpp"
 #include "SFML/Graphics/Font.hpp"
 
@@ -18,17 +18,17 @@
 
 using json = nlohmann::json;
 
-enum class ObjectType { Rectangle, Sprite };
+enum class ObjectType { Rectangle, Circle, Sprite };
 
 struct EditorObject
 {
     std::string id;
     Entity entity = 0;
     sf::RectangleShape shape;
+    sf::CircleShape circleShape;
     sf::Color color;
     bool selected = false;
     std::string scriptPath;
-
     ObjectType objectType = ObjectType::Rectangle;
     std::string spritePath;
     std::shared_ptr<sf::Texture> previewTexture;
@@ -39,6 +39,21 @@ struct InspectorButton
 {
     sf::FloatRect bounds;
     std::string action;
+};
+
+struct MenuItem
+{
+    std::string label;
+    std::string action;
+    bool isSeparator = false;
+    std::string shortcut;
+};
+
+struct MenuEntry
+{
+    std::string label;
+    std::vector<MenuItem> items;
+    sf::FloatRect bounds;
 };
 
 class EditorScene : public Scene
@@ -73,42 +88,58 @@ private:
     sf::Vector2f m_MouseScreenPos;
 
     sf::RectangleShape m_Preview;
+    sf::CircleShape m_CirclePreview;
 
     bool m_SnapToGrid = true;
     float m_GridSize = 40.f;
 
     std::shared_ptr<sf::Font> m_Font;
     sf::Text m_StatusText;
-    sf::RectangleShape m_Toolbar;
 
+    static constexpr float MenuBarHeight = 30.f;
+    static constexpr float ToolbarHeight = 34.f;
+    static constexpr float TopBarHeight = MenuBarHeight + ToolbarHeight;
     static constexpr float InspectorWidth = 270.f;
     static constexpr float InspectorPad = 10.f;
     static constexpr float BrowserHeight = 180.f;
+
     sf::RectangleShape m_InspectorPanel;
     std::vector<InspectorButton> m_InspectorButtons;
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
 
     sf::FloatRect m_BrowserBounds;
-    sf::FloatRect m_ChooserBounds;
     sf::FloatRect m_InspectorBounds;
-    float m_ExtraOffsetY = 0.f;
-    float m_RenderW = 0.f;
-    float m_RenderH = 0.f;
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;
     std::shared_ptr<sf::Texture> m_PlacementTexture;
-    static constexpr float ChooserWidth = 120.f;
-    std::vector<std::pair<sf::FloatRect, ObjectType> > m_ChooserButtons;
 
-    enum class EditField { None, Name, Script, TransformX, TransformY, SizeW, SizeH, ColorR, ColorG, ColorB };
+    std::vector<MenuEntry> m_Menus;
+    int m_OpenMenuIndex = -1;
+    bool m_AddDropdownOpen = false;
+    sf::FloatRect m_AddBtnBounds;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_MenuItemHitboxes;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_AddDropdownHitboxes;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_ToolbarHitboxes;
+
+    enum class EditField
+    {
+        None, Name, Script,
+        TransformX, TransformY,
+        SizeW, SizeH,
+        ColorR, ColorG, ColorB
+    };
 
     EditField m_ActiveField = EditField::None;
     std::string m_ActiveInputText;
     sf::FloatRect m_ActiveInputBounds;
 
-    void AddObject(sf::Vector2f pos);
+    void InitMenus();
+
+    void HandleMenuAction(const std::string &action);
+
+    void AddObject(sf::Vector2f pos, ObjectType type = ObjectType::Rectangle);
 
     void AddObjectWithSprite(sf::Vector2f pos, const std::string &spritePath);
 
@@ -136,9 +167,13 @@ private:
 
     std::string NextId();
 
-    void DrawInspector(sf::RenderWindow &window);
+    void DrawMenuBar(sf::RenderWindow &window);
 
-    void DrawObjectChooser(sf::RenderWindow &window);
+    void DrawToolbar(sf::RenderWindow &window);
+
+    void DrawAddDropdown(sf::RenderWindow &window);
+
+    void DrawInspector(sf::RenderWindow &window);
 
     float DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x, float y);
 
@@ -152,6 +187,9 @@ private:
 
     float DrawRemoveButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,
                            float y);
+
+    float DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,
+                           float y, sf::Color fillColor, sf::Color borderColor);
 
     float DrawScriptInput(sf::RenderWindow &window, float x, float y);
 
