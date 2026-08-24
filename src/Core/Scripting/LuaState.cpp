@@ -114,6 +114,20 @@ void LuaState::Init(Registry &registry)
 
     s_Lua.set_function("HasSprite", [&](const Entity e) -> bool { return registry.HasComponent<SpriteComponent>(e); });
 
+    // --- Camera ---
+    s_Lua.set_function("AddCamera", [&](const Entity e) {
+        registry.AddComponent(e, CameraComponent{true});
+    });
+
+    s_Lua.set_function("RemoveCamera", [&](const Entity e) {
+        if (registry.HasComponent<CameraComponent>(e))
+            registry.RemoveComponent<CameraComponent>(e);
+    });
+
+    s_Lua.set_function("HasCamera", [&](const Entity e) -> bool {
+        return registry.HasComponent<CameraComponent>(e);
+    });
+
     s_Lua.set_function("SetColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
         if (registry.HasComponent<RenderComponent>(e))
         {

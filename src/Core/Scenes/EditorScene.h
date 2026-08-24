@@ -18,7 +18,7 @@
 
 using json = nlohmann::json;
 
-enum class ObjectType { Rectangle, Circle, Sprite };
+enum class ObjectType { Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite };
 
 struct EditorObject
 {
@@ -100,16 +100,23 @@ private:
     static constexpr float ToolbarHeight = 34.f;
     static constexpr float TopBarHeight = MenuBarHeight + ToolbarHeight;
     static constexpr float InspectorWidth = 270.f;
+    static constexpr float HierarchyWidth = 240.f;
     static constexpr float InspectorPad = 10.f;
     static constexpr float BrowserHeight = 180.f;
 
     sf::RectangleShape m_InspectorPanel;
+    sf::RectangleShape m_HierarchyPanel;
+    
+    sf::FloatRect m_InspectorBounds;
+    sf::FloatRect m_BrowserBounds;
+    sf::FloatRect m_HierarchyBounds;
+    float m_HierarchyScrollY = 0.f;
+
     std::vector<InspectorButton> m_InspectorButtons;
+    std::vector<std::pair<sf::FloatRect, EditorObject*>> m_HierarchyHitboxes;
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
 
-    sf::FloatRect m_BrowserBounds;
-    sf::FloatRect m_InspectorBounds;
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;
@@ -122,6 +129,11 @@ private:
     std::vector<std::pair<sf::FloatRect, std::string> > m_MenuItemHitboxes;
     std::vector<std::pair<sf::FloatRect, std::string> > m_AddDropdownHitboxes;
     std::vector<std::pair<sf::FloatRect, std::string> > m_ToolbarHitboxes;
+
+    bool m_HierarchyContextMenuOpen = false;
+    sf::Vector2f m_ContextMenuPos;
+    EditorObject* m_ContextObject = nullptr;
+    std::vector<std::pair<sf::FloatRect, std::string>> m_ContextHitboxes;
 
     enum class EditField
     {
@@ -174,6 +186,8 @@ private:
     void DrawAddDropdown(sf::RenderWindow &window);
 
     void DrawInspector(sf::RenderWindow &window);
+    
+    void DrawHierarchy(sf::RenderWindow &window);
 
     float DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x, float y);
 

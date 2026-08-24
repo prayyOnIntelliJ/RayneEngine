@@ -103,6 +103,15 @@ void GameScene::Update(float deltaTime)
     m_Registry.ForEach<ScriptComponent>([deltaTime](Entity, ScriptComponent &sc) { sc.OnUpdate(deltaTime); });
 
     CheckCollisions();
+
+    // Update Camera if any entity has a CameraComponent
+    m_Registry.ForEach<TransformComponent, CameraComponent>(
+        [this](Entity, TransformComponent &t, CameraComponent &c) {
+            if (c.active)
+            {
+                m_Camera.setCenter(t.x, t.y);
+            }
+        });
 }
 
 void GameScene::Render(sf::RenderWindow &window)

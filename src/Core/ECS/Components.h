@@ -52,4 +52,9 @@ struct SpriteComponent
     }
 };
 
+struct CameraComponent
+{
+    bool active = true;
+};
+
 #endif
