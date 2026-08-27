@@ -10,10 +10,10 @@ This engine is not meant to become a large-scale framework, but rather a compact
 ---
 
 ## Development Status
-RayneEngine is still in **early development**.  
-Most systems are experimental and will change frequently as I refine the structure and design.
+RayneEngine is in **active development**.  
+It has evolved from a basic prototype into a functional 2D engine featuring a built-in level editor, a custom Entity Component System (ECS), and Lua scripting support.
 
-The following Code...
+Here's an example of how a Lua script can interact with the engine:
 
 ```Lua
 local speed = 100
@@ -22,7 +22,7 @@ local timer = 0
 local startY = nil
 
 function OnCreate()
-    print(&quot;Lua: Started Player Script&quot;)
+    print("Lua: Started Player Script")
 end
 
 function OnUpdate(dt)
@@ -37,52 +37,54 @@ function OnUpdate(dt)
     local newY = startY + MathR.Sin(timer * 1) * amplitude
 
     SetPosition(self, newX, newY)
+end
 
-    print(&quot;Player is now on Position: &quot; .. pos.x .. &quot;, &quot; .. pos.y)
+function OnCollision(other)
+    print("Collided with Entity ID: " .. other)
 end
 ```
 
-results in the following pictures...
-
 ![Engine](https://github.com/user-attachments/assets/939ad1b6-3de2-44d1-97d1-38adfb8ab955)
-
-
-NOTE: This is experimental and needs further development to be completely functional.
 
 ---
 
-## Planned / Early Features
+## Engine Features
 
-- **Core Engine Structure**
-  - Main loop with delta time
-  - Modular design (rendering, input, scene management)
-  - Basic ECS (Entity Component System)
+- **Built-in Level Editor**
+  - Interactive scene editing with an Inspector, Entity Hierarchy, and Content Browser.
+  - Drag-and-drop support for sprites and Lua scripts.
+  - Transform tools, shape placement, color pickers, and grid snapping.
+  - In-engine scene serialization (saving/loading scenes to JSON).
 
-- **Rendering**
-  - SFML-based 2D renderer
-  - Sprite and texture handling
-  - Basic camera system
+- **Entity Component System (ECS)**
+  - Fully custom ECS architecture (`Registry`, `Pool`, `View`).
+  - Supports core components: `TransformComponent`, `RenderComponent`, `SpriteComponent`, `VelocityComponent`, `CameraComponent`, and `ScriptComponent`.
 
-- **Input**
-  - Keyboard and mouse input via SFML events, but planned to be in Lua events
+- **Lua Scripting Integration**
+  - Embedded Lua 5.4 using `sol2`.
+  - Entities can have scripts attached directly from the editor.
+  - Bindings for math, transforms, and events (`OnCreate`, `OnUpdate`, `OnCollision`).
 
-- **Scene Management**
-  - Early prototype of an entity and scene system
-  - Simple resource loader - PLANNED
+- **Rendering & Media**
+  - SFML-based 2D graphics rendering.
+  - Primitive shape rendering (Rectangles, Circles, Triangles, etc.) and Texture/Sprite handling.
+  - Custom camera system with entity tracking (`CameraComponent`).
+  - Audio and Input management structures.
 
-- **Utility Layer**
-  - Logging system - PLANNED
-  - Math helpers (vectors, transforms, etc.) with Lua integration
+- **Physics & Events**
+  - Basic AABB Collision Detection that fires engine-wide events.
+  - Event Manager for broadcasting engine and gameplay events (e.g., collisions sent to Lua scripts).
 
-- **Future Goals**
-  - Physics prototype
-  - Simple in-engine debugging tools
+- **Asset Management**
+  - Centralized `ResourceManager` for caching textures, fonts, and other assets.
 
 ---
 
 ## Technologies
-- **Language:** C++
-- **Framework:** [SFML 2.6+](https://www.sfml-dev.org/)
+- **Language:** C++20
+- **Framework:** [SFML 2.6+](https://www.sfml-dev.org/) (Graphics, Window, Audio, System)
+- **Scripting:** Lua 5.4 + [sol2](https://github.com/ThePhD/sol2)
+- **Serialization:** [nlohmann_json](https://github.com/nlohmann/json)
 - **Build System:** CMake
 
 ---
@@ -95,3 +97,4 @@ cd RayneEngine
 mkdir build && cd build
 cmake ..
 make
+```
