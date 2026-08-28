@@ -231,6 +231,9 @@ private:
 
     void SyncToRegistry();
 
+    void SaveSettings();
+    void LoadSettings();
+
     sf::Vector2f SnapToGrid(sf::Vector2f pos) const;
 
     sf::Vector2f MouseWorldPos() const;

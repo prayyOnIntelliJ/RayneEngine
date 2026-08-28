@@ -98,6 +98,8 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     InitMenus();
     UpdateStatusText();
 
+    LoadSettings();
+
     const std::string scenesDir = ASSET_PATH "scenes";
     const std::string defaultScenePath = scenesDir + "/game.json";
 
@@ -276,6 +278,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
                 m_ActiveSettingsField = SettingsField::None;
                 m_SettingsInputText.clear();
+                SaveSettings();
             }
             else if (event.text.unicode == 27) // ESC
             {
@@ -537,6 +540,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left)
     {
+        if (m_ShowSettings) {
+            SaveSettings();
+        }
+        
         if (m_Dragging && m_Selected && m_Selected->entity != 0 &&
             m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
         {
@@ -2822,6 +2829,7 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
                 else if (id == "log_level")  m_LogLevel = idx;
             }
         }
+        SaveSettings();
         break;
     }
 }
@@ -3093,3 +3101,105 @@ float EditorScene::DrawSettingsDropdown(sf::RenderWindow &window,
 
     return y + rowH;
 }
+
+void EditorScene::SaveSettings()
+{
+    json data;
+    data["general"]["autoSaveEnabled"] = m_AutoSaveEnabled;
+    data["general"]["autoSaveIntervalSeconds"] = m_AutoSaveIntervalSeconds;
+    data["general"]["autoSavePopupEnabled"] = m_AutoSavePopupEnabled;
+    data["general"]["autoSavePopupDuration"] = m_AutoSavePopupDuration;
+    
+    data["editor"]["gridColor"] = {m_GridColor.r, m_GridColor.g, m_GridColor.b};
+    data["editor"]["gridOpacity"] = m_GridOpacity;
+    data["editor"]["editorBgColor"] = {m_EditorBgColor.r, m_EditorBgColor.g, m_EditorBgColor.b};
+    data["editor"]["defaultObjectSize"] = m_DefaultObjectSize;
+    data["editor"]["selectionOutlineColor"] = {m_SelectionOutlineColor.r, m_SelectionOutlineColor.g, m_SelectionOutlineColor.b};
+    data["editor"]["selectionOutlineThickness"] = m_SelectionOutlineThickness;
+    
+    data["rendering"]["showFPS"] = m_ShowFPS;
+    data["rendering"]["fpsCapIndex"] = m_FPSCapIndex;
+    data["rendering"]["zoomSensitivity"] = m_ZoomSensitivity;
+    data["rendering"]["zoomMin"] = m_ZoomMin;
+    data["rendering"]["zoomMax"] = m_ZoomMax;
+    
+    data["input"]["panOnMiddleButton"] = m_PanOnMiddleButton;
+    data["input"]["invertPan"] = m_InvertPan;
+    data["input"]["scrollSensitivity"] = m_ScrollSensitivity;
+    
+    data["debug"]["showEntityIDs"] = m_ShowEntityIDs;
+    data["debug"]["showColliderOutlines"] = m_ShowColliderOutlines;
+    data["debug"]["logLevel"] = m_LogLevel;
+    data["debug"]["showAutoSaveInTitle"] = m_ShowAutoSaveInTitle;
+    
+    std::string editorDir = ASSET_PATH "editor";
+    if (!std::filesystem::exists(editorDir)) {
+        std::filesystem::create_directories(editorDir);
+    }
+    
+    std::ofstream file(editorDir + "/editor_settings.json");
+    if(file.is_open())
+        file << data.dump(4);
+}
+
+void EditorScene::LoadSettings()
+{
+    std::string editorDir = ASSET_PATH "editor";
+    std::ifstream file(editorDir + "/editor_settings.json");
+    if (!file.is_open()) return;
+    
+    json data;
+    try {
+        file >> data;
+        
+        if (data.contains("general")) {
+            m_AutoSaveEnabled = data["general"].value("autoSaveEnabled", m_AutoSaveEnabled);
+            m_AutoSaveIntervalSeconds = data["general"].value("autoSaveIntervalSeconds", m_AutoSaveIntervalSeconds);
+            m_AutoSavePopupEnabled = data["general"].value("autoSavePopupEnabled", m_AutoSavePopupEnabled);
+            m_AutoSavePopupDuration = data["general"].value("autoSavePopupDuration", m_AutoSavePopupDuration);
+        }
+        
+        if (data.contains("editor")) {
+            if (data["editor"].contains("gridColor")) {
+                m_GridColor.r = data["editor"]["gridColor"][0];
+                m_GridColor.g = data["editor"]["gridColor"][1];
+                m_GridColor.b = data["editor"]["gridColor"][2];
+            }
+            m_GridOpacity = data["editor"].value("gridOpacity", m_GridOpacity);
+            if (data["editor"].contains("editorBgColor")) {
+                m_EditorBgColor.r = data["editor"]["editorBgColor"][0];
+                m_EditorBgColor.g = data["editor"]["editorBgColor"][1];
+                m_EditorBgColor.b = data["editor"]["editorBgColor"][2];
+            }
+            m_DefaultObjectSize = data["editor"].value("defaultObjectSize", m_DefaultObjectSize);
+            if (data["editor"].contains("selectionOutlineColor")) {
+                m_SelectionOutlineColor.r = data["editor"]["selectionOutlineColor"][0];
+                m_SelectionOutlineColor.g = data["editor"]["selectionOutlineColor"][1];
+                m_SelectionOutlineColor.b = data["editor"]["selectionOutlineColor"][2];
+            }
+            m_SelectionOutlineThickness = data["editor"].value("selectionOutlineThickness", m_SelectionOutlineThickness);
+        }
+        
+        if (data.contains("rendering")) {
+            m_ShowFPS = data["rendering"].value("showFPS", m_ShowFPS);
+            m_FPSCapIndex = data["rendering"].value("fpsCapIndex", m_FPSCapIndex);
+            m_ZoomSensitivity = data["rendering"].value("zoomSensitivity", m_ZoomSensitivity);
+            m_ZoomMin = data["rendering"].value("zoomMin", m_ZoomMin);
+            m_ZoomMax = data["rendering"].value("zoomMax", m_ZoomMax);
+        }
+        
+        if (data.contains("input")) {
+            m_PanOnMiddleButton = data["input"].value("panOnMiddleButton", m_PanOnMiddleButton);
+            m_InvertPan = data["input"].value("invertPan", m_InvertPan);
+            m_ScrollSensitivity = data["input"].value("scrollSensitivity", m_ScrollSensitivity);
+        }
+        
+        if (data.contains("debug")) {
+            m_ShowEntityIDs = data["debug"].value("showEntityIDs", m_ShowEntityIDs);
+            m_ShowColliderOutlines = data["debug"].value("showColliderOutlines", m_ShowColliderOutlines);
+            m_LogLevel = data["debug"].value("logLevel", m_LogLevel);
+            m_ShowAutoSaveInTitle = data["debug"].value("showAutoSaveInTitle", m_ShowAutoSaveInTitle);
+        }
+    } catch (...) {}
+}
+
