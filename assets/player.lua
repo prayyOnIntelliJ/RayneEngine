@@ -1,5 +1,11 @@
 local speed = 200
 
+function OnCreate(self)
+    if not HasCollision(self) then
+        AddCollision(self, 0)
+    end
+end
+
 function OnUpdate(self, dt)
     local t = GetTransform(self)
     if not t then return end

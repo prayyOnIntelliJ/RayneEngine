@@ -190,6 +190,30 @@ function RemoveCamera(e) end
 ---@return boolean
 function HasCamera(e) end
 
+---Adds a Collision Component to an Entity
+---@param e Entity
+---@param channel? integer
+function AddCollision(e, channel) end
+
+---Removes the Collision Component from an Entity
+---@param e Entity
+function RemoveCollision(e) end
+
+---Checks if an Entity has a Collision Component
+---@param e Entity
+---@return boolean
+function HasCollision(e) end
+
+---Sets the collision channel for an Entity
+---@param e Entity
+---@param channel integer
+function SetCollisionChannel(e, channel) end
+
+---Gets the collision channel for an Entity
+---@param e Entity
+---@return integer
+function GetCollisionChannel(e) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
 

@@ -3,6 +3,9 @@
     "objects": [
         {
             "camera": true,
+            "collision": {
+                "channel": 0
+            },
             "color": [
                 100,
                 149,
@@ -13,34 +16,25 @@
             "script": "C:/Users/eijaw/Documents/Projects/RayneEngine/assets/player.lua",
             "type": "rectangle",
             "width": 40.0,
-            "x": 200.0,
-            "y": 120.0
+            "x": 120.0,
+            "y": 240.0
         },
         {
+            "collision": {
+                "channel": 0
+            },
             "color": [
-                100,
                 149,
-                237
+                237,
+                100
             ],
             "height": 40.0,
-            "id": "obj_0",
-            "type": "rectangle",
+            "id": "obj_3",
+            "script": "C:/Users/eijaw/Documents/Projects/RayneEngine/assets/enemy.lua",
+            "type": "triangle",
             "width": 40.0,
-            "x": 760.0,
-            "y": 280.0
-        },
-        {
-            "color": [
-                100,
-                149,
-                237
-            ],
-            "height": 40.0,
-            "id": "obj_1",
-            "type": "rectangle",
-            "width": 40.0,
-            "x": 1040.0,
-            "y": 600.0
+            "x": 800.0,
+            "y": 240.0
         }
     ]
 }

@@ -132,6 +132,32 @@ void LuaState::Init(Registry &registry)
         return registry.HasComponent<CameraComponent>(e);
     });
 
+    // --- Collision ---
+    s_Lua.set_function("AddCollision", [&](const Entity e, sol::optional<int> channel) {
+        registry.AddComponent(e, CollisionComponent{channel.value_or(0)});
+    });
+
+    s_Lua.set_function("RemoveCollision", [&](const Entity e) {
+        if (registry.HasComponent<CollisionComponent>(e))
+            registry.RemoveComponent<CollisionComponent>(e);
+    });
+
+    s_Lua.set_function("HasCollision", [&](const Entity e) -> bool {
+        return registry.HasComponent<CollisionComponent>(e);
+    });
+
+    s_Lua.set_function("SetCollisionChannel", [&](const Entity e, int channel) {
+        if (registry.HasComponent<CollisionComponent>(e))
+            registry.GetComponent<CollisionComponent>(e).channel = channel;
+    });
+
+    s_Lua.set_function("GetCollisionChannel", [&](const Entity e) -> int {
+        if (registry.HasComponent<CollisionComponent>(e))
+            return registry.GetComponent<CollisionComponent>(e).channel;
+        return 0;
+    });
+
+
     s_Lua.set_function("SetColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
         if (registry.HasComponent<RenderComponent>(e))
         {

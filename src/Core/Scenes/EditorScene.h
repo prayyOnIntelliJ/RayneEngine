@@ -140,7 +140,8 @@ private:
         None, Name, Script,
         TransformX, TransformY,
         SizeW, SizeH,
-        ColorR, ColorG, ColorB
+        ColorR, ColorG, ColorB,
+        CollisionChannel
     };
 
     EditField m_ActiveField = EditField::None;

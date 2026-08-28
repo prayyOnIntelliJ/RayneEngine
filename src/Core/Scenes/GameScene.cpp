@@ -50,12 +50,16 @@ void GameScene::CheckCollisions()
     {
         Entity id;
         float x, y, w, h;
+        int channel;
     };
     std::vector<CollidableEntity> collidables;
 
     m_Registry.ForEach<TransformComponent, RenderComponent>(
-        [&collidables](Entity e, TransformComponent &t, RenderComponent &r) {
-            collidables.push_back({e, t.x, t.y, r.size.x, r.size.y});
+        [&collidables, this](Entity e, TransformComponent &t, RenderComponent &r) {
+            if (m_Registry.HasComponent<CollisionComponent>(e)) {
+                auto& col = m_Registry.GetComponent<CollisionComponent>(e);
+                collidables.push_back({e, t.x, t.y, r.size.x, r.size.y, col.channel});
+            }
         });
 
     std::vector<std::pair<Entity, Entity> > currentCollisions;
@@ -67,17 +71,22 @@ void GameScene::CheckCollisions()
             const auto &a = collidables[i];
             const auto &b = collidables[j];
 
+            if (a.channel != b.channel) continue;
+
             const bool overlapping =
                     a.x < b.x + b.w && a.x + a.w > b.x &&
                     a.y < b.y + b.h && a.y + a.h > b.y;
 
             if (!overlapping) continue;
 
-            currentCollisions.emplace_back(a.id, b.id);
+            Entity e1 = std::min(a.id, b.id);
+            Entity e2 = std::max(a.id, b.id);
+
+            currentCollisions.emplace_back(e1, e2);
 
             const bool wasColliding = std::find(
                                           m_LastCollisions.begin(), m_LastCollisions.end(),
-                                          std::make_pair(a.id, b.id)) != m_LastCollisions.end();
+                                          std::make_pair(e1, e2)) != m_LastCollisions.end();
 
             if (!wasColliding)
                 EventManager::Get().FireCollision(a.id, b.id);

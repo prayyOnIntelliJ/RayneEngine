@@ -1508,6 +1508,24 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 8.f;
     }
 
+    if (m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+    {
+        auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+        y = DrawSectionHeader(window, "COLLISION", sf::Color(255, 100, 100), panelX, y);
+        std::string chanDisplay = (m_ActiveField == EditField::CollisionChannel && !m_ActiveInputText.empty())
+                                   ? m_ActiveInputText + "|"
+                                   : (m_ActiveField == EditField::CollisionChannel ? "|" : std::to_string(col.channel));
+        y = DrawEditableRow(window, "Channel", chanDisplay, "edit_collision_channel", panelX, y);
+        y += 4.f;
+        y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_RED_DIM, C_RED);
+        y += 8.f;
+    } else if (m_Selected->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Collision", "add_collision", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
+
     if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
         y = DrawSectionHeader(window, "SCRIPT", sf::Color(230, 90, 90), panelX, y);
@@ -1916,6 +1934,20 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_Registry.RemoveComponent<CameraComponent>(m_Selected->entity);
             std::cout << "[INFO] [Inspector] CameraComponent removed from " << m_Selected->id << "\n";
+        } else if (btn.action == "add_collision")
+        {
+            m_Registry.AddComponent(m_Selected->entity, CollisionComponent{0});
+            std::cout << "[INFO] [Inspector] CollisionComponent added to " << m_Selected->id << "\n";
+        } else if (btn.action == "remove_collision")
+        {
+            m_Registry.RemoveComponent<CollisionComponent>(m_Selected->entity);
+            std::cout << "[INFO] [Inspector] CollisionComponent removed from " << m_Selected->id << "\n";
+        } else if (btn.action == "edit_collision_channel" && m_Selected)
+        {
+            m_ActiveField = EditField::CollisionChannel;
+            if (m_Registry.HasComponent<CollisionComponent>(m_Selected->entity)) {
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<CollisionComponent>(m_Selected->entity).channel);
+            }
         } else if (btn.action == "add_script")
         {
             m_ActiveField = EditField::Script;
@@ -2125,6 +2157,12 @@ void EditorScene::SaveToJson(const std::string &path)
         {
             j["camera"] = true;
         }
+        
+        if (obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity))
+        {
+            auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
+            j["collision"] = {{"channel", col.channel}};
+        }
 
         data["objects"].push_back(j);
     }
@@ -2199,6 +2237,11 @@ void EditorScene::LoadFromJson(const std::string &path)
         if (j.contains("camera"))
         {
             m_Registry.AddComponent(obj.entity, CameraComponent{true});
+        }
+        
+        if (j.contains("collision"))
+        {
+            m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>()});
         }
 
         m_Objects.push_back(std::move(obj));

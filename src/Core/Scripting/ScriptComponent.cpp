@@ -30,6 +30,7 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
 
     m_OnCreate = m_Env["OnCreate"];
     m_OnUpdate = m_Env["OnUpdate"];
+    m_OnCollision = m_Env["OnCollision"];
 }
 
 void ScriptComponent::OnCreate() const { if (m_OnCreate.valid()) m_OnCreate(m_Env["self"].get_or(0)); }

@@ -57,4 +57,9 @@ struct CameraComponent
     bool active = true;
 };
 
+struct CollisionComponent
+{
+    int channel = 0;
+};
+
 #endif
