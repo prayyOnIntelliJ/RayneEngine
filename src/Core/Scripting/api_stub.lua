@@ -177,6 +177,19 @@ function HasSprite(e) end
 ---@param a? number
 function SetColor(e, r, g, b, a) end
 
+---Adds a Camera Component to an Entity
+---@param e Entity
+function AddCamera(e) end
+
+---Removes the Camera Component from an Entity
+---@param e Entity
+function RemoveCamera(e) end
+
+---Checks if an Entity has a Camera Component
+---@param e Entity
+---@return boolean
+function HasCamera(e) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
 

@@ -1,9 +1,25 @@
--- player
+local speed = 200
 
-function OnCreate()
-    Audio.PlaySound("assets/sounds/test_sound.mp3")
-end
+function OnUpdate(self, dt)
+    local t = GetTransform(self)
+    if not t then return end
 
-function OnUpdate(dt)
-    
+    local dx = 0
+    local dy = 0
+
+    if Input.IsKeyDown("w") then
+        dy = dy - 1
+    end
+    if Input.IsKeyDown("s") then
+        dy = dy + 1
+    end
+    if Input.IsKeyDown("a") then
+        dx = dx - 1
+    end
+    if Input.IsKeyDown("d") then
+        dx = dx + 1
+    end
+
+    t.x = t.x + dx * speed * dt
+    t.y = t.y + dy * speed * dt
 end
