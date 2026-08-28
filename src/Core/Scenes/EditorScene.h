@@ -146,6 +146,69 @@ private:
     EditField m_ActiveField = EditField::None;
     std::string m_ActiveInputText;
     sf::FloatRect m_ActiveInputBounds;
+    
+    float m_AutoSaveTimer = 0.f;
+    float m_AutoSavePopupTimer = 0.f;
+    bool m_ShowAutoSavePopup = false;
+
+    // ── Settings Window ───────────────────────────────────────────────
+    bool m_ShowSettings = false;
+    int  m_SettingsTab  = 0; // 0=General 1=Editor 2=Rendering 3=Input 4=Debug
+
+    // Settings: General
+    bool        m_AutoSaveEnabled            = true;
+    float       m_AutoSaveIntervalSeconds    = 180.f;
+    bool        m_AutoSavePopupEnabled       = true;
+    float       m_AutoSavePopupDuration      = 10.f;
+    std::string m_SceneSavePath              = "scenes/game.json";
+
+    // Settings: Editor
+    sf::Color   m_GridColor                  = sf::Color(38, 38, 52);
+    int         m_GridOpacity                = 255;
+    sf::Color   m_EditorBgColor              = sf::Color(10, 10, 18);
+    float       m_DefaultObjectSize          = 40.f;
+    sf::Color   m_SelectionOutlineColor      = sf::Color(255, 220, 60);
+    float       m_SelectionOutlineThickness  = 2.f;
+
+    // Settings: Rendering
+    bool        m_ShowFPS                    = false;
+    int         m_FPSCapIndex                = 1; // 0=Unlimited 1=60 2=120 3=144 4=240
+    float       m_ZoomSensitivity            = 0.1f;
+    float       m_ZoomMin                    = 0.2f;
+    float       m_ZoomMax                    = 5.f;
+
+    // Settings: Input
+    bool        m_PanOnMiddleButton          = true;
+    bool        m_InvertPan                  = false;
+    float       m_ScrollSensitivity          = 20.f;
+
+    // Settings: Debug
+    bool        m_ShowEntityIDs              = false;
+    bool        m_ShowColliderOutlines       = false;
+    int         m_LogLevel                   = 2; // 0=Off 1=Errors 2=Info 3=Verbose
+    bool        m_ShowAutoSaveInTitle        = false;
+
+    // Settings input field editing
+    enum class SettingsField {
+        None,
+        AutoSaveInterval, AutoSavePopupDuration, SceneSavePath,
+        GridSize, DefaultObjectSize, SelectionThickness,
+        GridOpacityVal,
+        ZoomSensitivity, ZoomMin, ZoomMax,
+        ScrollSensitivity
+    };
+    SettingsField m_ActiveSettingsField = SettingsField::None;
+    std::string   m_SettingsInputText;
+    sf::FloatRect m_SettingsInputBounds;
+
+    // Hitboxes for settings clicks
+    struct SettingsButton { sf::FloatRect bounds; std::string action; };
+    std::vector<SettingsButton> m_SettingsButtons;
+
+    // FPS tracking
+    sf::Clock   m_FPSClock;
+    float       m_FPS = 0.f;
+    int         m_FrameCount = 0;
 
     void InitMenus();
 
@@ -208,6 +271,26 @@ private:
     float DrawScriptInput(sf::RenderWindow &window, float x, float y);
 
     void HandleInspectorClick(sf::Vector2f pos);
+
+    // ── Settings Window ────────────────────────────────────────────────
+    void  DrawSettingsWindow(sf::RenderWindow &window);
+    void  HandleSettingsClick(sf::Vector2f pos);
+    float DrawSettingsSectionHeader(sf::RenderWindow &window, const std::string &title,
+                                    sf::Color accent, float x, float y, float winW);
+    float DrawSettingsToggle(sf::RenderWindow &window, const std::string &label,
+                             bool &value, const std::string &action,
+                             float x, float y, float winW);
+    float DrawSettingsSlider(sf::RenderWindow &window, const std::string &label,
+                             float &value, float minVal, float maxVal,
+                             const std::string &action,
+                             float x, float y, float winW);
+    float DrawSettingsInputField(sf::RenderWindow &window, const std::string &label,
+                                 const std::string &currentVal, SettingsField field,
+                                 float x, float y, float winW);
+    float DrawSettingsDropdown(sf::RenderWindow &window, const std::string &label,
+                               const std::vector<std::string> &options, int &currentIdx,
+                               const std::string &action,
+                               float x, float y, float winW);
 };
 
 #endif
