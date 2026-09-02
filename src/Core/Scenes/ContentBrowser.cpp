@@ -124,6 +124,13 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 {
     m_MousePos = mouseScreenPos;
 
+    // Always clear a drag on mouse release so the ghost label never gets stuck
+    if (event.type == sf::Event::MouseButtonReleased &&
+        event.mouseButton.button == sf::Mouse::Left)
+    {
+        m_Drag.active = false;
+    }
+
     if (m_SearchActive && event.type == sf::Event::TextEntered)
     {
         if (event.text.unicode == '\b')
@@ -828,22 +835,99 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     if (m_Drag.active)
     {
         m_Drag.pos = m_MousePos;
-        sf::RectangleShape ghost({100.f, 24.f});
-        ghost.setPosition(m_Drag.pos.x + 10.f, m_Drag.pos.y - 12.f);
-        ghost.setFillColor(sf::Color(30, 35, 55, 230));
-        ghost.setOutlineColor(ColorForType(m_Drag.type));
-        ghost.setOutlineThickness(1.5f);
-        window.draw(ghost);
 
-        sf::Text ghostText;
-        ghostText.setFont(m_Font);
-        ghostText.setCharacterSize(10);
-        ghostText.setFillColor(sf::Color(220, 230, 255));
+        const float ox = m_Drag.pos.x + 14.f;
+        const float oy = m_Drag.pos.y + 8.f;
+        const sf::Color accent = ColorForType(m_Drag.type);
         std::string gname = fs::path(m_Drag.path).filename().string();
-        if (gname.size() > 14) gname = gname.substr(0, 13) + "...";
-        ghostText.setString(gname);
-        ghostText.setPosition(m_Drag.pos.x + 16.f, m_Drag.pos.y - 8.f);
-        window.draw(ghostText);
+
+        if (m_Drag.type == AssetType::Image)
+        {
+            // ── Image drag: show thumbnail (64x64) + filename ────────────────
+            const float thumbSz = 64.f;
+
+            // Drop-shadow
+            sf::RectangleShape shadow({thumbSz + 4.f, thumbSz + 22.f});
+            shadow.setPosition(ox + 3.f, oy + 3.f);
+            shadow.setFillColor(sf::Color(0, 0, 0, 100));
+            window.draw(shadow);
+
+            // Background card
+            sf::RectangleShape card({thumbSz + 4.f, thumbSz + 22.f});
+            card.setPosition(ox, oy);
+            card.setFillColor(sf::Color(22, 26, 42, 240));
+            card.setOutlineColor(accent);
+            card.setOutlineThickness(1.5f);
+            window.draw(card);
+
+            // Thumbnail
+            auto tex = ResourceManager::Get().GetTexture(m_Drag.path);
+            if (tex)
+            {
+                sf::Sprite preview;
+                preview.setTexture(*tex);
+                const sf::Vector2u ts = tex->getSize();
+                if (ts.x > 0 && ts.y > 0)
+                {
+                    const float scale = thumbSz / static_cast<float>(std::max(ts.x, ts.y));
+                    preview.setScale(scale, scale);
+                    preview.setPosition(
+                        ox + 2.f + (thumbSz - ts.x * scale) / 2.f,
+                        oy + 2.f + (thumbSz - ts.y * scale) / 2.f);
+                    preview.setColor(sf::Color(255, 255, 255, 230));
+                }
+                window.draw(preview);
+            }
+            else
+            {
+                // Placeholder when texture not yet loaded
+                sf::RectangleShape ph({thumbSz - 4.f, thumbSz - 4.f});
+                ph.setPosition(ox + 4.f, oy + 4.f);
+                ph.setFillColor(sf::Color(40, 45, 70));
+                window.draw(ph);
+            }
+
+            // Filename label at bottom of card
+            if (gname.size() > 12) gname = gname.substr(0, 11) + "..";
+            sf::Text label;
+            label.setFont(m_Font);
+            label.setCharacterSize(9);
+            label.setFillColor(sf::Color(200, 210, 255, 240));
+            label.setString(gname);
+            label.setPosition(ox + 3.f, oy + thumbSz + 7.f);
+            window.draw(label);
+        }
+        else
+        {
+            // ── Non-image drag: compact pill with coloured dot + name ─────────
+            if (gname.size() > 18) gname = gname.substr(0, 17) + "...";
+            const float pw = 124.f, ph = 24.f;
+
+            sf::RectangleShape shadow({pw + 2.f, ph + 2.f});
+            shadow.setPosition(ox + 2.f, oy + 2.f);
+            shadow.setFillColor(sf::Color(0, 0, 0, 80));
+            window.draw(shadow);
+
+            sf::RectangleShape pill({pw, ph});
+            pill.setPosition(ox, oy);
+            pill.setFillColor(sf::Color(22, 26, 42, 240));
+            pill.setOutlineColor(accent);
+            pill.setOutlineThickness(1.5f);
+            window.draw(pill);
+
+            sf::CircleShape dot(4.f);
+            dot.setFillColor(accent);
+            dot.setPosition(ox + 6.f, oy + 8.f);
+            window.draw(dot);
+
+            sf::Text label;
+            label.setFont(m_Font);
+            label.setCharacterSize(10);
+            label.setFillColor(sf::Color(210, 220, 255, 240));
+            label.setString(gname);
+            label.setPosition(ox + 18.f, oy + 6.f);
+            window.draw(label);
+        }
     }
 }
 

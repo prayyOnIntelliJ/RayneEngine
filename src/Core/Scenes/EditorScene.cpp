@@ -339,6 +339,71 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (m_Dragging && m_Selected)
             m_Selected->shape.setPosition(SnapToGrid(MouseWorldPos() - m_DragOffset));
 
+        if (m_Resizing && m_Selected)
+        {
+            const sf::Vector2f mouseWorld = MouseWorldPos();
+            const sf::Vector2f delta = mouseWorld - m_ResizeMouseStart;
+
+            sf::Vector2f newPos  = m_ResizeObjOrigin;
+            sf::Vector2f newSize = m_ResizeObjSize;
+            const float minSize  = 4.f;
+
+            switch (m_ResizeHandle)
+            {
+                case 0: // TL
+                    newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
+                    newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    break;
+                case 1: // T
+                    newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    break;
+                case 2: // TR
+                    newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    break;
+                case 3: // L
+                    newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
+                    break;
+                case 4: // R
+                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
+                    break;
+                case 5: // BL
+                    newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    break;
+                case 6: // B
+                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    break;
+                case 7: // BR
+                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    break;
+                default: break;
+            }
+
+            m_Selected->shape.setPosition(newPos);
+            m_Selected->shape.setSize(newSize);
+
+            if (IsPolygonType(m_Selected->objectType))
+            {
+                m_Selected->circleShape.setPosition(newPos);
+                m_Selected->circleShape.setRadius(newSize.x / 2.f);
+            }
+
+            if (m_Selected->previewTexture)
+            {
+                const sf::Vector2u ts = m_Selected->previewTexture->getSize();
+                if (ts.x > 0 && ts.y > 0)
+                    m_Selected->previewSprite.setScale(newSize.x / ts.x, newSize.y / ts.y);
+            }
+        }
+
         return;
     }
 
@@ -352,37 +417,55 @@ void EditorScene::HandleEvent(const sf::Event &event)
         m_ContentBrowser->HasDraggedAsset())
     {
         DraggedAsset drag = m_ContentBrowser->GetDraggedAsset();
-        bool handled = false;
 
-        if (drag.type == AssetType::Script)
+        // Always clear the drag ghost on mouse release, no matter where we drop
+        m_ContentBrowser->ClearDrag();
+
+        const bool inHierarchy = m_HierarchyBounds.contains(m_MouseScreenPos);
+
+        if (drag.type == AssetType::Image)
         {
-            EditorObject *hit = ObjectAt(MouseWorldPos());
-            if (hit && hit->entity != 0 && !m_Registry.HasComponent<ScriptComponent>(hit->entity))
+            if (inInspector || inHierarchy)
             {
-                auto &sc = m_Registry.AddComponent(hit->entity, ScriptComponent(LuaState::GetLua(), drag.path));
-                sc.SetEntity(hit->entity);
-                hit->scriptPath = drag.path;
-                std::cout << "[INFO] [ContentBrowser] Script dropped onto Entity " << hit->id << "\n";
+                // Drop on Inspector or Hierarchy → apply sprite to selected object
+                if (m_Selected)
+                    ApplySpriteToObject(*m_Selected, drag.path);
             }
-            handled = true;
-        } else if (drag.type == AssetType::Image)
-        {
-            if (!inBrowser && !inTopBars)
+            else if (!inBrowser && !inTopBars)
             {
+                // Drop in viewport → apply to object under cursor, or create new
                 EditorObject *hit = ObjectAt(MouseWorldPos());
                 if (hit)
                     ApplySpriteToObject(*hit, drag.path);
                 else
+                {
+                    m_Selected = nullptr;
                     AddObjectWithSprite(MouseWorldPos(), drag.path);
+                }
             }
-            handled = true;
+        }
+        else if (drag.type == AssetType::Script)
+        {
+            if (!inBrowser && !inTopBars)
+            {
+                // Scripts can be dropped in viewport OR inspector to apply to selected
+                EditorObject *target = nullptr;
+                if (inInspector || inHierarchy)
+                    target = m_Selected;
+                else
+                    target = ObjectAt(MouseWorldPos());
+
+                if (target && target->entity != 0 && !m_Registry.HasComponent<ScriptComponent>(target->entity))
+                {
+                    auto &sc = m_Registry.AddComponent(target->entity, ScriptComponent(LuaState::GetLua(), drag.path));
+                    sc.SetEntity(target->entity);
+                    target->scriptPath = drag.path;
+                    std::cout << "[INFO] [ContentBrowser] Script dropped onto Entity " << target->id << "\n";
+                }
+            }
         }
 
-        if (handled)
-        {
-            m_ContentBrowser->ClearDrag();
-            return;
-        }
+        return;
     }
 
     if (inBrowser || m_ContentBrowser->HasDraggedAsset() ||
@@ -437,15 +520,30 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 {
                     try
                     {
-                        float val = std::stof(m_ActiveInputText);
+                        float val = std::max(4.f, std::stof(m_ActiveInputText));
                         sf::Vector2f size = m_Selected->shape.getSize();
                         if (m_ActiveField == EditField::SizeW) size.x = val;
                         else size.y = val;
                         m_Selected->shape.setSize(size);
-                        if (m_Selected->objectType == ObjectType::Sprite && m_Selected->previewTexture)
+
+                        if (IsPolygonType(m_Selected->objectType))
+                            m_Selected->circleShape.setRadius(size.x / 2.f);
+
+                        if (m_Selected->previewTexture)
                         {
-                            auto texSize = m_Selected->previewTexture->getSize();
-                            m_Selected->previewSprite.setScale(size.x / texSize.x, size.y / texSize.y);
+                            const sf::Vector2u ts = m_Selected->previewTexture->getSize();
+                            if (ts.x > 0 && ts.y > 0)
+                                m_Selected->previewSprite.setScale(size.x / ts.x, size.y / ts.y);
+                        }
+
+                        if (m_Selected->entity != 0 && m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
+                            m_Registry.GetComponent<RenderComponent>(m_Selected->entity).size = size;
+
+                        if (!m_Selected->spritePath.empty() && m_Selected->entity != 0 &&
+                            m_Registry.HasComponent<SpriteComponent>(m_Selected->entity))
+                        {
+                            m_Registry.GetComponent<SpriteComponent>(m_Selected->entity) =
+                                SpriteComponent(m_Selected->spritePath, size);
                         }
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ColorR || m_ActiveField == EditField::ColorG ||
@@ -500,7 +598,16 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             float delta = m_InvertPan ? -event.mouseWheelScroll.delta : event.mouseWheelScroll.delta;
             const float factor = delta > 0 ? (1.f - m_ZoomSensitivity) : (1.f + m_ZoomSensitivity);
-            m_camera.zoom(factor);
+
+            // Clamp zoom: camera size represents the visible world area.
+            // Smaller = more zoomed in, larger = more zoomed out.
+            const float currentW = m_camera.getSize().x;
+            const float newW     = currentW * factor;
+            constexpr float MinZoomSize =   80.f;   // max zoom-in  (80 world units wide)
+            constexpr float MaxZoomSize = 12000.f;  // max zoom-out
+
+            if (newW >= MinZoomSize && newW <= MaxZoomSize)
+                m_camera.zoom(factor);
         }
     }
 
@@ -552,6 +659,33 @@ void EditorScene::HandleEvent(const sf::Event &event)
             t.y = m_Selected->shape.getPosition().y;
         }
         m_Dragging = false;
+
+        if (m_Resizing && m_Selected && m_Selected->entity != 0)
+        {
+            const sf::Vector2f newSize = m_Selected->shape.getSize();
+            const sf::Vector2f newPos  = m_Selected->shape.getPosition();
+
+            if (m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
+            {
+                auto &t = m_Registry.GetComponent<TransformComponent>(m_Selected->entity);
+                t.x = newPos.x;
+                t.y = newPos.y;
+            }
+
+            if (m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
+            {
+                auto &rc = m_Registry.GetComponent<RenderComponent>(m_Selected->entity);
+                rc.size = newSize;
+            }
+
+            if (m_Selected->previewTexture && m_Registry.HasComponent<SpriteComponent>(m_Selected->entity))
+            {
+                m_Registry.GetComponent<SpriteComponent>(m_Selected->entity) =
+                    SpriteComponent(m_Selected->spritePath, newSize);
+            }
+        }
+        m_Resizing = false;
+        m_ResizeHandle = -1;
     }
 
     if (event.type == sf::Event::MouseButtonPressed &&
@@ -709,6 +843,22 @@ void EditorScene::HandleEvent(const sf::Event &event)
         m_ActiveField = EditField::None;
 
         sf::Vector2f pos = MouseWorldPos();
+
+        if (m_Selected)
+        {
+            const int handle = GetResizeHandle(pos);
+            if (handle >= 0)
+            {
+                m_Resizing          = true;
+                m_ResizeHandle      = handle;
+                m_ResizeMouseStart  = pos;
+                m_ResizeObjOrigin   = m_Selected->shape.getPosition();
+                m_ResizeObjSize     = m_Selected->shape.getSize();
+                UpdateStatusText();
+                return;
+            }
+        }
+
         EditorObject *hit = ObjectAt(pos);
 
         if (m_Selected) m_Selected->selected = false;
@@ -883,7 +1033,7 @@ void EditorScene::Render(sf::RenderWindow &window)
 
     for (auto &obj: m_Objects)
     {
-        if (obj.objectType == ObjectType::Sprite && obj.previewTexture)
+        if (obj.previewTexture)
         {
             obj.previewSprite.setTexture(*obj.previewTexture);
             obj.previewSprite.setPosition(obj.shape.getPosition());
@@ -1451,7 +1601,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     y += 4.f;
 
-    if (m_Selected->objectType != ObjectType::Sprite)
+    if (!m_Selected->previewTexture)
     {
         sf::RectangleShape colorSwatch({InspectorWidth - InspectorPad * 2, 22.f});
         colorSwatch.setFillColor(m_Selected->color);
@@ -1475,14 +1625,58 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_Selected->color.b));
     y = DrawEditableRow(window, "B", bDisplay, "edit_b", panelX, y);
 
-    if (m_Selected->objectType == ObjectType::Sprite)
+    y += 8.f;
+    if (m_Selected->previewTexture)
     {
+        y = DrawSectionHeader(window, "SPRITE COMPONENT", sf::Color(150, 100, 255), panelX, y);
+
         std::string spriteName = m_Selected->spritePath;
         const size_t sl = spriteName.find_last_of("/\\");
         if (sl != std::string::npos) spriteName = spriteName.substr(sl + 1);
-        y += 4.f;
-        y = DrawRow(window, "Sprite", spriteName.empty() ? "none" : spriteName, panelX, y);
+        y = DrawRow(window, "File", spriteName.empty() ? "none" : spriteName, panelX, y);
+
+        if (m_Selected->previewTexture)
+        {
+            const float thumbH = 48.f;
+            const float thumbW = InspectorWidth - InspectorPad * 2;
+            sf::RectangleShape thumb({thumbW, thumbH});
+            thumb.setPosition(panelX + InspectorPad, y);
+            thumb.setFillColor(sf::Color(30, 30, 50));
+            thumb.setOutlineColor(C_BORDER);
+            thumb.setOutlineThickness(1.f);
+            window.draw(thumb);
+
+            sf::Sprite preview;
+            preview.setTexture(*m_Selected->previewTexture);
+            const sf::Vector2u ts = m_Selected->previewTexture->getSize();
+            if (ts.x > 0 && ts.y > 0)
+            {
+                const float scaleX = thumbW / static_cast<float>(ts.x);
+                const float scaleY = thumbH / static_cast<float>(ts.y);
+                const float scale = std::min(scaleX, scaleY);
+                preview.setScale(scale, scale);
+                preview.setPosition(
+                    panelX + InspectorPad + (thumbW - ts.x * scale) / 2.f,
+                    y + (thumbH - ts.y * scale) / 2.f);
+            }
+            window.draw(preview);
+            y += thumbH + 4.f;
+        }
+
         y = DrawActionButton(window, "Change Sprite", "change_sprite", panelX, y, C_ACCENT_DIM, C_ACCENT);
+        y = DrawActionButton(window, "Remove Sprite",  "remove_sprite",  panelX, y, C_RED_DIM,    C_RED);
+    }
+    else
+    {
+        y = DrawActionButton(window, "+ Sprite Component", "change_sprite", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        sf::Text hint;
+        hint.setFont(*m_Font);
+        hint.setCharacterSize(10);
+        hint.setFillColor(C_TEXT_MUTED);
+        hint.setString("(drag image from browser)");
+        hint.setPosition(panelX + InspectorPad + 4.f, y);
+        window.draw(hint);
+        y += 16.f;
     }
 
     y += 8.f;
@@ -2009,6 +2203,18 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
 #else
             system(("xdg-open \"" + m_Selected->scriptPath + "\"").c_str());
 #endif
+        } else if (btn.action == "remove_sprite" && m_Selected)
+        {
+            m_Selected->spritePath.clear();
+            m_Selected->previewTexture.reset();
+            m_Selected->previewSprite = sf::Sprite{};
+            m_Selected->shape.setFillColor(m_Selected->color);
+            if (m_Selected->entity != 0 && m_Registry.HasComponent<SpriteComponent>(m_Selected->entity))
+                m_Registry.RemoveComponent<SpriteComponent>(m_Selected->entity);
+            std::cout << "[INFO] [Inspector] SpriteComponent removed from " << m_Selected->id << "\n";
+        } else if (btn.action == "change_sprite" && m_Selected)
+        {
+            std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
         }
         break;
     }
@@ -2090,7 +2296,7 @@ void EditorScene::AddObjectWithSprite(sf::Vector2f pos, const std::string &sprit
 void EditorScene::ApplySpriteToObject(EditorObject &obj, const std::string &spritePath)
 {
     obj.spritePath = spritePath;
-    obj.objectType = ObjectType::Sprite;
+    // NOTE: We intentionally do NOT force objectType to Sprite here.
     obj.previewTexture = ResourceManager::Get().GetTexture(spritePath);
 
     if (obj.previewTexture)
@@ -2262,10 +2468,33 @@ void EditorScene::SyncToRegistry()
     for (auto &obj: m_Objects)
     {
         if (obj.entity == 0) continue;
-        if (!m_Registry.HasComponent<TransformComponent>(obj.entity)) continue;
-        auto &t = m_Registry.GetComponent<TransformComponent>(obj.entity);
-        t.x = obj.shape.getPosition().x;
-        t.y = obj.shape.getPosition().y;
+
+        if (m_Registry.HasComponent<TransformComponent>(obj.entity))
+        {
+            auto &t = m_Registry.GetComponent<TransformComponent>(obj.entity);
+            t.x = obj.shape.getPosition().x;
+            t.y = obj.shape.getPosition().y;
+        }
+
+        if (m_Registry.HasComponent<RenderComponent>(obj.entity))
+        {
+            auto &rc = m_Registry.GetComponent<RenderComponent>(obj.entity);
+            rc.size  = obj.shape.getSize();
+            rc.color = obj.color;
+        }
+
+        if (obj.previewTexture && !obj.spritePath.empty())
+        {
+            if (m_Registry.HasComponent<SpriteComponent>(obj.entity))
+            {
+                m_Registry.GetComponent<SpriteComponent>(obj.entity) =
+                    SpriteComponent(obj.spritePath, obj.shape.getSize());
+            }
+            else
+            {
+                m_Registry.AddComponent(obj.entity, SpriteComponent(obj.spritePath, obj.shape.getSize()));
+            }
+        }
     }
 }
 
@@ -2320,6 +2549,105 @@ void EditorScene::DrawGrid()
     }
 
     m_Window.draw(lines);
+}
+
+// ---------------------------------------------------------------------------
+// Helper: returns handle index (0-7) if worldPos is near a resize handle of
+// the selected object, otherwise -1.
+//
+// Handle layout:
+//   0=TL  1=T  2=TR
+//   3=L         4=R
+//   5=BL  6=B  7=BR
+// ---------------------------------------------------------------------------
+static sf::Vector2f HandlePos(const sf::FloatRect &b, int idx)
+{
+    const float cx = b.left + b.width  * 0.5f;
+    const float cy = b.top  + b.height * 0.5f;
+    switch (idx) {
+        case 0: return {b.left,              b.top};
+        case 1: return {cx,                  b.top};
+        case 2: return {b.left + b.width,    b.top};
+        case 3: return {b.left,              cy};
+        case 4: return {b.left + b.width,    cy};
+        case 5: return {b.left,              b.top + b.height};
+        case 6: return {cx,                  b.top + b.height};
+        case 7: return {b.left + b.width,    b.top + b.height};
+        default: return {0.f, 0.f};
+    }
+}
+
+int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
+{
+    if (!m_Selected) return -1;
+
+    // Convert the 8px screen handle size to world units
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i eightScreen{8, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
+    const float hitRadius = std::abs(wEight.x - wZero.x);
+
+    const sf::FloatRect b = m_Selected->shape.getGlobalBounds();
+    for (int i = 0; i < 8; ++i)
+    {
+        const sf::Vector2f hp = HandlePos(b, i);
+        const float dx = worldPos.x - hp.x;
+        const float dy = worldPos.y - hp.y;
+        if (std::sqrt(dx * dx + dy * dy) <= hitRadius)
+            return i;
+    }
+    return -1;
+}
+
+void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
+{
+    if (!m_Selected) return;
+
+    const sf::FloatRect b = m_Selected->shape.getGlobalBounds();
+
+    // Determine screen-space handle size (always ~8 pixels)
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i eightScreen{8, 0};
+    const sf::Vector2f wZero  = m_Window.mapPixelToCoords(zeroScreen,  m_camera);
+    const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
+    const float hw = std::abs(wEight.x - wZero.x);   // half-width in world units
+
+    for (int i = 0; i < 8; ++i)
+    {
+        const sf::Vector2f hp = HandlePos(b, i);
+
+        sf::RectangleShape handle({hw * 2.f, hw * 2.f});
+        handle.setOrigin(hw, hw);
+        handle.setPosition(hp);
+
+        if (i == 7) // BR = primary resize arrow
+        {
+            handle.setFillColor(sf::Color(99, 102, 241, 220));   // C_ACCENT
+            handle.setOutlineColor(sf::Color(200, 200, 255, 255));
+        }
+        else
+        {
+            handle.setFillColor(sf::Color(220, 220, 238, 200));  // C_TEXT_PRIMARY
+            handle.setOutlineColor(sf::Color(60, 60, 90, 200));
+        }
+        handle.setOutlineThickness(0.5f);
+        window.draw(handle);
+    }
+
+    // Arrow indicator on BR handle to signal resize
+    {
+        const sf::Vector2f brp = HandlePos(b, 7);
+        const float a = hw * 1.5f;
+        sf::VertexArray arrow(sf::Lines, 6);
+        arrow[0] = {{brp.x + hw * 0.3f, brp.y + hw * 0.3f}, sf::Color(200, 200, 255, 220)};
+        arrow[1] = {{brp.x + a,         brp.y + a        }, sf::Color(200, 200, 255, 220)};
+        arrow[2] = {{brp.x + a,         brp.y + a * 0.4f }, sf::Color(200, 200, 255, 220)};
+        arrow[3] = {{brp.x + a,         brp.y + a        }, sf::Color(200, 200, 255, 220)};
+        arrow[4] = {{brp.x + a * 0.4f,  brp.y + a        }, sf::Color(200, 200, 255, 220)};
+        arrow[5] = {{brp.x + a,         brp.y + a        }, sf::Color(200, 200, 255, 220)};
+        window.draw(arrow);
+    }
 }
 
 void EditorScene::UpdateStatusText()

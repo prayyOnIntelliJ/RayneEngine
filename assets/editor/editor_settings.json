@@ -1,0 +1,46 @@
+{
+    "debug": {
+        "logLevel": 2,
+        "showAutoSaveInTitle": false,
+        "showColliderOutlines": false,
+        "showEntityIDs": false
+    },
+    "editor": {
+        "defaultObjectSize": 40.0,
+        "editorBgColor": [
+            10,
+            10,
+            18
+        ],
+        "gridColor": [
+            38,
+            38,
+            52
+        ],
+        "gridOpacity": 255,
+        "selectionOutlineColor": [
+            255,
+            220,
+            60
+        ],
+        "selectionOutlineThickness": 2.0
+    },
+    "general": {
+        "autoSaveEnabled": true,
+        "autoSaveIntervalSeconds": 180.0,
+        "autoSavePopupDuration": 10.0,
+        "autoSavePopupEnabled": true
+    },
+    "input": {
+        "invertPan": false,
+        "panOnMiddleButton": true,
+        "scrollSensitivity": 20.0
+    },
+    "rendering": {
+        "fpsCapIndex": 1,
+        "showFPS": false,
+        "zoomMax": 5.0,
+        "zoomMin": 0.20000000298023224,
+        "zoomSensitivity": 0.10000000149011612
+    }
+}

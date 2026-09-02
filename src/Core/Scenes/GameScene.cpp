@@ -6,6 +6,7 @@
 #include "../Scripting/EventManager.h"
 #include "../Scripting/ScriptComponent.h"
 #include "SFML/Graphics/RectangleShape.hpp"
+#include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Window/Event.hpp"
 
 GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
@@ -137,10 +138,24 @@ void GameScene::Render(sf::RenderWindow &window)
                 window.draw(sc.sprite);
             } else
             {
-                sf::RectangleShape shape(r.size);
-                shape.setPosition(t.x, t.y);
-                shape.setFillColor(r.color);
-                window.draw(shape);
+                if (r.shapeType == ShapeType::Rectangle) {
+                    sf::RectangleShape shape(r.size);
+                    shape.setPosition(t.x, t.y);
+                    shape.setFillColor(r.color);
+                    window.draw(shape);
+                } else {
+                    sf::CircleShape circle;
+                    switch (r.shapeType) {
+                        case ShapeType::Triangle: circle.setPointCount(3); break;
+                        case ShapeType::Pentagon: circle.setPointCount(5); break;
+                        case ShapeType::Hexagon: circle.setPointCount(6); break;
+                        case ShapeType::Circle: default: circle.setPointCount(30); break;
+                    }
+                    circle.setRadius(r.size.x / 2.f);
+                    circle.setPosition(t.x, t.y);
+                    circle.setFillColor(r.color);
+                    window.draw(circle);
+                }
             }
         });
 

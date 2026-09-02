@@ -87,6 +87,17 @@ private:
     sf::Vector2f m_DragOffset;
     sf::Vector2f m_MouseScreenPos;
 
+    // ── Resize handles ────────────────────────────────────────────────
+    // Handle indices (corners/edges of the bounding box):
+    //  0=TL  1=T  2=TR
+    //  3=L         4=R
+    //  5=BL  6=B  7=BR
+    bool         m_Resizing         = false;
+    int          m_ResizeHandle     = -1;
+    sf::Vector2f m_ResizeMouseStart;   // world pos when drag began
+    sf::Vector2f m_ResizeObjOrigin;    // shape position when drag began
+    sf::Vector2f m_ResizeObjSize;      // shape size when drag began
+
     sf::RectangleShape m_Preview;
     sf::CircleShape m_CirclePreview;
 
@@ -241,6 +252,12 @@ private:
     EditorObject *ObjectAt(sf::Vector2f pos);
 
     void DrawGrid();
+
+    void DrawResizeHandles(sf::RenderWindow &window);
+
+    // Returns handle index (0-7) if world-pos is over a handle of the selected
+    // object, or -1 if not.
+    int  GetResizeHandle(sf::Vector2f worldPos) const;
 
     void UpdateStatusText();
 

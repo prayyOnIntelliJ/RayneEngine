@@ -18,10 +18,13 @@ struct VelocityComponent
     float dx, dy;
 };
 
+enum class ShapeType { Rectangle, Circle, Triangle, Pentagon, Hexagon };
+
 struct RenderComponent
 {
     sf::Color color;
     sf::Vector2f size;
+    ShapeType shapeType = ShapeType::Rectangle;
 };
 
 struct SpriteComponent
