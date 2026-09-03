@@ -6,11 +6,14 @@
 #include <filesystem>
 #include <map>
 #include <cstdio>
+#include <chrono>
+#include <ctime>
 
 #include "../ECS/Components.h"
 #include "../Scripting/ScriptComponent.h"
 #include "../Scripting/LuaState.h"
 #include "../Resources/ResourceManager.h"
+#include "../Application/EngineVersion.h"
 #include "SFML/Window/Event.hpp"
 #include <SFML/Graphics/ConvexShape.hpp>
 
@@ -61,6 +64,18 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
 {
     m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
+    m_ContentBrowser->onSceneLoadRequest = [this](const std::string& path) {
+        this->LoadFromJson(path);
+        // Set the active scene save path relative to ASSET_PATH
+        std::string relPath = path;
+        std::string assetPathStr = ASSET_PATH;
+        if (relPath.find(assetPathStr) == 0) {
+            relPath = relPath.substr(assetPathStr.length());
+        }
+        this->m_SceneSavePath = relPath;
+        this->SaveSettings();
+        std::cout << "[INFO] [EditorScene] Loaded scene from browser: " << path << "\n";
+    };
 
     m_camera = window.getDefaultView();
 
@@ -101,7 +116,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     LoadSettings();
 
     const std::string scenesDir = ASSET_PATH "scenes";
-    const std::string defaultScenePath = scenesDir + "/game.json";
+    const std::string defaultScenePath = std::string(ASSET_PATH) + m_SceneSavePath;
 
     if (!std::filesystem::exists(scenesDir))
     {
@@ -115,7 +130,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     }
     else
     {
-        std::cout << "[INFO] [EditorScene] Default scene not found, creating new empty game.json...\n";
+        std::cout << "[INFO] [EditorScene] Default scene not found, creating new empty scene at " << defaultScenePath << "...\n";
         SaveToJson(defaultScenePath);
     }
 }
@@ -191,12 +206,12 @@ void EditorScene::HandleMenuAction(const std::string &action)
     }
     else if (action == "save")
     {
-        SaveToJson(ASSET_PATH "scenes/game.json");
-        std::cout << "[INFO] [EditorScene] Scene saved successfully\n";
+        SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+        std::cout << "[INFO] [EditorScene] Scene saved successfully to " << m_SceneSavePath << "\n";
     } else if (action == "load")
     {
-        LoadFromJson(ASSET_PATH "scenes/game.json");
-        std::cout << "[INFO] [EditorScene] Scene loaded successfully\n";
+        LoadFromJson(std::string(ASSET_PATH) + m_SceneSavePath);
+        std::cout << "[INFO] [EditorScene] Scene loaded successfully from " << m_SceneSavePath << "\n";
     } else if (action == "quit") { m_Window.close(); } else if (action == "delete")
     {
         DeleteSelected();
@@ -236,10 +251,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
 {
     UpdateBounds();
 
-    // ── Settings window intercepts events when open ───────────────────
     if (m_ShowSettings)
     {
-        // Text input for settings fields
         if (event.type == sf::Event::TextEntered && m_ActiveSettingsField != SettingsField::None)
         {
             if (event.text.unicode == '\b')
@@ -248,7 +261,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
             else if (event.text.unicode == '\r' || event.text.unicode == '\n')
             {
-                // Commit the value
                 try {
                     float v = std::stof(m_SettingsInputText);
                     if (m_ActiveSettingsField == SettingsField::AutoSaveInterval)
@@ -280,7 +292,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_SettingsInputText.clear();
                 SaveSettings();
             }
-            else if (event.text.unicode == 27) // ESC
+            else if (event.text.unicode == 27)
             {
                 m_ActiveSettingsField = SettingsField::None;
                 m_SettingsInputText.clear();
@@ -309,7 +321,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
             return;
         }
 
-        // Swallow all other events while settings is open
         return;
     }
 
@@ -350,37 +361,37 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
             switch (m_ResizeHandle)
             {
-                case 0: // TL
+                case 0:
                     newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
                     newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
                     newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
                     newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
                     break;
-                case 1: // T
+                case 1:
                     newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
                     newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
                     break;
-                case 2: // TR
+                case 2:
                     newPos.y  = std::min(m_ResizeObjOrigin.y + delta.y, m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
                     newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
                     newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
                     break;
-                case 3: // L
+                case 3:
                     newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
                     newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
                     break;
-                case 4: // R
+                case 4:
                     newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
                     break;
-                case 5: // BL
+                case 5:
                     newPos.x  = std::min(m_ResizeObjOrigin.x + delta.x, m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
                     newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
                     newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
                     break;
-                case 6: // B
+                case 6:
                     newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
                     break;
-                case 7: // BR
+                case 7:
                     newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
                     newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
                     break;
@@ -404,7 +415,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
         }
 
+        if (m_ContentBrowser->HasDraggedAsset())
+            m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
+
         return;
+    }
+
+    if (event.type == sf::Event::MouseButtonReleased)
+    {
+        m_MouseScreenPos = {(float) event.mouseButton.x, (float) event.mouseButton.y};
     }
 
     const bool inTopBars = m_MouseScreenPos.y < TopBarHeight;
@@ -418,7 +437,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
     {
         DraggedAsset drag = m_ContentBrowser->GetDraggedAsset();
 
-        // Always clear the drag ghost on mouse release, no matter where we drop
         m_ContentBrowser->ClearDrag();
 
         const bool inHierarchy = m_HierarchyBounds.contains(m_MouseScreenPos);
@@ -427,13 +445,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             if (inInspector || inHierarchy)
             {
-                // Drop on Inspector or Hierarchy → apply sprite to selected object
                 if (m_Selected)
                     ApplySpriteToObject(*m_Selected, drag.path);
             }
             else if (!inBrowser && !inTopBars)
             {
-                // Drop in viewport → apply to object under cursor, or create new
                 EditorObject *hit = ObjectAt(MouseWorldPos());
                 if (hit)
                     ApplySpriteToObject(*hit, drag.path);
@@ -448,7 +464,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             if (!inBrowser && !inTopBars)
             {
-                // Scripts can be dropped in viewport OR inspector to apply to selected
                 EditorObject *target = nullptr;
                 if (inInspector || inHierarchy)
                     target = m_Selected;
@@ -471,7 +486,19 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (inBrowser || m_ContentBrowser->HasDraggedAsset() ||
         m_ContentBrowser->IsInputActive() || m_ContentBrowser->IsContextMenuOpen())
     {
+        std::string prevSel = m_ContentBrowser->GetSelectedPath();
         m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
+        
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            if (m_ContentBrowser->GetSelectedPath() != prevSel && !m_ContentBrowser->GetSelectedPath().empty())
+            {
+                if (m_Selected) m_Selected->selected = false;
+                m_Selected = nullptr;
+                UpdateStatusText();
+            }
+        }
+        
         if (m_ContentBrowser->IsInputActive() &&
             (event.type == sf::Event::TextEntered || event.type == sf::Event::KeyPressed))
             return;
@@ -599,12 +626,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
             float delta = m_InvertPan ? -event.mouseWheelScroll.delta : event.mouseWheelScroll.delta;
             const float factor = delta > 0 ? (1.f - m_ZoomSensitivity) : (1.f + m_ZoomSensitivity);
 
-            // Clamp zoom: camera size represents the visible world area.
-            // Smaller = more zoomed in, larger = more zoomed out.
             const float currentW = m_camera.getSize().x;
             const float newW     = currentW * factor;
-            constexpr float MinZoomSize =   80.f;   // max zoom-in  (80 world units wide)
-            constexpr float MaxZoomSize = 12000.f;  // max zoom-out
+            constexpr float MinZoomSize =   80.f;
+            constexpr float MaxZoomSize = 12000.f;
 
             if (newW >= MinZoomSize && newW <= MaxZoomSize)
                 m_camera.zoom(factor);
@@ -624,7 +649,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     m_ContextObject = obj;
                     m_HierarchyContextMenuOpen = true;
                     m_ContextMenuPos = m_MouseScreenPos;
-                    // Also select it
                     if (m_Selected) m_Selected->selected = false;
                     m_Selected = obj;
                     m_Selected->selected = true;
@@ -923,7 +947,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
 void EditorScene::Update(float deltaTime) 
 {
-    // FPS tracking
     m_FrameCount++;
     float elapsed = m_FPSClock.getElapsedTime().asSeconds();
     if (elapsed >= 0.5f)
@@ -932,19 +955,25 @@ void EditorScene::Update(float deltaTime)
         m_FrameCount = 0;
         m_FPSClock.restart();
 
-        // Update window title with AutoSave info if enabled
+        std::string sceneName = m_SceneSavePath;
+        const size_t slash = sceneName.find_last_of("/\\");
+        if (slash != std::string::npos) sceneName = sceneName.substr(slash + 1);
+        const size_t dot = sceneName.rfind('.');
+        if (dot != std::string::npos) sceneName = sceneName.substr(0, dot);
+
+        std::string title =
+            std::string(Rayne::DEFAULT_PROJECT_NAME)
+            + ": " + sceneName
+            + " (" + Rayne::PlatformString() + ")"
+            + " - RayneEngine " + Rayne::VersionString();
         if (m_ShowAutoSaveInTitle)
         {
             int remaining = static_cast<int>(m_AutoSaveIntervalSeconds - m_AutoSaveTimer);
-            m_Window.setTitle("RayneEngine Editor  |  AutoSave in " + std::to_string(remaining) + "s");
+            title += "  |  AutoSave in " + std::to_string(remaining) + "s";
         }
-        else
-        {
-            m_Window.setTitle("RayneEngine Editor");
-        }
+        m_Window.setTitle(title);
     }
 
-    // AutoSave logic
     if (m_AutoSaveEnabled)
     {
         if (m_ShowAutoSavePopup)
@@ -969,7 +998,6 @@ void EditorScene::Update(float deltaTime)
                 }
                 else
                 {
-                    // Save immediately without popup
                     SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
                     std::cout << "[INFO] [EditorScene] AutoSaved scene (silent)\n";
                 }
@@ -1007,7 +1035,6 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(obj.shape);
         }
 
-        // Debug: Collider outlines
         if (m_ShowColliderOutlines)
         {
             sf::RectangleShape colBox(obj.shape.getSize());
@@ -1018,7 +1045,6 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(colBox);
         }
 
-        // Debug: Entity IDs
         if (m_ShowEntityIDs && obj.entity != 0)
         {
             sf::Text idText;
@@ -1078,7 +1104,6 @@ void EditorScene::Render(sf::RenderWindow &window)
     DrawToolbar(window);
     DrawMenuBar(window);
 
-    // FPS Overlay
     if (m_ShowFPS)
     {
         sf::Text fpsText;
@@ -1090,7 +1115,6 @@ void EditorScene::Render(sf::RenderWindow &window)
         window.draw(fpsText);
     }
 
-    // AutoSave Popup
     if (m_ShowAutoSavePopup && m_AutoSavePopupEnabled)
     {
         sf::Text asText;
@@ -1121,8 +1145,46 @@ void EditorScene::Render(sf::RenderWindow &window)
 
     if (m_AddDropdownOpen) DrawAddDropdown(window);
 
-    // Settings Window (drawn last, on top of everything)
     if (m_ShowSettings) DrawSettingsWindow(window);
+
+    if (m_ContentBrowser->HasDraggedAsset() &&
+        m_ContentBrowser->GetDraggedAsset().type == AssetType::Image)
+    {
+        const bool overInspector = m_InspectorBounds.contains(m_MouseScreenPos);
+        const bool overHierarchy = m_HierarchyBounds.contains(m_MouseScreenPos);
+
+        if (overInspector && m_Selected)
+        {
+            sf::RectangleShape glow(sf::Vector2f(m_InspectorBounds.width, m_InspectorBounds.height));
+            glow.setPosition(m_InspectorBounds.left, m_InspectorBounds.top);
+            glow.setFillColor(sf::Color(150, 100, 255, 18));
+            glow.setOutlineColor(sf::Color(150, 100, 255, 180));
+            glow.setOutlineThickness(2.f);
+            window.draw(glow);
+
+            sf::Text dropHint;
+            dropHint.setFont(*m_Font);
+            dropHint.setCharacterSize(11);
+            dropHint.setFillColor(sf::Color(200, 170, 255, 230));
+            dropHint.setString("Drop to set Sprite");
+            const float hw = dropHint.getLocalBounds().width;
+            dropHint.setPosition(
+                m_InspectorBounds.left + (m_InspectorBounds.width - hw) / 2.f,
+                m_InspectorBounds.top + 6.f);
+            window.draw(dropHint);
+        }
+        else if (overHierarchy && m_Selected)
+        {
+            sf::RectangleShape glow(sf::Vector2f(m_HierarchyBounds.width, m_HierarchyBounds.height));
+            glow.setPosition(m_HierarchyBounds.left, m_HierarchyBounds.top);
+            glow.setFillColor(sf::Color(150, 100, 255, 18));
+            glow.setOutlineColor(sf::Color(150, 100, 255, 160));
+            glow.setOutlineThickness(2.f);
+            window.draw(glow);
+        }
+    }
+
+    m_ContentBrowser->RenderDragGhost(window);
 }
 
 static void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Color outline)
@@ -1539,13 +1601,125 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (!m_Selected)
     {
-        sf::Text empty;
-        empty.setFont(*m_Font);
-        empty.setCharacterSize(12);
-        empty.setFillColor(C_TEXT_MUTED);
-        empty.setString("No selection");
-        empty.setPosition(panelX + InspectorPad + 2.f, panelY + 52.f);
-        window.draw(empty);
+        std::string selPath = m_ContentBrowser->GetSelectedPath();
+        if (!selPath.empty())
+        {
+            float y = panelY + 42.f;
+            y = DrawSectionHeader(window, "FILE PROPERTIES", sf::Color(180, 180, 220), panelX, y);
+            
+            std::error_code ec;
+            std::filesystem::path p(selPath);
+            
+            if (std::filesystem::exists(p, ec))
+            {
+                std::string filename = p.filename().string();
+                std::string ext = p.extension().string();
+                std::string typeName = "Unknown File";
+                
+                std::string lowerExt = ext;
+                std::transform(lowerExt.begin(), lowerExt.end(), lowerExt.begin(), ::tolower);
+                
+                if (lowerExt == ".lua") typeName = "Lua Script";
+                else if (lowerExt == ".json") typeName = "JSON Data";
+                else if (lowerExt == ".png" || lowerExt == ".jpg" || lowerExt == ".jpeg") typeName = "Image Asset";
+                else if (lowerExt == ".wav" || lowerExt == ".ogg") typeName = "Audio Asset";
+                else if (lowerExt == ".ttf") typeName = "Font Asset";
+                else if (std::filesystem::is_directory(p, ec)) typeName = "Directory";
+                
+                uintmax_t size = std::filesystem::file_size(p, ec);
+                std::string sizeStr = "-";
+                if (!ec) {
+                    if (size < 1024) sizeStr = std::to_string(size) + " B";
+                    else if (size < 1024 * 1024) sizeStr = std::to_string(size / 1024) + " KB";
+                    else sizeStr = std::to_string(size / (1024 * 1024)) + " MB";
+                }
+                
+                auto ftime = std::filesystem::last_write_time(p, ec);
+                std::string timeStr = "Unknown";
+                if (!ec) {
+                    auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(ftime - std::filesystem::file_time_type::clock::now() + std::chrono::system_clock::now());
+                    std::time_t cftime = std::chrono::system_clock::to_time_t(sctp);
+                    char timeBuf[64];
+                    std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", std::localtime(&cftime));
+                    timeStr = timeBuf;
+                }
+                
+                y = DrawRow(window, "Name", filename, panelX, y);
+                y = DrawRow(window, "Type", typeName, panelX, y);
+                if (typeName != "Directory") {
+                    y = DrawRow(window, "Size", sizeStr, panelX, y);
+                }
+                y = DrawRow(window, "Modified", timeStr, panelX, y);
+                
+                if (typeName == "Image Asset")
+                {
+                    y += 10.f;
+                    y = DrawSectionHeader(window, "PREVIEW", sf::Color(220, 150, 220), panelX, y);
+                    
+                    auto tex = ResourceManager::Get().GetTexture(selPath);
+                    if (tex)
+                    {
+                        const sf::Vector2u ts = tex->getSize();
+                        y = DrawRow(window, "Dimensions", std::to_string(ts.x) + " x " + std::to_string(ts.y), panelX, y);
+                        
+                        float previewW = InspectorWidth - 20.f;
+                        float previewH = previewW * ((float)ts.y / (float)ts.x);
+                        if (previewH > 200.f) {
+                            previewH = 200.f;
+                            previewW = previewH * ((float)ts.x / (float)ts.y);
+                        }
+                        
+                        sf::Sprite sprite(*tex);
+                        sprite.setScale(previewW / ts.x, previewH / ts.y);
+                        sprite.setPosition(panelX + 10.f + (InspectorWidth - 20.f - previewW) / 2.f, y + 10.f);
+                        window.draw(sprite);
+                        
+                        y += previewH + 20.f;
+                    }
+                }
+                else if (typeName == "Lua Script" || typeName == "JSON Data")
+                {
+                    y += 10.f;
+                    y = DrawSectionHeader(window, "FILE CONTENT", sf::Color(150, 220, 150), panelX, y);
+                    
+                    std::ifstream ifs(selPath);
+                    if (ifs.is_open())
+                    {
+                        int lineCount = 0;
+                        std::string line;
+                        std::string previewContent;
+                        while (std::getline(ifs, line) && lineCount < 20) {
+                            previewContent += line + "\n";
+                            lineCount++;
+                        }
+                        if (std::getline(ifs, line)) {
+                            previewContent += "...";
+                        }
+                        ifs.close();
+                        
+                        sf::Text contentText;
+                        contentText.setFont(*m_Font);
+                        contentText.setCharacterSize(9);
+                        contentText.setFillColor(sf::Color(180, 190, 200));
+                        contentText.setString(previewContent);
+                        contentText.setPosition(panelX + 10.f, y + 5.f);
+                        window.draw(contentText);
+                        
+                        y += contentText.getLocalBounds().height + 15.f;
+                    }
+                }
+            }
+        }
+        else
+        {
+            sf::Text empty;
+            empty.setFont(*m_Font);
+            empty.setCharacterSize(12);
+            empty.setFillColor(C_TEXT_MUTED);
+            empty.setString("No selection");
+            empty.setPosition(panelX + InspectorPad + 2.f, panelY + 52.f);
+            window.draw(empty);
+        }
         return;
     }
 
@@ -1663,7 +1837,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             y += thumbH + 4.f;
         }
 
-        y = DrawActionButton(window, "Change Sprite", "change_sprite", panelX, y, C_ACCENT_DIM, C_ACCENT);
         y = DrawActionButton(window, "Remove Sprite",  "remove_sprite",  panelX, y, C_RED_DIM,    C_RED);
     }
     else
@@ -1726,7 +1899,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 8.f;
     }
 
-
     if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
         y = DrawSectionHeader(window, "SCRIPT", sf::Color(230, 90, 90), panelX, y);
@@ -1764,7 +1936,6 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
     rightBorder.setPosition(panelX + HierarchyWidth - 1.f, panelY);
     window.draw(rightBorder);
 
-    // Header
     {
         sf::RectangleShape header({HierarchyWidth, 36.f});
         header.setPosition(panelX, panelY);
@@ -1786,10 +1957,8 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         window.draw(title);
     }
 
-    // Clipping view for scroll
     sf::View prevView = window.getView();
     
-    // We map the UI view bounds to viewport proportions
     const float winW = static_cast<float>(window.getSize().x);
     const float winH = static_cast<float>(window.getSize().y);
     
@@ -1812,12 +1981,10 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
     {
         EditorObject& obj = *it;
         
-        // Only draw visible elements
         if (y + rowHeight > panelY + 36.f && y < panelY + panelH)
         {
             sf::FloatRect rowRect(panelX, y, HierarchyWidth, rowHeight);
             
-            // Background
             const bool isSelected = (&obj == m_Selected);
             const bool isHovered = rowRect.contains(m_MouseScreenPos) && m_MouseScreenPos.y > panelY + 36.f;
 
@@ -1837,7 +2004,6 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
                 }
             }
 
-            // Type Icon (tiny representation)
             sf::CircleShape icon;
             icon.setRadius(5.f);
             icon.setPosition(panelX + 16.f, y + 8.f);
@@ -1849,17 +2015,16 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             }
             else if (obj.objectType == ObjectType::Sprite)
             {
-                icon.setPointCount(4); // Square
+                icon.setPointCount(4);
                 icon.setFillColor(sf::Color(150, 150, 255));
             }
             else
             {
-                icon.setPointCount(4); // Rectangle
+                icon.setPointCount(4);
                 icon.setFillColor(obj.color);
             }
             window.draw(icon);
 
-            // Name
             sf::Text nameText;
             nameText.setFont(*m_Font);
             nameText.setCharacterSize(12);
@@ -1927,15 +2092,25 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
 float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string &title,
                                      sf::Color accent, float x, float y)
 {
-    sf::RectangleShape bar({InspectorWidth, 22.f});
-    bar.setFillColor(sf::Color(accent.r / 10, accent.g / 10, accent.b / 10, 180));
+    sf::RectangleShape sepLine({InspectorWidth, 2.f});
+    sepLine.setFillColor(sf::Color(accent.r, accent.g, accent.b, 60));
+    sepLine.setPosition(x, y);
+    window.draw(sepLine);
+    y += 2.f;
+
+    sf::RectangleShape bar({InspectorWidth, 26.f});
+    bar.setFillColor(sf::Color(
+        static_cast<sf::Uint8>(accent.r / 8),
+        static_cast<sf::Uint8>(accent.g / 8),
+        static_cast<sf::Uint8>(accent.b / 8),
+        210));
     bar.setPosition(x, y);
     window.draw(bar);
 
-    sf::RectangleShape accentLine({3.f, 22.f});
-    accentLine.setFillColor(accent);
-    accentLine.setPosition(x, y);
-    window.draw(accentLine);
+    sf::RectangleShape accentBar({4.f, 26.f});
+    accentBar.setFillColor(accent);
+    accentBar.setPosition(x, y);
+    window.draw(accentBar);
 
     sf::Text text;
     text.setFont(*m_Font);
@@ -1943,10 +2118,10 @@ float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string
     text.setFillColor(accent);
     text.setStyle(sf::Text::Bold);
     text.setString(title);
-    text.setPosition(x + InspectorPad + 4.f, y + 6.f);
+    text.setPosition(x + InspectorPad + 4.f, y + 8.f);
     window.draw(text);
 
-    return y + 24.f;
+    return y + 28.f;
 }
 
 float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
@@ -2125,7 +2300,6 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             std::cout << "[INFO] [Inspector] VelocityComponent removed from " << m_Selected->id << "\n";
         } else if (btn.action == "add_camera")
         {
-            // Remove CameraComponent from all others (only 1 active camera)
             m_Registry.ForEach<CameraComponent>([this](Entity e, CameraComponent&) {
                 m_Registry.RemoveComponent<CameraComponent>(e);
             });
@@ -2296,12 +2470,11 @@ void EditorScene::AddObjectWithSprite(sf::Vector2f pos, const std::string &sprit
 void EditorScene::ApplySpriteToObject(EditorObject &obj, const std::string &spritePath)
 {
     obj.spritePath = spritePath;
-    // NOTE: We intentionally do NOT force objectType to Sprite here.
     obj.previewTexture = ResourceManager::Get().GetTexture(spritePath);
 
     if (obj.previewTexture)
     {
-        obj.previewSprite.setTexture(*obj.previewTexture);
+        obj.previewSprite.setTexture(*obj.previewTexture, true);
         const sf::Vector2u ts = obj.previewTexture->getSize();
         const sf::Vector2f sz = obj.shape.getSize();
         if (ts.x > 0 && ts.y > 0)
@@ -2551,15 +2724,6 @@ void EditorScene::DrawGrid()
     m_Window.draw(lines);
 }
 
-// ---------------------------------------------------------------------------
-// Helper: returns handle index (0-7) if worldPos is near a resize handle of
-// the selected object, otherwise -1.
-//
-// Handle layout:
-//   0=TL  1=T  2=TR
-//   3=L         4=R
-//   5=BL  6=B  7=BR
-// ---------------------------------------------------------------------------
 static sf::Vector2f HandlePos(const sf::FloatRect &b, int idx)
 {
     const float cx = b.left + b.width  * 0.5f;
@@ -2581,7 +2745,6 @@ int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
 {
     if (!m_Selected) return -1;
 
-    // Convert the 8px screen handle size to world units
     sf::Vector2i zeroScreen{0, 0};
     sf::Vector2i eightScreen{8, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
@@ -2606,12 +2769,11 @@ void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
 
     const sf::FloatRect b = m_Selected->shape.getGlobalBounds();
 
-    // Determine screen-space handle size (always ~8 pixels)
     sf::Vector2i zeroScreen{0, 0};
     sf::Vector2i eightScreen{8, 0};
     const sf::Vector2f wZero  = m_Window.mapPixelToCoords(zeroScreen,  m_camera);
     const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
-    const float hw = std::abs(wEight.x - wZero.x);   // half-width in world units
+    const float hw = std::abs(wEight.x - wZero.x);
 
     for (int i = 0; i < 8; ++i)
     {
@@ -2621,21 +2783,20 @@ void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
         handle.setOrigin(hw, hw);
         handle.setPosition(hp);
 
-        if (i == 7) // BR = primary resize arrow
+        if (i == 7)
         {
-            handle.setFillColor(sf::Color(99, 102, 241, 220));   // C_ACCENT
+            handle.setFillColor(sf::Color(99, 102, 241, 220));
             handle.setOutlineColor(sf::Color(200, 200, 255, 255));
         }
         else
         {
-            handle.setFillColor(sf::Color(220, 220, 238, 200));  // C_TEXT_PRIMARY
+            handle.setFillColor(sf::Color(220, 220, 238, 200));
             handle.setOutlineColor(sf::Color(60, 60, 90, 200));
         }
         handle.setOutlineThickness(0.5f);
         window.draw(handle);
     }
 
-    // Arrow indicator on BR handle to signal resize
     {
         const sf::Vector2f brp = HandlePos(b, 7);
         const float a = hw * 1.5f;
@@ -2663,10 +2824,6 @@ void EditorScene::UpdateStatusText()
 
 std::string EditorScene::NextId() { return "obj_" + std::to_string(m_IdCounter++); }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  SETTINGS WINDOW
-// ═══════════════════════════════════════════════════════════════════════════
-
 void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
 {
     m_SettingsButtons.clear();
@@ -2676,12 +2833,10 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     const float winX  = (m_Window.getSize().x - winW) / 2.f;
     const float winY  = (m_Window.getSize().y - winH) / 2.f;
 
-    // ── Backdrop dim ──────────────────────────────────────────────────
     sf::RectangleShape dim({(float)m_Window.getSize().x, (float)m_Window.getSize().y});
     dim.setFillColor(sf::Color(0, 0, 0, 160));
     window.draw(dim);
 
-    // ── Window background ─────────────────────────────────────────────
     sf::RectangleShape bg({winW, winH});
     bg.setPosition(winX, winY);
     bg.setFillColor(C_BG_INSPECTOR);
@@ -2689,7 +2844,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     bg.setOutlineThickness(1.f);
     window.draw(bg);
 
-    // ── Title bar ─────────────────────────────────────────────────────
     const float titleH = 38.f;
     sf::RectangleShape titleBar({winW, titleH});
     titleBar.setPosition(winX, winY);
@@ -2710,7 +2864,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     titleText.setPosition(winX + 16.f, winY + 11.f);
     window.draw(titleText);
 
-    // ── Close button ──────────────────────────────────────────────────
     const sf::FloatRect closeRect(winX + winW - 34.f, winY + 6.f, 26.f, 26.f);
     const bool closeHov = closeRect.contains(m_MouseScreenPos);
     sf::RectangleShape closeBg({26.f, 26.f});
@@ -2728,7 +2881,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     window.draw(closeText);
     m_SettingsButtons.push_back({closeRect, "close_settings"});
 
-    // ── Tab bar ───────────────────────────────────────────────────────
     const float tabY    = winY + titleH;
     const float tabH    = 32.f;
     const float tabW    = winW / 5.f;
@@ -2786,7 +2938,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         m_SettingsButtons.push_back({tabRect, "tab_" + std::to_string(i)});
     }
 
-    // ── Content area ──────────────────────────────────────────────────
     const float contentX = winX + 16.f;
     const float contentY = tabY + tabH + 12.f;
     const float contentW = winW - 32.f;
@@ -2794,7 +2945,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
 
     const sf::Color accent = tabAccents[m_SettingsTab];
 
-    if (m_SettingsTab == 0) // ── GENERAL ──────────────────────────────
+    if (m_SettingsTab == 0)
     {
         y = DrawSettingsSectionHeader(window, "AUTOSAVE", accent, contentX, y, contentW);
         y = DrawSettingsToggle(window, "Enable AutoSave", m_AutoSaveEnabled, "toggle_autosave", contentX, y, contentW);
@@ -2811,7 +2962,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         y = DrawSettingsInputField(window, "Save Path", m_SceneSavePath,
                                    SettingsField::SceneSavePath, contentX, y, contentW);
 
-        // Quick-save note
         sf::Text note;
         note.setFont(*m_Font);
         note.setCharacterSize(10);
@@ -2826,7 +2976,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         y = DrawSettingsToggle(window, "AutoSave Countdown in Title Bar",
                                m_ShowAutoSaveInTitle, "toggle_title_countdown", contentX, y, contentW);
     }
-    else if (m_SettingsTab == 1) // ── EDITOR ───────────────────────────
+    else if (m_SettingsTab == 1)
     {
         y = DrawSettingsSectionHeader(window, "GRID", accent, contentX, y, contentW);
         y = DrawSettingsInputField(window, "Grid Size (px)",
@@ -2836,7 +2986,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
                                    std::to_string(m_GridOpacity),
                                    SettingsField::GridOpacityVal, contentX, y, contentW);
 
-        // Grid color preview
         {
             sf::RectangleShape preview({60.f, 20.f});
             preview.setFillColor(m_GridColor);
@@ -2869,7 +3018,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
                                    std::to_string(static_cast<int>(m_SelectionOutlineThickness)),
                                    SettingsField::SelectionThickness, contentX, y, contentW);
 
-        // Selection color preview
         {
             sf::RectangleShape preview({60.f, 20.f});
             preview.setFillColor(m_SelectionOutlineColor);
@@ -2887,7 +3035,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             y += 30.f;
         }
 
-        // Reset Editor Defaults button
         y += 8.f;
         {
             const sf::FloatRect btnRect(contentX, y + 2.f, contentW, 26.f);
@@ -2909,7 +3056,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             y += 34.f;
         }
     }
-    else if (m_SettingsTab == 2) // ── RENDERING ────────────────────────
+    else if (m_SettingsTab == 2)
     {
         y = DrawSettingsSectionHeader(window, "DISPLAY", accent, contentX, y, contentW);
         y = DrawSettingsToggle(window, "Show FPS", m_ShowFPS, "toggle_fps", contentX, y, contentW);
@@ -2917,7 +3064,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         const std::vector<std::string> fpsCaps = {"Unlimited", "60", "120", "144", "240"};
         y = DrawSettingsDropdown(window, "FPS Cap", fpsCaps, m_FPSCapIndex, "fps_cap", contentX, y, contentW);
 
-        // Apply FPS cap
         {
             static const int capValues[] = {0, 60, 120, 144, 240};
             m_Window.setFramerateLimit(static_cast<unsigned>(capValues[m_FPSCapIndex]));
@@ -2934,7 +3080,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
                                    [this]{ char buf[32]; snprintf(buf,32,"%.2f",m_ZoomMax); return std::string(buf); }(),
                                    SettingsField::ZoomMax, contentX, y, contentW);
 
-        // Reset Camera button
         y += 8.f;
         {
             const sf::FloatRect btnRect(contentX, y + 2.f, contentW, 26.f);
@@ -2956,7 +3101,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             y += 34.f;
         }
     }
-    else if (m_SettingsTab == 3) // ── INPUT ────────────────────────────
+    else if (m_SettingsTab == 3)
     {
         y = DrawSettingsSectionHeader(window, "CAMERA NAVIGATION", accent, contentX, y, contentW);
 
@@ -3017,7 +3162,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             if (y > winY + winH - 20.f) break;
         }
     }
-    else if (m_SettingsTab == 4) // ── DEBUG ────────────────────────────
+    else if (m_SettingsTab == 4)
     {
         y = DrawSettingsSectionHeader(window, "VIEWPORT OVERLAYS", accent, contentX, y, contentW);
         y = DrawSettingsToggle(window, "Show Entity IDs", m_ShowEntityIDs, "toggle_entity_ids", contentX, y, contentW);
@@ -3067,7 +3212,6 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
 
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 void EditorScene::HandleSettingsClick(sf::Vector2f pos)
 {
     m_MouseScreenPos = pos;
@@ -3112,10 +3256,9 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
             m_SelectionOutlineColor = sf::Color(255, 220, 60);
             m_SelectionOutlineThickness = 2.f;
         }
-        else if (btn.action.rfind("fps_cap", 0) == 0)   { /* handled in DrawSettingsDropdown */ }
-        else if (btn.action.rfind("pan_button", 0) == 0) { /* handled in DrawSettingsDropdown */ }
-        else if (btn.action.rfind("log_level", 0) == 0)  { /* handled in DrawSettingsDropdown */ }
-        // Input fields: set active
+        else if (btn.action.rfind("fps_cap", 0) == 0)   {}
+        else if (btn.action.rfind("pan_button", 0) == 0) {}
+        else if (btn.action.rfind("log_level", 0) == 0)  {}
         else if (btn.action.rfind("input_", 0) == 0)
         {
             std::string fieldStr = btn.action.substr(6);
@@ -3130,10 +3273,9 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
             else if (fieldStr == "ZoomMax")                { m_ActiveSettingsField = SettingsField::ZoomMax; char b[32]; snprintf(b,32,"%.2f",m_ZoomMax); m_SettingsInputText = b; }
             else if (fieldStr == "ScrollSensitivity")      { m_ActiveSettingsField = SettingsField::ScrollSensitivity; m_SettingsInputText = std::to_string(static_cast<int>(m_ScrollSensitivity)); }
         }
-        // Slider clicks
         else if (btn.action.rfind("slider_", 0) == 0)
         {
-            std::string tag = btn.action.substr(7); // e.g. "zoom_sens_<normalizedX>"
+            std::string tag = btn.action.substr(7);
             const size_t sep = tag.rfind('_');
             if (sep != std::string::npos)
             {
@@ -3143,7 +3285,6 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
                 else if (id == "scroll_sens") m_ScrollSensitivity = 1.f + norm * (100.f - 1.f);
             }
         }
-        // Dropdown option clicks: action is "dropdown_<id>_<index>"
         else if (btn.action.rfind("dropdown_", 0) == 0)
         {
             std::string rest = btn.action.substr(9);
@@ -3162,7 +3303,6 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
     }
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 float EditorScene::DrawSettingsSectionHeader(sf::RenderWindow &window,
     const std::string &title, sf::Color accent, float x, float y, float winW)
 {
@@ -3188,7 +3328,6 @@ float EditorScene::DrawSettingsSectionHeader(sf::RenderWindow &window,
     return y + 28.f;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     const std::string &label, bool &value, const std::string &action,
     float x, float y, float winW)
@@ -3211,7 +3350,6 @@ float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     labelText.setPosition(x + 8.f, y + 7.f);
     window.draw(labelText);
 
-    // Toggle pill
     const float pillW = 36.f, pillH = 18.f;
     const float pillX = x + winW - pillW - 8.f;
     const float pillY = y + (rowH - pillH) / 2.f;
@@ -3225,7 +3363,6 @@ float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     pill.setOutlineThickness(1.f);
     window.draw(pill);
 
-    // Toggle knob
     const float knobX = value ? pillX + pillW - pillH + 2.f : pillX + 2.f;
     sf::CircleShape knob(pillH / 2.f - 2.f);
     knob.setFillColor(sf::Color::White);
@@ -3241,7 +3378,6 @@ float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     return y + rowH;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 float EditorScene::DrawSettingsSlider(sf::RenderWindow &window,
     const std::string &label, float &value, float minVal, float maxVal,
     const std::string &action, float x, float y, float winW)
@@ -3286,14 +3422,12 @@ float EditorScene::DrawSettingsSlider(sf::RenderWindow &window,
     fill.setFillColor(C_ACCENT);
     window.draw(fill);
 
-    // Knob
     const float knobX = trackX + norm * trackW - 6.f;
     sf::CircleShape knob(6.f);
     knob.setFillColor(C_ACCENT_BRIGHT);
     knob.setPosition(knobX, trackY - 4.f);
     window.draw(knob);
 
-    // Clickable track area: encode normalized x in action string
     const sf::FloatRect trackRect(trackX, trackY - 6.f, trackW, trackH + 12.f);
     if (trackRect.contains(m_MouseScreenPos) && sf::Mouse::isButtonPressed(sf::Mouse::Left))
     {
@@ -3309,7 +3443,6 @@ float EditorScene::DrawSettingsSlider(sf::RenderWindow &window,
     return y + rowH;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 float EditorScene::DrawSettingsInputField(sf::RenderWindow &window,
     const std::string &label, const std::string &currentVal,
     SettingsField field, float x, float y, float winW)
@@ -3346,7 +3479,6 @@ float EditorScene::DrawSettingsInputField(sf::RenderWindow &window,
     valText.setPosition(fieldX + 6.f, y + 7.f);
     window.draw(valText);
 
-    // Encode field type in action string for click handling
     static const std::map<SettingsField, std::string> fieldNames = {
         {SettingsField::AutoSaveInterval,       "AutoSaveInterval"},
         {SettingsField::AutoSavePopupDuration,  "AutoSavePopupDuration"},
@@ -3373,7 +3505,6 @@ float EditorScene::DrawSettingsInputField(sf::RenderWindow &window,
     return y + rowH;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
 float EditorScene::DrawSettingsDropdown(sf::RenderWindow &window,
     const std::string &label, const std::vector<std::string> &options,
     int &currentIdx, const std::string &action,

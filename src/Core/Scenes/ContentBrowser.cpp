@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "SFML/Window/Event.hpp"
+#include <SFML/Window/Clipboard.hpp>
 #include "../Resources/ResourceManager.h"
 #include "../Audio/AudioManager.h"
 
@@ -124,7 +125,6 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 {
     m_MousePos = mouseScreenPos;
 
-    // Always clear a drag on mouse release so the ghost label never gets stuck
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left)
     {
@@ -168,6 +168,141 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
                 m_NewScriptName += c;
         }
         return;
+    }
+
+    if (m_NewScenePrompt && event.type == sf::Event::TextEntered)
+    {
+        if (event.text.unicode == '\b') { if (!m_NewSceneName.empty()) m_NewSceneName.pop_back(); } else if (
+            event.text.unicode == 27)
+        {
+            m_NewScenePrompt = false;
+            m_NewSceneName.clear();
+        } else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        {
+            if (!m_NewSceneName.empty()) { CreateNewScene(m_NewSceneName); }
+            m_NewScenePrompt = false;
+            m_NewSceneName.clear();
+        } else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        {
+            char c = static_cast<char>(event.text.unicode);
+            if (std::isalnum(c) || c == '_' || c == '-')
+                m_NewSceneName += c;
+        }
+        return;
+    }
+
+    if (m_NewFolderPrompt && event.type == sf::Event::TextEntered)
+    {
+        if (event.text.unicode == '\b')
+        {
+            if (!m_NewFolderName.empty()) m_NewFolderName.pop_back();
+        }
+        else if (event.text.unicode == 27)
+        {
+            m_NewFolderPrompt = false;
+            m_NewFolderName.clear();
+        }
+        else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        {
+            if (!m_NewFolderName.empty()) { CreateNewFolder(m_NewFolderName); }
+            m_NewFolderPrompt = false;
+            m_NewFolderName.clear();
+        }
+        else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        {
+            char c = static_cast<char>(event.text.unicode);
+            if (std::isalnum(c) || c == '_' || c == '-' || c == ' ')
+                m_NewFolderName += c;
+        }
+        return;
+    }
+
+    if (m_RenamePrompt && event.type == sf::Event::TextEntered)
+    {
+        if (event.text.unicode == '\b')
+        {
+            if (!m_RenameInput.empty()) m_RenameInput.pop_back();
+        }
+        else if (event.text.unicode == 27)
+        {
+            m_RenamePrompt = false;
+            m_RenameInput.clear();
+        }
+        else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        {
+            if (!m_RenameInput.empty()) { RenameAsset(m_RenameTarget, m_RenameInput); }
+            m_RenamePrompt = false;
+            m_RenameInput.clear();
+        }
+        else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        {
+            char c = static_cast<char>(event.text.unicode);
+            if (c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c != '|')
+                m_RenameInput += c;
+        }
+        return;
+    }
+
+    if (m_DeletePrompt && event.type == sf::Event::TextEntered)
+    {
+        if (event.text.unicode == 27 || event.text.unicode == 'n' || event.text.unicode == 'N')
+        {
+            m_DeletePrompt = false;
+        }
+        else if (event.text.unicode == '\r' || event.text.unicode == '\n' || event.text.unicode == 'y' || event.text.unicode == 'Y')
+        {
+            DeleteAsset(m_DeleteTarget);
+            m_DeletePrompt = false;
+        }
+        return;
+    }
+
+    if (event.type == sf::Event::KeyPressed)
+    {
+        if (m_RenamePrompt || m_NewScriptPrompt || m_NewScenePrompt || m_NewFolderPrompt || m_DeletePrompt)
+        {
+            if (event.key.code == sf::Keyboard::Escape)
+            {
+                m_RenamePrompt = false;
+                m_NewScriptPrompt = false;
+                m_NewScenePrompt = false;
+                m_NewFolderPrompt = false;
+                m_DeletePrompt = false;
+                return;
+            }
+            if (m_DeletePrompt && event.key.code == sf::Keyboard::Enter)
+            {
+                DeleteAsset(m_DeleteTarget);
+                m_DeletePrompt = false;
+                return;
+            }
+        }
+        else if (!m_SearchActive)
+        {
+            if (event.key.code == sf::Keyboard::F2 && !m_SelectedPath.empty())
+            {
+                m_RenameTarget = m_SelectedPath;
+                m_RenameInput = fs::path(m_SelectedPath).filename().string();
+                m_RenamePrompt = true;
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Delete && !m_SelectedPath.empty())
+            {
+                m_DeleteTarget = m_SelectedPath;
+                m_DeletePrompt = true;
+                return;
+            }
+            if (event.key.control && event.key.code == sf::Keyboard::D && !m_SelectedPath.empty())
+            {
+                DuplicateAsset(m_SelectedPath);
+                return;
+            }
+            if (event.key.control && event.key.code == sf::Keyboard::C && !m_SelectedPath.empty())
+            {
+                CopyAssetPath(m_SelectedPath);
+                return;
+            }
+        }
     }
 
     if (event.type == sf::Event::MouseWheelScrolled)
@@ -220,6 +355,13 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         if (m_RefreshBtnBounds.contains(mouseScreenPos))
         {
             Refresh();
+            return;
+        }
+
+        if (m_NewFolderBtnBounds.contains(mouseScreenPos))
+        {
+            m_NewFolderPrompt = true;
+            m_NewFolderName = "NewFolder";
             return;
         }
 
@@ -461,6 +603,24 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     newScriptText.setPosition(m_NewScriptBtnBounds.left + 8.f, m_NewScriptBtnBounds.top + 4.f);
     window.draw(newScriptText);
 
+    rightX -= 64.f;
+    m_NewFolderBtnBounds = sf::FloatRect(rightX, curY, 58.f, 22.f);
+    bool newFolderHover = m_NewFolderBtnBounds.contains(m_MousePos);
+    sf::RectangleShape newFolderBtn({m_NewFolderBtnBounds.width, m_NewFolderBtnBounds.height});
+    newFolderBtn.setPosition(m_NewFolderBtnBounds.left, m_NewFolderBtnBounds.top);
+    newFolderBtn.setFillColor(newFolderHover ? sf::Color(65, 55, 30) : sf::Color(45, 38, 20));
+    newFolderBtn.setOutlineColor(newFolderHover ? sf::Color(220, 180, 70) : sf::Color(140, 110, 40));
+    newFolderBtn.setOutlineThickness(1.f);
+    window.draw(newFolderBtn);
+
+    sf::Text newFolderText;
+    newFolderText.setFont(m_Font);
+    newFolderText.setCharacterSize(10);
+    newFolderText.setFillColor(newFolderHover ? sf::Color(255, 225, 130) : sf::Color(200, 170, 90));
+    newFolderText.setString("+ Folder");
+    newFolderText.setPosition(m_NewFolderBtnBounds.left + 7.f, m_NewFolderBtnBounds.top + 4.f);
+    window.draw(newFolderText);
+
     rightX -= 120.f;
     m_SearchBoxBounds = sf::FloatRect(rightX, curY, 114.f, 22.f);
     bool searchHover = m_SearchBoxBounds.contains(m_MousePos);
@@ -556,11 +716,12 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         window.draw(fText);
     }
 
+    const float statusBarH = 22.f;
     const float cardW = 86.f;
     const float cardH = 92.f;
     const float pad = 10.f;
     const float gridStartY = y + toolbarH + 8.f;
-    const float gridHeight = height - toolbarH - 10.f;
+    const float gridHeight = height - toolbarH - statusBarH - 12.f;
 
     float ix = x + pad;
     float iy = gridStartY - m_ScrollOffset;
@@ -573,7 +734,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::FloatRect cardRect(ix, iy, cardW, cardH);
         m_ItemBounds.emplace_back(cardRect, i);
 
-        if (iy + cardH >= gridStartY && iy <= y + height)
+        if (iy + cardH >= gridStartY && iy <= y + height - statusBarH)
         {
             bool hovered = cardRect.contains(m_MousePos);
             bool selected = (entry.fullPath == m_SelectedPath);
@@ -725,6 +886,67 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         window.draw(thumb);
     }
 
+    const float statusBarY = y + height - statusBarH;
+    sf::RectangleShape statusBg({width, statusBarH});
+    statusBg.setPosition(x, statusBarY);
+    statusBg.setFillColor(sf::Color(20, 21, 30, 255));
+    statusBg.setOutlineColor(sf::Color(38, 41, 56));
+    statusBg.setOutlineThickness(1.f);
+    window.draw(statusBg);
+
+    sf::Text statusText;
+    statusText.setFont(m_Font);
+    statusText.setCharacterSize(10);
+
+    double now = CurrentTimeSeconds();
+    if (!m_StatusMessage.empty() && (now - m_StatusMessageTime < 3.5))
+    {
+        statusText.setFillColor(sf::Color(120, 230, 160));
+        statusText.setString(m_StatusMessage);
+    }
+    else
+    {
+        const ContentEntry *infoEntry = nullptr;
+        for (const auto &[rect, idx]: m_ItemBounds)
+        {
+            if (rect.contains(m_MousePos) && idx < m_FilteredEntries.size())
+            {
+                infoEntry = &m_FilteredEntries[idx];
+                break;
+            }
+        }
+        if (!infoEntry && !m_SelectedPath.empty())
+        {
+            for (const auto &e: m_FilteredEntries)
+            {
+                if (e.fullPath == m_SelectedPath)
+                {
+                    infoEntry = &e;
+                    break;
+                }
+            }
+        }
+
+        if (infoEntry)
+        {
+            statusText.setFillColor(sf::Color(190, 200, 225));
+            std::string infoStr = "[" + LabelForType(infoEntry->type) + "] " + infoEntry->name;
+            if (!infoEntry->isDirectory)
+                infoStr += "  |  " + FormatFileSize(infoEntry->fileSize);
+            statusText.setString(infoStr);
+        }
+        else
+        {
+            statusText.setFillColor(sf::Color(110, 115, 140));
+            std::string countStr = std::to_string(m_FilteredEntries.size()) + " items";
+            if (m_FilteredEntries.size() != m_Entries.size())
+                countStr += " (filtered from " + std::to_string(m_Entries.size()) + ")";
+            statusText.setString(countStr);
+        }
+    }
+    statusText.setPosition(x + 10.f, statusBarY + 4.f);
+    window.draw(statusText);
+
     if (m_ContextMenuOpen)
     {
         m_ContextMenuItems.clear();
@@ -740,11 +962,25 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             if (targetType == AssetType::Audio)
                 actions.push_back({"Play Audio", "play_audio"});
         }
-        actions.push_back({"New Script Here", "new_script"});
+        if (m_ContextMenuTarget != m_CurrentPath)
+        {
+            actions.push_back({"Rename (F2)", "rename"});
+            if (!isDir)
+            {
+                actions.push_back({"Duplicate (Ctrl+D)", "duplicate"});
+            }
+            actions.push_back({"Copy Relative Path (Ctrl+C)", "copy_path"});
+        }
+        actions.push_back({"New Folder", "new_folder"});
+        actions.push_back({"New Script", "new_script"});
+        actions.push_back({"New Scene", "new_scene"});
         actions.push_back({"Reveal in Explorer", "reveal"});
-        if (!isDir) { actions.push_back({"Delete", "delete"}); }
+        if (m_ContextMenuTarget != m_CurrentPath && m_ContextMenuTarget != m_RootPath)
+        {
+            actions.push_back({"Delete (Del)", "delete"});
+        }
 
-        const float menuW = 140.f;
+        const float menuW = 190.f;
         const float itemRowH = 22.f;
         const float menuH = actions.size() * itemRowH + 6.f;
         float menuX = std::min(m_ContextMenuPos.x, x + width - menuW - 4.f);
@@ -832,102 +1068,278 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         window.draw(inputText);
     }
 
-    if (m_Drag.active)
+    if (m_NewScenePrompt)
     {
+        const float modalW = 280.f;
+        const float modalH = 80.f;
+        const float modalX = x + (width - modalW) / 2.f;
+        const float modalY = y + (height - modalH) / 2.f;
+
+        sf::RectangleShape modalDim({width, height});
+        modalDim.setPosition(x, y);
+        modalDim.setFillColor(sf::Color(0, 0, 0, 160));
+        window.draw(modalDim);
+
+        sf::RectangleShape modalBg({modalW, modalH});
+        modalBg.setPosition(modalX, modalY);
+        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
+        modalBg.setOutlineColor(sf::Color(80, 220, 130));
+        modalBg.setOutlineThickness(1.5f);
+        window.draw(modalBg);
+
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(sf::Color(140, 255, 190));
+        title.setString("Create Scene (Enter to save, Esc to cancel)");
+        title.setPosition(modalX + 10.f, modalY + 8.f);
+        window.draw(title);
+
+        sf::RectangleShape inputField({modalW - 20.f, 24.f});
+        inputField.setPosition(modalX + 10.f, modalY + 32.f);
+        inputField.setFillColor(sf::Color(16, 18, 28));
+        inputField.setOutlineColor(sf::Color(100, 255, 160));
+        inputField.setOutlineThickness(1.f);
+        window.draw(inputField);
+
+        sf::Text inputText;
+        inputText.setFont(m_Font);
+        inputText.setCharacterSize(11);
+        inputText.setFillColor(sf::Color::White);
+        inputText.setString(m_NewSceneName + ".json |");
+        inputText.setPosition(modalX + 16.f, modalY + 36.f);
+        window.draw(inputText);
+    }
+
+    if (m_NewFolderPrompt)
+    {
+        const float modalW = 280.f;
+        const float modalH = 80.f;
+        const float modalX = x + (width - modalW) / 2.f;
+        const float modalY = y + (height - modalH) / 2.f;
+
+        sf::RectangleShape modalDim({width, height});
+        modalDim.setPosition(x, y);
+        modalDim.setFillColor(sf::Color(0, 0, 0, 160));
+        window.draw(modalDim);
+
+        sf::RectangleShape modalBg({modalW, modalH});
+        modalBg.setPosition(modalX, modalY);
+        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
+        modalBg.setOutlineColor(sf::Color(220, 180, 80));
+        modalBg.setOutlineThickness(1.5f);
+        window.draw(modalBg);
+
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(sf::Color(235, 200, 100));
+        title.setString("Create Folder (Enter to create, Esc to cancel)");
+        title.setPosition(modalX + 10.f, modalY + 8.f);
+        window.draw(title);
+
+        sf::RectangleShape inputField({modalW - 20.f, 24.f});
+        inputField.setPosition(modalX + 10.f, modalY + 32.f);
+        inputField.setFillColor(sf::Color(16, 18, 28));
+        inputField.setOutlineColor(sf::Color(220, 180, 80));
+        inputField.setOutlineThickness(1.f);
+        window.draw(inputField);
+
+        sf::Text inputText;
+        inputText.setFont(m_Font);
+        inputText.setCharacterSize(11);
+        inputText.setFillColor(sf::Color::White);
+        inputText.setString(m_NewFolderName + " |");
+        inputText.setPosition(modalX + 16.f, modalY + 36.f);
+        window.draw(inputText);
+    }
+
+    if (m_RenamePrompt)
+    {
+        const float modalW = 320.f;
+        const float modalH = 86.f;
+        const float modalX = x + (width - modalW) / 2.f;
+        const float modalY = y + (height - modalH) / 2.f;
+
+        sf::RectangleShape modalDim({width, height});
+        modalDim.setPosition(x, y);
+        modalDim.setFillColor(sf::Color(0, 0, 0, 170));
+        window.draw(modalDim);
+
+        sf::RectangleShape modalBg({modalW, modalH});
+        modalBg.setPosition(modalX, modalY);
+        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
+        modalBg.setOutlineColor(sf::Color(140, 190, 255));
+        modalBg.setOutlineThickness(1.5f);
+        window.draw(modalBg);
+
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(sf::Color(140, 190, 255));
+        title.setString("Rename (Enter to save, Esc to cancel)");
+        title.setPosition(modalX + 10.f, modalY + 8.f);
+        window.draw(title);
+
+        sf::RectangleShape inputField({modalW - 20.f, 24.f});
+        inputField.setPosition(modalX + 10.f, modalY + 34.f);
+        inputField.setFillColor(sf::Color(16, 18, 28));
+        inputField.setOutlineColor(sf::Color(100, 160, 255));
+        inputField.setOutlineThickness(1.f);
+        window.draw(inputField);
+
+        sf::Text inputText;
+        inputText.setFont(m_Font);
+        inputText.setCharacterSize(11);
+        inputText.setFillColor(sf::Color::White);
+        inputText.setString(m_RenameInput + " |");
+        inputText.setPosition(modalX + 16.f, modalY + 38.f);
+        window.draw(inputText);
+    }
+
+    if (m_DeletePrompt)
+    {
+        const float modalW = 320.f;
+        const float modalH = 84.f;
+        const float modalX = x + (width - modalW) / 2.f;
+        const float modalY = y + (height - modalH) / 2.f;
+
+        sf::RectangleShape modalDim({width, height});
+        modalDim.setPosition(x, y);
+        modalDim.setFillColor(sf::Color(0, 0, 0, 170));
+        window.draw(modalDim);
+
+        sf::RectangleShape modalBg({modalW, modalH});
+        modalBg.setPosition(modalX, modalY);
+        modalBg.setFillColor(sf::Color(32, 22, 26, 255));
+        modalBg.setOutlineColor(sf::Color(240, 80, 80));
+        modalBg.setOutlineThickness(1.5f);
+        window.draw(modalBg);
+
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(sf::Color(255, 120, 120));
+        title.setString("Delete Item? (Enter to delete, Esc to cancel)");
+        title.setPosition(modalX + 10.f, modalY + 8.f);
+        window.draw(title);
+
+        std::string fname = fs::path(m_DeleteTarget).filename().string();
+        if (fname.size() > 34) fname = fname.substr(0, 32) + "...";
+
+        sf::Text info;
+        info.setFont(m_Font);
+        info.setCharacterSize(11);
+        info.setFillColor(sf::Color(230, 200, 205));
+        info.setString("\"" + fname + "\"");
+        info.setPosition(modalX + 12.f, modalY + 36.f);
+        window.draw(info);
+
+        sf::Text sub;
+        sub.setFont(m_Font);
+        sub.setCharacterSize(9);
+        sub.setFillColor(sf::Color(160, 130, 140));
+        sub.setString("This action cannot be undone.");
+        sub.setPosition(modalX + 12.f, modalY + 58.f);
+        window.draw(sub);
+    }
+
+    if (m_Drag.active)
         m_Drag.pos = m_MousePos;
+}
 
-        const float ox = m_Drag.pos.x + 14.f;
-        const float oy = m_Drag.pos.y + 8.f;
-        const sf::Color accent = ColorForType(m_Drag.type);
-        std::string gname = fs::path(m_Drag.path).filename().string();
+void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
+{
+    if (!m_Drag.active) return;
 
-        if (m_Drag.type == AssetType::Image)
+    const float ox = m_Drag.pos.x + 14.f;
+    const float oy = m_Drag.pos.y + 8.f;
+    const sf::Color accent = ColorForType(m_Drag.type);
+    std::string gname = fs::path(m_Drag.path).filename().string();
+
+    if (m_Drag.type == AssetType::Image)
+    {
+        const float thumbSz = 64.f;
+
+        sf::RectangleShape shadow({thumbSz + 4.f, thumbSz + 22.f});
+        shadow.setPosition(ox + 3.f, oy + 3.f);
+        shadow.setFillColor(sf::Color(0, 0, 0, 100));
+        window.draw(shadow);
+
+        sf::RectangleShape card({thumbSz + 4.f, thumbSz + 22.f});
+        card.setPosition(ox, oy);
+        card.setFillColor(sf::Color(22, 26, 42, 240));
+        card.setOutlineColor(accent);
+        card.setOutlineThickness(1.5f);
+        window.draw(card);
+
+        auto tex = ResourceManager::Get().GetTexture(m_Drag.path);
+        if (tex)
         {
-            // ── Image drag: show thumbnail (64x64) + filename ────────────────
-            const float thumbSz = 64.f;
-
-            // Drop-shadow
-            sf::RectangleShape shadow({thumbSz + 4.f, thumbSz + 22.f});
-            shadow.setPosition(ox + 3.f, oy + 3.f);
-            shadow.setFillColor(sf::Color(0, 0, 0, 100));
-            window.draw(shadow);
-
-            // Background card
-            sf::RectangleShape card({thumbSz + 4.f, thumbSz + 22.f});
-            card.setPosition(ox, oy);
-            card.setFillColor(sf::Color(22, 26, 42, 240));
-            card.setOutlineColor(accent);
-            card.setOutlineThickness(1.5f);
-            window.draw(card);
-
-            // Thumbnail
-            auto tex = ResourceManager::Get().GetTexture(m_Drag.path);
-            if (tex)
+            sf::Sprite preview;
+            preview.setTexture(*tex);
+            const sf::Vector2u ts = tex->getSize();
+            if (ts.x > 0 && ts.y > 0)
             {
-                sf::Sprite preview;
-                preview.setTexture(*tex);
-                const sf::Vector2u ts = tex->getSize();
-                if (ts.x > 0 && ts.y > 0)
-                {
-                    const float scale = thumbSz / static_cast<float>(std::max(ts.x, ts.y));
-                    preview.setScale(scale, scale);
-                    preview.setPosition(
-                        ox + 2.f + (thumbSz - ts.x * scale) / 2.f,
-                        oy + 2.f + (thumbSz - ts.y * scale) / 2.f);
-                    preview.setColor(sf::Color(255, 255, 255, 230));
-                }
-                window.draw(preview);
+                const float scale = thumbSz / static_cast<float>(std::max(ts.x, ts.y));
+                preview.setScale(scale, scale);
+                preview.setPosition(
+                    ox + 2.f + (thumbSz - ts.x * scale) / 2.f,
+                    oy + 2.f + (thumbSz - ts.y * scale) / 2.f);
+                preview.setColor(sf::Color(255, 255, 255, 230));
             }
-            else
-            {
-                // Placeholder when texture not yet loaded
-                sf::RectangleShape ph({thumbSz - 4.f, thumbSz - 4.f});
-                ph.setPosition(ox + 4.f, oy + 4.f);
-                ph.setFillColor(sf::Color(40, 45, 70));
-                window.draw(ph);
-            }
-
-            // Filename label at bottom of card
-            if (gname.size() > 12) gname = gname.substr(0, 11) + "..";
-            sf::Text label;
-            label.setFont(m_Font);
-            label.setCharacterSize(9);
-            label.setFillColor(sf::Color(200, 210, 255, 240));
-            label.setString(gname);
-            label.setPosition(ox + 3.f, oy + thumbSz + 7.f);
-            window.draw(label);
+            window.draw(preview);
         }
         else
         {
-            // ── Non-image drag: compact pill with coloured dot + name ─────────
-            if (gname.size() > 18) gname = gname.substr(0, 17) + "...";
-            const float pw = 124.f, ph = 24.f;
-
-            sf::RectangleShape shadow({pw + 2.f, ph + 2.f});
-            shadow.setPosition(ox + 2.f, oy + 2.f);
-            shadow.setFillColor(sf::Color(0, 0, 0, 80));
-            window.draw(shadow);
-
-            sf::RectangleShape pill({pw, ph});
-            pill.setPosition(ox, oy);
-            pill.setFillColor(sf::Color(22, 26, 42, 240));
-            pill.setOutlineColor(accent);
-            pill.setOutlineThickness(1.5f);
-            window.draw(pill);
-
-            sf::CircleShape dot(4.f);
-            dot.setFillColor(accent);
-            dot.setPosition(ox + 6.f, oy + 8.f);
-            window.draw(dot);
-
-            sf::Text label;
-            label.setFont(m_Font);
-            label.setCharacterSize(10);
-            label.setFillColor(sf::Color(210, 220, 255, 240));
-            label.setString(gname);
-            label.setPosition(ox + 18.f, oy + 6.f);
-            window.draw(label);
+            sf::RectangleShape ph({thumbSz - 4.f, thumbSz - 4.f});
+            ph.setPosition(ox + 4.f, oy + 4.f);
+            ph.setFillColor(sf::Color(40, 45, 70));
+            window.draw(ph);
         }
+
+        if (gname.size() > 12) gname = gname.substr(0, 11) + "..";
+        sf::Text label;
+        label.setFont(m_Font);
+        label.setCharacterSize(9);
+        label.setFillColor(sf::Color(200, 210, 255, 240));
+        label.setString(gname);
+        label.setPosition(ox + 3.f, oy + thumbSz + 7.f);
+        window.draw(label);
+    }
+    else
+    {
+        if (gname.size() > 18) gname = gname.substr(0, 17) + "...";
+        const float pw = 124.f, ph = 24.f;
+
+        sf::RectangleShape shadow({pw + 2.f, ph + 2.f});
+        shadow.setPosition(ox + 2.f, oy + 2.f);
+        shadow.setFillColor(sf::Color(0, 0, 0, 80));
+        window.draw(shadow);
+
+        sf::RectangleShape pill({pw, ph});
+        pill.setPosition(ox, oy);
+        pill.setFillColor(sf::Color(22, 26, 42, 240));
+        pill.setOutlineColor(accent);
+        pill.setOutlineThickness(1.5f);
+        window.draw(pill);
+
+        sf::CircleShape dot(4.f);
+        dot.setFillColor(accent);
+        dot.setPosition(ox + 6.f, oy + 8.f);
+        window.draw(dot);
+
+        sf::Text label;
+        label.setFont(m_Font);
+        label.setCharacterSize(10);
+        label.setFillColor(sf::Color(210, 220, 255, 240));
+        label.setString(gname);
+        label.setPosition(ox + 18.f, oy + 6.f);
+        window.draw(label);
     }
 }
 
@@ -965,6 +1377,12 @@ void ContentBrowser::OpenEntry(const ContentEntry &entry)
         return;
     }
 
+    if (entry.type == AssetType::Scene && onSceneLoadRequest)
+    {
+        onSceneLoadRequest(entry.fullPath);
+        return;
+    }
+
 #ifdef _WIN32
     ShellExecuteA(nullptr, "open", entry.fullPath.c_str(), nullptr, nullptr, SW_SHOW);
 #elif __APPLE__
@@ -995,12 +1413,160 @@ void ContentBrowser::CreateNewScript(const std::string &name)
         file << "function OnCollision(other)\n";
         file << "    -- Collision logic\n";
         file << "end\n";
-        file.close();
         std::cout << "[INFO] [ContentBrowser] Created new Lua script file: " << fullPath << "\n";
     }
 
     Refresh();
     m_SelectedPath = fullPath;
+    SetStatusMessage("Created script: " + cleanName + ".lua");
+}
+
+void ContentBrowser::CreateNewScene(const std::string &name)
+{
+    std::string cleanName = name;
+    if (cleanName.size() > 5 && cleanName.substr(cleanName.size() - 5) == ".json")
+        cleanName = cleanName.substr(0, cleanName.size() - 5);
+
+    std::string fullPath = (fs::path(m_CurrentPath) / (cleanName + ".json")).string();
+
+    std::ofstream file(fullPath);
+    if (file.is_open())
+    {
+        file << "{\n    \"name\": \"" << cleanName << "\",\n    \"objects\": []\n}\n";
+        file.close();
+        std::cout << "[INFO] [ContentBrowser] Created new Scene file: " << fullPath << "\n";
+    }
+
+    Refresh();
+    m_SelectedPath = fullPath;
+    SetStatusMessage("Created scene: " + cleanName + ".json");
+}
+
+void ContentBrowser::CreateNewFolder(const std::string &name)
+{
+    if (name.empty()) return;
+    fs::path targetDir = fs::path(m_CurrentPath) / name;
+    std::error_code ec;
+    if (fs::exists(targetDir, ec))
+    {
+        SetStatusMessage("Folder already exists: " + name);
+        return;
+    }
+    if (fs::create_directories(targetDir, ec) && !ec)
+    {
+        std::cout << "[INFO] [ContentBrowser] Created folder: " << targetDir.string() << "\n";
+        Refresh();
+        m_SelectedPath = targetDir.string();
+        SetStatusMessage("Created folder: " + name);
+    }
+    else
+    {
+        SetStatusMessage("Failed to create folder: " + name);
+    }
+}
+
+void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &newName)
+{
+    if (newName.empty() || oldPath.empty()) return;
+    std::error_code ec;
+    fs::path oldP(oldPath);
+    if (!fs::exists(oldP, ec) || ec)
+    {
+        SetStatusMessage("File does not exist");
+        return;
+    }
+
+    std::string finalName = newName;
+    if (!fs::is_directory(oldP, ec) && oldP.has_extension() && !fs::path(newName).has_extension())
+    {
+        finalName += oldP.extension().string();
+    }
+
+    fs::path parentP = oldP.parent_path();
+    fs::path newP = parentP / finalName;
+
+    if (newP == oldP) return;
+
+    if (fs::exists(newP, ec))
+    {
+        SetStatusMessage("Name already exists: " + finalName);
+        return;
+    }
+
+    fs::rename(oldP, newP, ec);
+    if (!ec)
+    {
+        std::cout << "[INFO] [ContentBrowser] Renamed '" << oldPath << "' to '" << newP.string() << "'\n";
+        Refresh();
+        m_SelectedPath = newP.string();
+        SetStatusMessage("Renamed to: " + finalName);
+    }
+    else
+    {
+        std::cout << "[ERROR] [ContentBrowser] Failed to rename: " << ec.message() << "\n";
+        SetStatusMessage("Rename failed: " + ec.message());
+    }
+}
+
+void ContentBrowser::DuplicateAsset(const std::string &path)
+{
+    std::error_code ec;
+    fs::path src(path);
+    if (!fs::exists(src, ec) || ec) return;
+
+    fs::path parent = src.parent_path();
+    std::string stem = src.stem().string();
+    std::string ext = src.extension().string();
+
+    fs::path dest = parent / (stem + "_copy" + ext);
+    int count = 2;
+    while (fs::exists(dest, ec))
+    {
+        dest = parent / (stem + "_copy_" + std::to_string(count++) + ext);
+    }
+
+    if (fs::is_directory(src, ec))
+    {
+        fs::copy(src, dest, fs::copy_options::recursive, ec);
+    }
+    else
+    {
+        fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+    }
+
+    if (!ec)
+    {
+        std::cout << "[INFO] [ContentBrowser] Duplicated to '" << dest.string() << "'\n";
+        Refresh();
+        m_SelectedPath = dest.string();
+        SetStatusMessage("Duplicated: " + dest.filename().string());
+    }
+    else
+    {
+        SetStatusMessage("Duplicate failed: " + ec.message());
+    }
+}
+
+void ContentBrowser::CopyAssetPath(const std::string &path)
+{
+    std::string relPath = path;
+    if (relPath.find(m_RootPath) == 0)
+    {
+        relPath = relPath.substr(m_RootPath.size());
+        if (!relPath.empty() && (relPath[0] == '/' || relPath[0] == '\\'))
+            relPath = relPath.substr(1);
+    }
+    std::replace(relPath.begin(), relPath.end(), '\\', '/');
+
+    sf::Clipboard::setString(relPath);
+    std::cout << "[INFO] [ContentBrowser] Copied path to clipboard: " << relPath << "\n";
+    SetStatusMessage("Copied to clipboard: " + relPath);
+}
+
+void ContentBrowser::SetStatusMessage(const std::string &msg)
+{
+    m_StatusMessage = msg;
+    m_StatusMessageTime = CurrentTimeSeconds();
 }
 
 void ContentBrowser::RevealInExplorer(const std::string &path)
@@ -1013,12 +1579,19 @@ void ContentBrowser::RevealInExplorer(const std::string &path)
 
 void ContentBrowser::DeleteAsset(const std::string &path)
 {
+    if (path == m_RootPath || path.empty()) return;
     std::error_code ec;
     fs::remove_all(path, ec);
     if (!ec)
     {
         std::cout << "[INFO] [ContentBrowser] Deleted file/folder: " << path << "\n";
+        if (m_SelectedPath == path) m_SelectedPath.clear();
         Refresh();
+        SetStatusMessage("Deleted: " + fs::path(path).filename().string());
+    }
+    else
+    {
+        SetStatusMessage("Delete failed: " + ec.message());
     }
 }
 
@@ -1033,12 +1606,49 @@ void ContentBrowser::HandleContextMenuAction(const std::string &action)
                       ? AssetType::Folder
                       : TypeFromExtension(fs::path(m_ContextMenuTarget).extension().string());
         OpenEntry(ce);
-    } else if (action == "play_audio") { AudioManager::Get().PlaySound(m_ContextMenuTarget); } else if (
-        action == "reveal") { RevealInExplorer(m_ContextMenuTarget); } else if (action == "new_script")
+    }
+    else if (action == "play_audio")
+    {
+        AudioManager::Get().PlaySound(m_ContextMenuTarget);
+    }
+    else if (action == "rename")
+    {
+        m_RenameTarget = m_ContextMenuTarget;
+        m_RenameInput = fs::path(m_ContextMenuTarget).filename().string();
+        m_RenamePrompt = true;
+    }
+    else if (action == "duplicate")
+    {
+        DuplicateAsset(m_ContextMenuTarget);
+    }
+    else if (action == "copy_path")
+    {
+        CopyAssetPath(m_ContextMenuTarget);
+    }
+    else if (action == "new_folder")
+    {
+        m_NewFolderPrompt = true;
+        m_NewFolderName = "NewFolder";
+    }
+    else if (action == "new_script")
     {
         m_NewScriptPrompt = true;
         m_NewScriptName = "new_script";
-    } else if (action == "delete") { DeleteAsset(m_ContextMenuTarget); }
+    }
+    else if (action == "new_scene")
+    {
+        m_NewScenePrompt = true;
+        m_NewSceneName = "new_scene";
+    }
+    else if (action == "reveal")
+    {
+        RevealInExplorer(m_ContextMenuTarget);
+    }
+    else if (action == "delete")
+    {
+        m_DeleteTarget = m_ContextMenuTarget;
+        m_DeletePrompt = true;
+    }
 }
 
 AssetType ContentBrowser::TypeFromExtension(const std::string &ext)

@@ -1,7 +1,7 @@
 {
     "debug": {
         "logLevel": 2,
-        "showAutoSaveInTitle": false,
+        "showAutoSaveInTitle": true,
         "showColliderOutlines": false,
         "showEntityIDs": false
     },

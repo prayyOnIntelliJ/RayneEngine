@@ -87,16 +87,11 @@ private:
     sf::Vector2f m_DragOffset;
     sf::Vector2f m_MouseScreenPos;
 
-    // ── Resize handles ────────────────────────────────────────────────
-    // Handle indices (corners/edges of the bounding box):
-    //  0=TL  1=T  2=TR
-    //  3=L         4=R
-    //  5=BL  6=B  7=BR
     bool         m_Resizing         = false;
     int          m_ResizeHandle     = -1;
-    sf::Vector2f m_ResizeMouseStart;   // world pos when drag began
-    sf::Vector2f m_ResizeObjOrigin;    // shape position when drag began
-    sf::Vector2f m_ResizeObjSize;      // shape size when drag began
+    sf::Vector2f m_ResizeMouseStart;
+    sf::Vector2f m_ResizeObjOrigin;
+    sf::Vector2f m_ResizeObjSize;
 
     sf::RectangleShape m_Preview;
     sf::CircleShape m_CirclePreview;
@@ -127,7 +122,6 @@ private:
     std::vector<std::pair<sf::FloatRect, EditorObject*>> m_HierarchyHitboxes;
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
-
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;
@@ -163,18 +157,15 @@ private:
     float m_AutoSavePopupTimer = 0.f;
     bool m_ShowAutoSavePopup = false;
 
-    // ── Settings Window ───────────────────────────────────────────────
     bool m_ShowSettings = false;
-    int  m_SettingsTab  = 0; // 0=General 1=Editor 2=Rendering 3=Input 4=Debug
+    int  m_SettingsTab  = 0;
 
-    // Settings: General
     bool        m_AutoSaveEnabled            = true;
     float       m_AutoSaveIntervalSeconds    = 180.f;
     bool        m_AutoSavePopupEnabled       = true;
     float       m_AutoSavePopupDuration      = 10.f;
     std::string m_SceneSavePath              = "scenes/game.json";
 
-    // Settings: Editor
     sf::Color   m_GridColor                  = sf::Color(38, 38, 52);
     int         m_GridOpacity                = 255;
     sf::Color   m_EditorBgColor              = sf::Color(10, 10, 18);
@@ -182,25 +173,21 @@ private:
     sf::Color   m_SelectionOutlineColor      = sf::Color(255, 220, 60);
     float       m_SelectionOutlineThickness  = 2.f;
 
-    // Settings: Rendering
     bool        m_ShowFPS                    = false;
-    int         m_FPSCapIndex                = 1; // 0=Unlimited 1=60 2=120 3=144 4=240
+    int         m_FPSCapIndex                = 1;
     float       m_ZoomSensitivity            = 0.1f;
     float       m_ZoomMin                    = 0.2f;
     float       m_ZoomMax                    = 5.f;
 
-    // Settings: Input
     bool        m_PanOnMiddleButton          = true;
     bool        m_InvertPan                  = false;
     float       m_ScrollSensitivity          = 20.f;
 
-    // Settings: Debug
     bool        m_ShowEntityIDs              = false;
     bool        m_ShowColliderOutlines       = false;
-    int         m_LogLevel                   = 2; // 0=Off 1=Errors 2=Info 3=Verbose
+    int         m_LogLevel                   = 2;
     bool        m_ShowAutoSaveInTitle        = false;
 
-    // Settings input field editing
     enum class SettingsField {
         None,
         AutoSaveInterval, AutoSavePopupDuration, SceneSavePath,
@@ -213,11 +200,9 @@ private:
     std::string   m_SettingsInputText;
     sf::FloatRect m_SettingsInputBounds;
 
-    // Hitboxes for settings clicks
     struct SettingsButton { sf::FloatRect bounds; std::string action; };
     std::vector<SettingsButton> m_SettingsButtons;
 
-    // FPS tracking
     sf::Clock   m_FPSClock;
     float       m_FPS = 0.f;
     int         m_FrameCount = 0;
@@ -255,8 +240,6 @@ private:
 
     void DrawResizeHandles(sf::RenderWindow &window);
 
-    // Returns handle index (0-7) if world-pos is over a handle of the selected
-    // object, or -1 if not.
     int  GetResizeHandle(sf::Vector2f worldPos) const;
 
     void UpdateStatusText();
@@ -293,7 +276,6 @@ private:
 
     void HandleInspectorClick(sf::Vector2f pos);
 
-    // ── Settings Window ────────────────────────────────────────────────
     void  DrawSettingsWindow(sf::RenderWindow &window);
     void  HandleSettingsClick(sf::Vector2f pos);
     float DrawSettingsSectionHeader(sf::RenderWindow &window, const std::string &title,

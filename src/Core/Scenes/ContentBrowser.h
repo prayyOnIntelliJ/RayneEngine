@@ -5,6 +5,7 @@
 #include <vector>
 #include <filesystem>
 #include <memory>
+#include <functional>
 
 #include "SFML/Graphics/RenderWindow.hpp"
 #include "SFML/Graphics/RectangleShape.hpp"
@@ -79,10 +80,19 @@ public:
     bool HasDraggedAsset() const { return m_Drag.active; }
     DraggedAsset GetDraggedAsset() const { return m_Drag; }
     void ClearDrag() { m_Drag.active = false; }
+    std::string GetSelectedPath() const { return m_SelectedPath; }
+
+    std::function<void(const std::string&)> onSceneLoadRequest;
+
+    void RenderDragGhost(sf::RenderWindow &window);
 
     void Refresh();
 
-    bool IsInputActive() const { return m_SearchActive || m_NewScriptPrompt; }
+    bool IsInputActive() const
+    {
+        return m_SearchActive || m_NewScriptPrompt || m_NewScenePrompt ||
+               m_NewFolderPrompt || m_RenamePrompt || m_DeletePrompt;
+    }
     bool IsContextMenuOpen() const { return m_ContextMenuOpen; }
 
 private:
@@ -110,6 +120,7 @@ private:
     std::vector<std::pair<sf::FloatRect, AssetFilter> > m_FilterBounds;
     sf::FloatRect m_UpBtnBounds;
     sf::FloatRect m_RefreshBtnBounds;
+    sf::FloatRect m_NewFolderBtnBounds;
     sf::FloatRect m_NewScriptBtnBounds;
     sf::FloatRect m_SearchBoxBounds;
     sf::FloatRect m_SearchClearBounds;
@@ -122,6 +133,22 @@ private:
 
     bool m_NewScriptPrompt = false;
     std::string m_NewScriptName;
+
+    bool m_NewScenePrompt = false;
+    std::string m_NewSceneName;
+
+    bool m_NewFolderPrompt = false;
+    std::string m_NewFolderName;
+
+    bool m_RenamePrompt = false;
+    std::string m_RenameTarget;
+    std::string m_RenameInput;
+
+    bool m_DeletePrompt = false;
+    std::string m_DeleteTarget;
+
+    std::string m_StatusMessage;
+    double m_StatusMessageTime = 0.0;
 
     static AssetType TypeFromExtension(const std::string &ext);
 
@@ -137,7 +164,14 @@ private:
 
     void OpenEntry(const ContentEntry &entry);
 
+    void CreateNewFolder(const std::string &name);
     void CreateNewScript(const std::string &name);
+    void CreateNewScene(const std::string &name);
+
+    void RenameAsset(const std::string &oldPath, const std::string &newName);
+    void DuplicateAsset(const std::string &path);
+    void CopyAssetPath(const std::string &path);
+    void SetStatusMessage(const std::string &msg);
 
     void RevealInExplorer(const std::string &path);
 
@@ -146,4 +180,4 @@ private:
     void HandleContextMenuAction(const std::string &action);
 };
 
-#endif // CONTENTBROWSER_H
+#endif
