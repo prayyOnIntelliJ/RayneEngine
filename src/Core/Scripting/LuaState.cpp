@@ -13,7 +13,7 @@
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
 
-void LuaState::Init(Registry &registry)
+void LuaState::Init(Registry &registry, std::function<void(const std::string&)> loadSceneCallback)
 {
     std::cout << "[INFO] [Lua] Opening base standard libraries...\n";
     s_Lua.open_libraries(
@@ -36,12 +36,10 @@ void LuaState::Init(Registry &registry)
                                           "dx", &VelocityComponent::dx,
                                           "dy", &VelocityComponent::dy);
 
-    // --- Entity Lifecycle ---
     s_Lua.set_function("CreateEntity", [&]() { return registry.CreateEntity(); });
 
     s_Lua.set_function("DestroyEntity", [&](const Entity e) { return registry.DestroyEntity(e); });
 
-    // --- Transform ---
     s_Lua.set_function("AddTransform", [&](const Entity e, const float x, const float y) {
         registry.AddComponent(e, TransformComponent{x, y});
     });
@@ -64,7 +62,6 @@ void LuaState::Init(Registry &registry)
         }
     });
 
-    // --- Velocity ---
     s_Lua.set_function("AddVelocity", [&](const Entity e, const float dx, const float dy) {
         registry.AddComponent(e, VelocityComponent{dx, dy});
     });
@@ -87,7 +84,6 @@ void LuaState::Init(Registry &registry)
         }
     });
 
-    // --- Sprite & Render ---
     s_Lua.set_function("AddSprite", [&](const Entity e, const std::string &path, const float w, const float h) {
         registry.AddComponent(e, SpriteComponent(path, sf::Vector2f(w, h)));
     });
@@ -118,7 +114,6 @@ void LuaState::Init(Registry &registry)
 
     s_Lua.set_function("HasSprite", [&](const Entity e) -> bool { return registry.HasComponent<SpriteComponent>(e); });
 
-    // --- Camera ---
     s_Lua.set_function("AddCamera", [&](const Entity e) {
         registry.AddComponent(e, CameraComponent{true});
     });
@@ -132,7 +127,6 @@ void LuaState::Init(Registry &registry)
         return registry.HasComponent<CameraComponent>(e);
     });
 
-    // --- Collision ---
     s_Lua.set_function("AddCollision", [&](const Entity e, sol::optional<int> channel) {
         registry.AddComponent(e, CollisionComponent{channel.value_or(0)});
     });
@@ -157,13 +151,16 @@ void LuaState::Init(Registry &registry)
         return 0;
     });
 
-
     s_Lua.set_function("SetColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
         if (registry.HasComponent<RenderComponent>(e))
         {
             auto &rc = registry.GetComponent<RenderComponent>(e);
             rc.color = sf::Color(r, g, b, a.value_or(255));
         }
+    });
+
+    s_Lua.set_function("LoadScene", [loadSceneCallback](const std::string& sceneName) {
+        if (loadSceneCallback) loadSceneCallback(sceneName);
     });
 
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";

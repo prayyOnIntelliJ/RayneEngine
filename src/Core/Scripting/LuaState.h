@@ -17,7 +17,7 @@ struct LuaApiDoc
 class LuaState
 {
 public:
-    static void Init(Registry &registry);
+    static void Init(Registry &registry, std::function<void(const std::string&)> loadSceneCallback);
 
     static sol::state &GetLua();
 
@@ -26,6 +26,5 @@ private:
 
     static void RegisterStatics();
 };
-
 
 #endif

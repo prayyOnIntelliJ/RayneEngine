@@ -9,8 +9,8 @@
 #include "../Input/InputManager.h"
 #include "../Scenes/EditorScene.h"
 #include "../Scenes/GameScene.h"
+#include "../Scenes/SceneSerializer.h"
 #include "../Scripting/LuaState.h"
-#include "../Scripting/ScriptComponent.h"
 #include "SFML/Window/Event.hpp"
 
 Application::Application()
@@ -20,7 +20,14 @@ Application::Application()
     SetIcon();
 
     std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
-    LuaState::Init(m_Registry);
+    LuaState::Init(m_Registry, [this](const std::string& sceneName) {
+        if (m_SceneManager.CurrentName() == "game")
+        {
+            m_Registry.Clear();
+            SceneSerializer::LoadIntoRegistry(m_Registry, "assets/scenes/" + sceneName + ".json");
+            m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+        }
+    });
 
     std::cout << "[INFO] [Application] Registering Scenes...\n";
     m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);

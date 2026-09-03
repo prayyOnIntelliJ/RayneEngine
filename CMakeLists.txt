@@ -57,7 +57,6 @@ if(NOT lua_source_POPULATED)
     target_compile_options(lua_lib PRIVATE $<$<CONFIG:Release>:/O2>)
 endif()
 
-# --- Engine Executable ---
 add_executable(RayneEngine
         src/main.cpp
         src/Core/Application/Application.cpp
@@ -93,9 +92,10 @@ add_executable(RayneEngine
         src/Core/Resources/ResourceManager.h
         src/Core/Audio/AudioManager.cpp
         src/Core/Audio/AudioManager.h
+        src/Core/Scenes/SceneSerializer.cpp
+        src/Core/Scenes/SceneSerializer.h
 )
 
-# --- Link Libraries ---
 target_link_libraries(RayneEngine
         PRIVATE
         sfml-system
@@ -107,7 +107,6 @@ target_link_libraries(RayneEngine
         nlohmann_json::nlohmann_json
 )
 
-# --- Copy assets ---
 add_custom_command(TARGET RayneEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/assets
@@ -137,7 +136,6 @@ if(WIN32)
     )
 endif()
 
-# --- Working Directory ---
 set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
