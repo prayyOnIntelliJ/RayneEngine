@@ -1,4 +1,4 @@
-﻿#ifndef RAYNEENGINE_EVENTMANAGER_H
+#ifndef RAYNEENGINE_EVENTMANAGER_H
 #define RAYNEENGINE_EVENTMANAGER_H
 #include <functional>
 
@@ -31,5 +31,4 @@ private:
     std::vector<std::function<void(CollisionEvent)> > m_CollisionCallbacks;
 };
 
-
-#endif //RAYNEENGINE_EVENTMANAGER_H
+#endif

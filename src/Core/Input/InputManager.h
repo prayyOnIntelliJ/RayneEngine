@@ -1,4 +1,4 @@
-﻿#ifndef RAYNEENGINE_INPUTMANAGER_H
+#ifndef RAYNEENGINE_INPUTMANAGER_H
 #define RAYNEENGINE_INPUTMANAGER_H
 
 #include <unordered_set>

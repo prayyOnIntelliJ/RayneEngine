@@ -11,12 +11,6 @@
 #include <SFML/Audio/SoundBuffer.hpp>
 #include <sol/sol.hpp>
 
-// -----------------------------------------------------------
-// ResourceManager
-// Singleton that caches all engine assets by file path.
-// Identical paths always return the same shared instance,
-// so textures, fonts, and sound buffers are never loaded twice.
-// -----------------------------------------------------------
 class ResourceManager
 {
 public:
@@ -26,15 +20,12 @@ public:
         return instance;
     }
 
-    // --- Asset accessors ---
-    // Returns nullptr and prints an error if loading fails.
     std::shared_ptr<sf::Texture> GetTexture(const std::string &path);
 
     std::shared_ptr<sf::Font> GetFont(const std::string &path);
 
     std::shared_ptr<sf::SoundBuffer> GetSoundBuffer(const std::string &path);
 
-    // --- Cache management ---
     void ClearTextures();
 
     void ClearFonts();
@@ -43,14 +34,12 @@ public:
 
     void ClearAll();
 
-    // --- Debug / stats ---
     size_t TextureCount() const { return m_Textures.size(); }
     size_t FontCount() const { return m_Fonts.size(); }
     size_t SoundBufferCount() const { return m_Sounds.size(); }
 
     void PrintStats() const;
 
-    // --- Lua Bindings ---
     static void RegisterLua(sol::state &lua);
 
 private:
@@ -67,4 +56,4 @@ private:
     std::unordered_map<std::string, std::shared_ptr<sf::SoundBuffer> > m_Sounds;
 };
 
-#endif // RAYNEENGINE_RESOURCEMANAGER_H
+#endif

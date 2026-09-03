@@ -4,7 +4,6 @@
 #include "SFML/Graphics/RenderWindow.hpp"
 #include "SFML/System/Vector2.hpp"
 
-
 class Primitive
 {
 public:
@@ -18,6 +17,5 @@ public:
 
     virtual ~Primitive() = default;
 };
-
 
 #endif

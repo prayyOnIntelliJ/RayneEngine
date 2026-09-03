@@ -3,7 +3,6 @@
 #include "Primitive.h"
 #include "SFML/Graphics/ConvexShape.hpp"
 
-
 class TrianglePrimitive : public Primitive
 {
 public:
@@ -28,6 +27,5 @@ public:
 
     void Draw(sf::RenderWindow &window) override { window.draw(m_shape); }
 };
-
 
 #endif

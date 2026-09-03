@@ -3,7 +3,6 @@
 #include "Primitive.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 
-
 class RectanglePrimitive : public Primitive
 {
 public:
@@ -25,6 +24,5 @@ public:
 
     void Draw(sf::RenderWindow &window) override { window.draw(m_shape); }
 };
-
 
 #endif

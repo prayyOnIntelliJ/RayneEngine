@@ -1,4 +1,4 @@
-﻿#ifndef RAYNEENGINE_APPLICATION_H
+#ifndef RAYNEENGINE_APPLICATION_H
 #define RAYNEENGINE_APPLICATION_H
 #include "../ECS/Registry.h"
 #include "../Primitives/PrimitiveManager.h"
@@ -30,7 +30,6 @@ private:
     SceneManager m_SceneManager;
     sf::Clock m_DeltaTimeClock;
 };
-
 
 #endif
 

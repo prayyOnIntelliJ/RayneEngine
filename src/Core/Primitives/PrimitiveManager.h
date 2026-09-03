@@ -5,7 +5,6 @@
 
 #include "Primitive.h"
 
-
 class PrimitiveManager
 {
 public:

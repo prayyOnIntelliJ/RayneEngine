@@ -32,18 +32,16 @@ float MathR::InverseLerp(const float start, const float end, float value)
 
 float MathR::Sin(float x)
 {
-    // normalize x
     while (x > PI) x -= 2 * PI;
     while (x < -PI) x += 2 * PI;
 
     float result = 0.f;
-    float term = x; // first term of row
+    float term = x;
     float x_sq = x * x;
 
     for (int i = 1; i <= 10; i++)
     {
         result += term;
-        // term = term * (-x^2 / (n * (n+1)))
         const int n = 2 * i;
         term *= -x_sq / (static_cast<float>(n) * (n + 1));
     }
@@ -52,7 +50,6 @@ float MathR::Sin(float x)
 
 float MathR::Cos(float x)
 {
-    // cos (x) = sin (x + PI / 2)
     return Sin(x + (PI / 2.f));
 }
 

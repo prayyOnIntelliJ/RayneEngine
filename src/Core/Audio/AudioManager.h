@@ -45,4 +45,4 @@ private:
     static constexpr size_t MaxSoundChannels = 32;
 };
 
-#endif // RAYNEENGINE_AUDIOMANAGER_H
+#endif

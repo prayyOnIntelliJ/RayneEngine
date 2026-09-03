@@ -9,11 +9,9 @@ struct Vector
     float y = 0.0f;
     float z = 0.0f;
 
-    // 2D
     Vector(float x, float y)
         : x(x), y(y), z(0.0f) {}
 
-    // 3D
     Vector(float x, float y, float z)
         : x(x), y(y), z(z) {}
 

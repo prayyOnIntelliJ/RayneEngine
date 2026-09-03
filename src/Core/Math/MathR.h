@@ -3,40 +3,33 @@
 
 #include "sol/state.hpp"
 
-
 class MathR
 {
 public:
     static constexpr float PI = 3.1415926535f;
 
-    // Clamp
     static float ClampI(int value, int min, int max);
 
     static float ClampF(float value, float min, float max);
 
     static float ClampF01(float value);
 
-    // Abs
     static float AbsI(int value);
 
     static float AbsF(int value);
 
-    // Ceil, Floor
     static float Ceil(float value);
 
     static float Floor(float value);
 
-    // Lerp
     static float Lerp(float start, float end, float factor);
 
     static float InverseLerp(float start, float end, float value);
 
-    // Sin / Cos
     static float Sin(float x);
 
     static float Cos(float x);
 
-    // Lua
     static void RegisterLua(sol::state &lua);
 
 private:
@@ -63,6 +56,5 @@ T MathR::Abs(T value)
 
     return value;
 }
-
 
 #endif

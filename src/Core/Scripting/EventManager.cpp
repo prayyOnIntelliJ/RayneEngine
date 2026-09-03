@@ -1,4 +1,4 @@
-﻿#include "EventManager.h"
+#include "EventManager.h"
 
 void EventManager::SubscribeCollision(std::function<void(CollisionEvent)> callback)
 {

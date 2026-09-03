@@ -1,4 +1,4 @@
-﻿#ifndef RAYNEENGINE_SCENEMANAGER_H
+#ifndef RAYNEENGINE_SCENEMANAGER_H
 #define RAYNEENGINE_SCENEMANAGER_H
 
 #include <iostream>
@@ -37,6 +37,5 @@ private:
     Scene *m_current = nullptr;
     std::string m_currentName;
 };
-
 
 #endif

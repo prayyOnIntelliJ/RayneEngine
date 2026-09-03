@@ -3,7 +3,6 @@
 #include "Primitive.h"
 #include "SFML/Graphics/CircleShape.hpp"
 
-
 class CirclePrimitive : public Primitive
 {
 public:
@@ -25,6 +24,5 @@ public:
 
     void Draw(sf::RenderWindow &window) override { window.draw(shape); }
 };
-
 
 #endif

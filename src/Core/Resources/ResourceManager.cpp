@@ -1,8 +1,5 @@
 #include "ResourceManager.h"
 
-// ---------------------------------------------------------------------------
-// Textures
-// ---------------------------------------------------------------------------
 std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path)
 {
     auto it = m_Textures.find(path);
@@ -17,15 +14,12 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
         return nullptr;
     }
 
-    texture->setSmooth(false); // pixel-perfect by default
+    texture->setSmooth(false);
     m_Textures[path] = texture;
     std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << path << " (" << texture->getSize().x << "x" << texture->getSize().y << ")\n";
     return texture;
 }
 
-// ---------------------------------------------------------------------------
-// Fonts
-// ---------------------------------------------------------------------------
 std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
 {
     auto it = m_Fonts.find(path);
@@ -45,9 +39,6 @@ std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
     return font;
 }
 
-// ---------------------------------------------------------------------------
-// Sound buffers
-// ---------------------------------------------------------------------------
 std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::string &path)
 {
     auto it = m_Sounds.find(path);
@@ -67,9 +58,6 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
     return buffer;
 }
 
-// ---------------------------------------------------------------------------
-// Cache management
-// ---------------------------------------------------------------------------
 void ResourceManager::ClearTextures()
 {
     std::cout << "[ResourceManager] Cleared " << m_Textures.size() << " texture(s).\n";
@@ -95,9 +83,6 @@ void ResourceManager::ClearAll()
     ClearSounds();
 }
 
-// ---------------------------------------------------------------------------
-// Debug
-// ---------------------------------------------------------------------------
 void ResourceManager::PrintStats() const
 {
     std::cout << "[ResourceManager] Cache stats: "
@@ -106,9 +91,6 @@ void ResourceManager::PrintStats() const
             << m_Sounds.size() << " sound buffer(s).\n";
 }
 
-// ---------------------------------------------------------------------------
-// Lua Bindings
-// ---------------------------------------------------------------------------
 void ResourceManager::RegisterLua(sol::state &lua)
 {
     auto res = lua.create_named_table("Resource");

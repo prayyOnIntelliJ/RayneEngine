@@ -43,5 +43,4 @@ public:
     Iterator end() { return Iterator(m_FirstPoolEntities, m_FirstPoolEntities.size(), m_Pools); }
 };
 
-
 #endif

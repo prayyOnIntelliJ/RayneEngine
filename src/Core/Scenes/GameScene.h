@@ -5,7 +5,6 @@
 #include "../Resources/ResourceManager.h"
 #include "SFML/Graphics/Text.hpp"
 
-
 class GameScene : public Scene
 {
 public:
@@ -34,5 +33,4 @@ private:
     std::vector<std::pair<Entity, Entity> > m_LastCollisions;
 };
 
-
-#endif //RAYNEENGINE_GAMESCENE_H
+#endif
