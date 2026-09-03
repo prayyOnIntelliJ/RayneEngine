@@ -7,7 +7,6 @@
 #include "Pool.h"
 #include "View.h"
 
-
 class Registry
 {
 private:
@@ -19,6 +18,8 @@ public:
     Entity CreateEntity();
 
     void DestroyEntity(Entity entity) { for (auto const &[type, pool]: m_ComponentPools) { pool->Remove(entity); } }
+
+    void Clear() { for (auto const &[type, pool]: m_ComponentPools) { pool->Clear(); } }
 
     template<typename T>
     T &AddComponent(Entity entity, T component) { return GetPool<T>()->Add(entity, component); }
@@ -63,6 +64,5 @@ private:
 };
 
 inline Entity Registry::CreateEntity() { return m_EntityCounter++; }
-
 
 #endif

@@ -42,7 +42,7 @@ struct SpriteComponent
         texture = ResourceManager::Get().GetTexture(path);
         if (texture)
         {
-            sprite.setTexture(*texture);
+            sprite.setTexture(*texture, true);
             const sf::Vector2u texSize = texture->getSize();
             if (texSize.x > 0 && texSize.y > 0)
             {

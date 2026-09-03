@@ -13,6 +13,7 @@ struct IPool
     virtual bool Has(Entity e) = 0;
 
     virtual void Remove(Entity e) = 0;
+    virtual void Clear() = 0;
 };
 
 template<typename T>
@@ -56,7 +57,13 @@ public:
     }
 
     T &Get(const Entity e) { return data[entityToIndex[e]]; }
-};
 
+    void Clear() override
+    {
+        data.clear();
+        entities.clear();
+        entityToIndex.clear();
+    }
+};
 
 #endif
