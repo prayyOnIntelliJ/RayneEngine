@@ -5,6 +5,7 @@
 #include "../ECS/Components.h"
 #include "../Scripting/EventManager.h"
 #include "../Scripting/ScriptComponent.h"
+#include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Window/Event.hpp"
@@ -23,6 +24,12 @@ GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &
 void GameScene::OnEnter()
 {
     std::cout << "[INFO] [GameScene] Starting simulation...\n";
+
+    m_Window.setTitle(
+        std::string(Rayne::DEFAULT_PROJECT_NAME)
+        + ": Play Mode"
+        + " (" + Rayne::PlatformString() + ")"
+        + " - RayneEngine " + Rayne::VersionString());
 
     m_Camera = m_Window.getDefaultView();
     m_LastCollisions.clear();
@@ -115,7 +122,6 @@ void GameScene::Update(float deltaTime)
 
     CheckCollisions();
 
-    // Update Camera if any entity has a CameraComponent
     m_Registry.ForEach<TransformComponent, CameraComponent>(
         [this](Entity, TransformComponent &t, CameraComponent &c) {
             if (c.active)
