@@ -4,6 +4,7 @@
 
 #include "../ECS/Components.h"
 #include "../Scripting/EventManager.h"
+#include "../UI/UIManager.h"
 #include "../Scripting/ScriptComponent.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
@@ -129,10 +130,40 @@ void GameScene::Update(float deltaTime)
                 m_Camera.setCenter(t.x, t.y);
             }
         });
+        
+    bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
+    // Simple way: Update is called per frame, UIManager tracks state
+    // We actually need accurate mouse events, but for simplicity we'll just poll
+    // In a real scenario we'd pass events from HandleEvent
+    static bool wasClicked = false;
+    bool justClicked = mouseClicked && !wasClicked;
+    bool justReleased = !mouseClicked && wasClicked;
+    wasClicked = mouseClicked;
+    
+    // We need window reference or input manager for mouse pos relative to window.
+    // The engine's InputManager has GetMousePosition() which might be relative to desktop if not passed window.
+    // Let's rely on sf::Mouse::getPosition(*m_RenderWindow) if we have it, but we don't.
+    // So we'll update UIManager in HandleEvent, or pass window to Update.
+    // Since GameScene doesn't get window in Update, let's just clear the clicked button state here:
+    UIManager::Get().ClearClickedButton();
+    // And actually, we can update it in Render since we get the window there, or just poll global mouse for now.
 }
 
 void GameScene::Render(sf::RenderWindow &window)
 {
+    static bool wasClicked = false;
+    bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
+    bool justClicked = mouseClicked && !wasClicked;
+    bool justReleased = !mouseClicked && wasClicked;
+    wasClicked = mouseClicked;
+    
+    sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
+    uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
+
+    sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
+    sf::Vector2f mousePos = window.mapPixelToCoords(pixelPos, uiView);
+    
+    UIManager::Get().Update(0.016f, mousePos, justClicked, justReleased);
     window.setView(m_Camera);
 
     m_Registry.ForEach<TransformComponent, RenderComponent>(
@@ -164,6 +195,9 @@ void GameScene::Render(sf::RenderWindow &window)
                 }
             }
         });
+
+    window.setView(uiView);
+    UIManager::Get().Render(window);
 
     window.setView(window.getDefaultView());
     m_DebugText.setString("GAME  |  Esc: back to editor");

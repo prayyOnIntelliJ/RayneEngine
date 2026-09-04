@@ -220,6 +220,7 @@ void EditorScene::HandleMenuAction(const std::string &action)
     {
         if (m_Selected) m_Selected->selected = false;
         m_Selected = nullptr;
+
         m_ActiveField = EditField::None;
         m_ActiveInputText.clear();
         UpdateStatusText();
@@ -238,12 +239,18 @@ void EditorScene::HandleMenuAction(const std::string &action)
         m_Objects.clear();
         m_Selected = nullptr;
         UpdateStatusText();
-    } else if (action == "duplicate" && m_Selected)
+    } else if (action == "duplicate")
     {
-        const ObjectType t = (m_Selected->objectType == ObjectType::Sprite)
-                                 ? ObjectType::Rectangle
-                                 : m_Selected->objectType;
-        AddObject(m_Selected->shape.getPosition() + sf::Vector2f(m_GridSize, 0.f), t);
+        if (m_Selected)
+        {
+            const ObjectType t = (m_Selected->objectType == ObjectType::Sprite)
+                                     ? ObjectType::Rectangle
+                                     : m_Selected->objectType;
+            AddObject(m_Selected->shape.getPosition() + sf::Vector2f(m_GridSize, 0.f), t);
+        }
+    } else if (action == "open_ui_editor")
+    {
+        m_manager.SwitchSceneTo("ui_editor");
     }
 }
 
@@ -348,7 +355,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
 
         if (m_Dragging && m_Selected)
+        {
             m_Selected->shape.setPosition(SnapToGrid(MouseWorldPos() - m_DragOffset));
+        }
 
         if (m_Resizing && m_Selected)
         {
@@ -586,12 +595,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     } catch (...) {}
                 }
             }
+
             m_ActiveField = EditField::None;
             m_ActiveInputText.clear();
         } else if (event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
-            if (m_ActiveField == EditField::Name || m_ActiveField == EditField::Script)
+            if (m_ActiveField == EditField::Name || m_ActiveField == EditField::Script || m_ActiveField == EditField::UIText)
                 m_ActiveInputText += c;
             else if (std::isdigit(c) || c == '-')
                 m_ActiveInputText += c;
@@ -850,15 +860,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             for (auto& [rect, obj] : m_HierarchyHitboxes)
             {
-                if (rect.contains(m_MouseScreenPos))
-                {
-                    if (m_Selected) m_Selected->selected = false;
-                    m_Selected = obj;
-                    m_Selected->selected = true;
-                    UpdateStatusText();
-                    return;
+                    if (rect.contains(m_MouseScreenPos))
+                    {
+                        if (m_Selected) m_Selected->selected = false;
+                        m_Selected = obj;
+                        m_Selected->selected = true;
+                        UpdateStatusText();
+                        return;
+                    }
                 }
-            }
             return;
         }
 
@@ -868,36 +878,38 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         sf::Vector2f pos = MouseWorldPos();
 
-        if (m_Selected)
-        {
-            const int handle = GetResizeHandle(pos);
-            if (handle >= 0)
+
+            if (m_Selected)
             {
-                m_Resizing          = true;
-                m_ResizeHandle      = handle;
-                m_ResizeMouseStart  = pos;
-                m_ResizeObjOrigin   = m_Selected->shape.getPosition();
-                m_ResizeObjSize     = m_Selected->shape.getSize();
-                UpdateStatusText();
-                return;
+                const int handle = GetResizeHandle(pos);
+                if (handle >= 0)
+                {
+                    m_Resizing          = true;
+                    m_ResizeHandle      = handle;
+                    m_ResizeMouseStart  = pos;
+                    m_ResizeObjOrigin   = m_Selected->shape.getPosition();
+                    m_ResizeObjSize     = m_Selected->shape.getSize();
+                    UpdateStatusText();
+                    return;
+                }
             }
-        }
 
-        EditorObject *hit = ObjectAt(pos);
+            EditorObject *hit = ObjectAt(pos);
 
-        if (m_Selected) m_Selected->selected = false;
+            if (m_Selected) m_Selected->selected = false;
 
-        if (hit)
-        {
-            m_Selected = hit;
-            m_Selected->selected = true;
-            m_Dragging = true;
-            m_DragOffset = pos - m_Selected->shape.getPosition();
-        } else
-        {
-            m_Selected = nullptr;
-            AddObject(pos, m_PlacementType);
-        }
+            if (hit)
+            {
+                m_Selected = hit;
+                m_Selected->selected = true;
+                m_Dragging = true;
+                m_DragOffset = pos - m_Selected->shape.getPosition();
+            } else
+            {
+                m_Selected = nullptr;
+                AddObject(pos, m_PlacementType);
+            }
+
 
         UpdateStatusText();
     }
@@ -934,6 +946,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
             if (m_Selected) m_Selected->selected = false;
             m_Selected = nullptr;
+
             UpdateStatusText();
         }
 
@@ -1074,6 +1087,7 @@ void EditorScene::Render(sf::RenderWindow &window)
         else
             window.draw(m_Preview);
     }
+
 
     const sf::View uiView(sf::FloatRect(
         0.f, 0.f,
@@ -1453,6 +1467,14 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         m_ToolbarHitboxes.push_back({dr, "delete"});
         cx += dr.width + 8.f;
     }
+    
+    drawSep(cx);
+    cx += 12.f; {
+        const sf::FloatRect ur(cx, ty + 4.f, 76.f, ToolbarHeight - 8.f);
+        drawBtn(ur, "UI Editor", false, sf::Color(200, 100, 255), sf::Color(200, 100, 255));
+        m_ToolbarHitboxes.push_back({ur, "open_ui_editor"});
+        cx += ur.width + 8.f;
+    }
 
     drawSep(cx);
     cx += 12.f; {
@@ -1491,22 +1513,29 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
     const float dropY = TopBarHeight;
     const float dropW = 180.f;
     const float itemH = 38.f;
+    const float headerH = 24.f;
 
     struct DropItem
     {
         std::string label;
         std::string action;
         std::string desc;
+        bool isHeader = false;
     };
-    const std::vector<DropItem> items = {
-        {"Rectangle", "add_rect", "Rectangle primitive"},
-        {"Circle", "add_circle", "Circle primitive"},
-        {"Triangle", "add_triangle", "Triangle primitive"},
-        {"Pentagon", "add_pentagon", "Pentagon primitive"},
-        {"Hexagon", "add_hexagon", "Hexagon primitive"}
+    
+    std::vector<DropItem> items = {
+        {"Primitives", "", "", true},
+        {"Rectangle", "add_rect", "Rectangle primitive", false},
+        {"Circle", "add_circle", "Circle primitive", false},
+        {"Triangle", "add_triangle", "Triangle primitive", false},
+        {"Pentagon", "add_pentagon", "Pentagon primitive", false},
+        {"Hexagon", "add_hexagon", "Hexagon primitive", false}
     };
 
-    const float dropH = static_cast<float>(items.size()) * itemH + 12.f;
+    float dropH = 12.f;
+    for (const auto& item : items) {
+        dropH += item.isHeader ? headerH : itemH;
+    }
 
     sf::RectangleShape bg({dropW, dropH});
     bg.setFillColor(C_SURFACE);
@@ -1518,6 +1547,19 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
     float iy = dropY + 6.f;
     for (auto &item: items)
     {
+        if (item.isHeader)
+        {
+            sf::Text ht;
+            ht.setFont(*m_Font);
+            ht.setCharacterSize(11);
+            ht.setFillColor(C_ACCENT_BRIGHT);
+            ht.setString(item.label);
+            ht.setPosition(dropX + 8.f, iy + 6.f);
+            window.draw(ht);
+            iy += headerH;
+            continue;
+        }
+        
         const sf::FloatRect ir(dropX, iy, dropW, itemH);
         const bool hov = ir.contains(m_MouseScreenPos);
         const bool cur = (item.action == "add_rect" && m_PlacementType == ObjectType::Rectangle) ||
@@ -1598,6 +1640,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
         window.draw(title);
     }
+
+
 
     if (!m_Selected)
     {
@@ -1800,6 +1844,9 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     y = DrawEditableRow(window, "B", bDisplay, "edit_b", panelX, y);
 
     y += 8.f;
+    
+
+    
     if (m_Selected->previewTexture)
     {
         y = DrawSectionHeader(window, "SPRITE COMPONENT", sf::Color(150, 100, 255), panelX, y);
@@ -1977,68 +2024,72 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
     const float rowHeight = 26.f;
     int index = 0;
 
-    for (auto it = m_Objects.rbegin(); it != m_Objects.rend(); ++it)
-    {
-        EditorObject& obj = *it;
-        
-        if (y + rowHeight > panelY + 36.f && y < panelY + panelH)
+    auto drawRowBg = [&](bool isSelected, sf::FloatRect rowRect) {
+        const bool isHovered = rowRect.contains(m_MouseScreenPos) && m_MouseScreenPos.y > panelY + 36.f;
+        if (isSelected || isHovered)
         {
-            sf::FloatRect rowRect(panelX, y, HierarchyWidth, rowHeight);
+            sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
+            rowBg.setPosition(panelX, y);
+            rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_SURFACE_HOV);
+            window.draw(rowBg);
             
-            const bool isSelected = (&obj == m_Selected);
-            const bool isHovered = rowRect.contains(m_MouseScreenPos) && m_MouseScreenPos.y > panelY + 36.f;
-
-            if (isSelected || isHovered)
+            if (isSelected)
             {
-                sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
-                rowBg.setPosition(panelX, y);
-                rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_SURFACE_HOV);
-                window.draw(rowBg);
+                sf::RectangleShape indicator({3.f, rowHeight});
+                indicator.setPosition(panelX, y);
+                indicator.setFillColor(C_ACCENT);
+                window.draw(indicator);
+            }
+        }
+        return isSelected;
+    };
+
+
+        for (auto it = m_Objects.rbegin(); it != m_Objects.rend(); ++it)
+        {
+            EditorObject& obj = *it;
+            
+            if (y + rowHeight > panelY + 36.f && y < panelY + panelH)
+            {
+                sf::FloatRect rowRect(panelX, y, HierarchyWidth, rowHeight);
+                bool isSelected = drawRowBg(&obj == m_Selected, rowRect);
+
+                sf::CircleShape icon;
+                icon.setRadius(5.f);
+                icon.setPosition(panelX + 16.f, y + 8.f);
                 
-                if (isSelected)
+                if (IsPolygonType(obj.objectType))
                 {
-                    sf::RectangleShape indicator({3.f, rowHeight});
-                    indicator.setPosition(panelX, y);
-                    indicator.setFillColor(C_ACCENT);
-                    window.draw(indicator);
+                    icon.setPointCount(GetPolygonPointCount(obj.objectType));
+                    icon.setFillColor(obj.color);
                 }
+                else if (obj.objectType == ObjectType::Sprite)
+                {
+                    icon.setPointCount(4);
+                    icon.setFillColor(sf::Color(150, 150, 255));
+                }
+                else
+                {
+                    icon.setPointCount(4);
+                    icon.setFillColor(obj.color);
+                }
+                window.draw(icon);
+
+                sf::Text nameText;
+                nameText.setFont(*m_Font);
+                nameText.setCharacterSize(12);
+                nameText.setFillColor(isSelected ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+                nameText.setString(obj.id);
+                nameText.setPosition(panelX + 34.f, y + 4.f);
+                window.draw(nameText);
             }
 
-            sf::CircleShape icon;
-            icon.setRadius(5.f);
-            icon.setPosition(panelX + 16.f, y + 8.f);
-            
-            if (IsPolygonType(obj.objectType))
-            {
-                icon.setPointCount(GetPolygonPointCount(obj.objectType));
-                icon.setFillColor(obj.color);
-            }
-            else if (obj.objectType == ObjectType::Sprite)
-            {
-                icon.setPointCount(4);
-                icon.setFillColor(sf::Color(150, 150, 255));
-            }
-            else
-            {
-                icon.setPointCount(4);
-                icon.setFillColor(obj.color);
-            }
-            window.draw(icon);
+            m_HierarchyHitboxes.push_back({sf::FloatRect(panelX, y, HierarchyWidth, rowHeight), &obj});
 
-            sf::Text nameText;
-            nameText.setFont(*m_Font);
-            nameText.setCharacterSize(12);
-            nameText.setFillColor(isSelected ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-            nameText.setString(obj.id);
-            nameText.setPosition(panelX + 34.f, y + 4.f);
-            window.draw(nameText);
+            y += rowHeight;
+            index++;
         }
 
-        m_HierarchyHitboxes.push_back({sf::FloatRect(panelX, y, HierarchyWidth, rowHeight), &obj});
-
-        y += rowHeight;
-        index++;
-    }
 
     window.setView(prevView);
 
@@ -2340,6 +2391,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::Name;
             m_ActiveInputText = m_Selected->id;
+
         } else if (btn.action == "edit_x" && m_Selected)
         {
             m_ActiveField = EditField::TransformX;
@@ -2422,6 +2474,8 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
                                 obj.shape.getPosition().x,
                                 obj.shape.getPosition().y
                             });
+    
+    
     m_Registry.AddComponent(obj.entity, RenderComponent{
                                 obj.color,
                                 obj.shape.getSize()
@@ -2525,6 +2579,7 @@ void EditorScene::SaveToJson(const std::string &path)
         j["y"] = obj.shape.getPosition().y;
         j["width"] = obj.shape.getSize().x;
         j["height"] = obj.shape.getSize().y;
+        
         j["color"] = {obj.color.r, obj.color.g, obj.color.b};
 
         if (!obj.spritePath.empty())

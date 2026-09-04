@@ -8,16 +8,24 @@
 #include "../ECS/Components.h"
 #include "../Input/InputManager.h"
 #include "../Scenes/EditorScene.h"
+#include "../Scenes/UIEditorScene.h"
 #include "../Scenes/GameScene.h"
 #include "../Scenes/SceneSerializer.h"
 #include "../Scripting/LuaState.h"
 #include "SFML/Window/Event.hpp"
+#include "../UI/UIManager.h"
+#include "../Resources/ResourceManager.h"
 
 Application::Application()
 {
     std::cout << "[INFO] [Application] Booting RayneEngine...\n";
     CreateEngineWindow();
     SetIcon();
+    
+    std::cout << "[INFO] [Application] Initializing UIManager...\n";
+    auto font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
+    UIManager::Get().Init(font);
+    UIManager::Get().Load(std::string(ASSET_PATH) + "ui.json");
 
     std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
     LuaState::Init(m_Registry, [this](const std::string& sceneName) {
@@ -31,6 +39,7 @@ Application::Application()
 
     std::cout << "[INFO] [Application] Registering Scenes...\n";
     m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);
+    m_SceneManager.RegisterScene<UIEditorScene>("ui_editor", m_RenderWindow);
     m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
 
     std::cout << "[INFO] [Application] Switching to Editor Scene...\n";

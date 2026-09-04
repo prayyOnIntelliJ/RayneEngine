@@ -79,6 +79,7 @@ add_executable(RayneEngine
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
         src/Core/Scenes/EditorScene.cpp
+        src/Core/Scenes/UIEditorScene.cpp
         src/Core/Scenes/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
@@ -94,6 +95,8 @@ add_executable(RayneEngine
         src/Core/Audio/AudioManager.h
         src/Core/Scenes/SceneSerializer.cpp
         src/Core/Scenes/SceneSerializer.h
+        src/Core/UI/UIManager.cpp
+        src/Core/UI/UIManager.h
 )
 
 target_link_libraries(RayneEngine

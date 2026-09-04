@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "ContentBrowser.h"
+#include "../UI/UIManager.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Graphics/Text.hpp"
@@ -33,6 +34,7 @@ struct EditorObject
     std::string spritePath;
     std::shared_ptr<sf::Texture> previewTexture;
     sf::Sprite previewSprite;
+    
 };
 
 struct InspectorButton
@@ -121,6 +123,7 @@ private:
     std::vector<InspectorButton> m_InspectorButtons;
     std::vector<std::pair<sf::FloatRect, EditorObject*>> m_HierarchyHitboxes;
 
+
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
@@ -142,11 +145,18 @@ private:
 
     enum class EditField
     {
-        None, Name, Script,
-        TransformX, TransformY,
-        SizeW, SizeH,
-        ColorR, ColorG, ColorB,
-        CollisionChannel
+        None,
+        Name,
+        TransformX,
+        TransformY,
+        SizeW,
+        SizeH,
+        ColorR,
+        ColorG,
+        ColorB,
+        Script,
+        CollisionChannel,
+        UIText
     };
 
     EditField m_ActiveField = EditField::None;
@@ -247,6 +257,7 @@ private:
     std::string NextId();
 
     void DrawMenuBar(sf::RenderWindow &window);
+    
 
     void DrawToolbar(sf::RenderWindow &window);
 

@@ -9,6 +9,7 @@
 #include "../Math/MathR.h"
 #include "../Resources/ResourceManager.h"
 #include "../Audio/AudioManager.h"
+#include "../UI/UIManager.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -161,6 +162,41 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string&)> 
 
     s_Lua.set_function("LoadScene", [loadSceneCallback](const std::string& sceneName) {
         if (loadSceneCallback) loadSceneCallback(sceneName);
+    });
+    
+    // UI Manager bindings
+    std::cout << "[INFO] [Lua] Registering UI Manager bindings...\n";
+    
+    s_Lua.set_function("UI_SetText", [](const std::string& id, const std::string& text) {
+        UIManager::Get().SetText(id, text);
+    });
+    
+    s_Lua.set_function("UI_GetText", [](const std::string& id) -> std::string {
+        return UIManager::Get().GetText(id);
+    });
+    
+    s_Lua.set_function("UI_SetPosition", [](const std::string& id, float x, float y) {
+        UIManager::Get().SetPosition(id, x, y);
+    });
+    
+    s_Lua.set_function("UI_SetSize", [](const std::string& id, float w, float h) {
+        UIManager::Get().SetSize(id, w, h);
+    });
+    
+    s_Lua.set_function("UI_SetColor", [](const std::string& id, int r, int g, int b, int a) {
+        UIManager::Get().SetColor(id, r, g, b, a);
+    });
+    
+    s_Lua.set_function("UI_SetZIndex", [](const std::string& id, int z) {
+        UIManager::Get().SetZIndex(id, z);
+    });
+    
+    s_Lua.set_function("UI_GetZIndex", [](const std::string& id) -> int {
+        return UIManager::Get().GetZIndex(id);
+    });
+    
+    s_Lua.set_function("UI_IsButtonClicked", [](const std::string& id) -> bool {
+        return UIManager::Get().IsButtonClicked(id);
     });
 
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
