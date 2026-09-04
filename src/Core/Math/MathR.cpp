@@ -48,10 +48,7 @@ float MathR::Sin(float x)
     return result;
 }
 
-float MathR::Cos(float x)
-{
-    return Sin(x + (PI / 2.f));
-}
+float MathR::Cos(float x) { return Sin(x + (PI / 2.f)); }
 
 float MathR::Ceil(const float value) { return -Floor(-value); }
 

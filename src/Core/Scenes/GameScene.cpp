@@ -65,8 +65,9 @@ void GameScene::CheckCollisions()
 
     m_Registry.ForEach<TransformComponent, RenderComponent>(
         [&collidables, this](Entity e, TransformComponent &t, RenderComponent &r) {
-            if (m_Registry.HasComponent<CollisionComponent>(e)) {
-                auto& col = m_Registry.GetComponent<CollisionComponent>(e);
+            if (m_Registry.HasComponent<CollisionComponent>(e))
+            {
+                auto &col = m_Registry.GetComponent<CollisionComponent>(e);
                 collidables.push_back({e, t.x, t.y, r.size.x, r.size.y, col.channel});
             }
         });
@@ -124,13 +125,8 @@ void GameScene::Update(float deltaTime)
     CheckCollisions();
 
     m_Registry.ForEach<TransformComponent, CameraComponent>(
-        [this](Entity, TransformComponent &t, CameraComponent &c) {
-            if (c.active)
-            {
-                m_Camera.setCenter(t.x, t.y);
-            }
-        });
-        
+        [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.x, t.y); } });
+
     bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
     // Simple way: Update is called per frame, UIManager tracks state
     // We actually need accurate mouse events, but for simplicity we'll just poll
@@ -139,7 +135,7 @@ void GameScene::Update(float deltaTime)
     bool justClicked = mouseClicked && !wasClicked;
     bool justReleased = !mouseClicked && wasClicked;
     wasClicked = mouseClicked;
-    
+
     // We need window reference or input manager for mouse pos relative to window.
     // The engine's InputManager has GetMousePosition() which might be relative to desktop if not passed window.
     // Let's rely on sf::Mouse::getPosition(*m_RenderWindow) if we have it, but we don't.
@@ -156,13 +152,13 @@ void GameScene::Render(sf::RenderWindow &window)
     bool justClicked = mouseClicked && !wasClicked;
     bool justReleased = !mouseClicked && wasClicked;
     wasClicked = mouseClicked;
-    
+
     sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
     uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
 
     sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
     sf::Vector2f mousePos = window.mapPixelToCoords(pixelPos, uiView);
-    
+
     UIManager::Get().Update(0.016f, mousePos, justClicked, justReleased);
     window.setView(m_Camera);
 
@@ -175,18 +171,25 @@ void GameScene::Render(sf::RenderWindow &window)
                 window.draw(sc.sprite);
             } else
             {
-                if (r.shapeType == ShapeType::Rectangle) {
+                if (r.shapeType == ShapeType::Rectangle)
+                {
                     sf::RectangleShape shape(r.size);
                     shape.setPosition(t.x, t.y);
                     shape.setFillColor(r.color);
                     window.draw(shape);
-                } else {
+                } else
+                {
                     sf::CircleShape circle;
-                    switch (r.shapeType) {
-                        case ShapeType::Triangle: circle.setPointCount(3); break;
-                        case ShapeType::Pentagon: circle.setPointCount(5); break;
-                        case ShapeType::Hexagon: circle.setPointCount(6); break;
-                        case ShapeType::Circle: default: circle.setPointCount(30); break;
+                    switch (r.shapeType)
+                    {
+                        case ShapeType::Triangle: circle.setPointCount(3);
+                            break;
+                        case ShapeType::Pentagon: circle.setPointCount(5);
+                            break;
+                        case ShapeType::Hexagon: circle.setPointCount(6);
+                            break;
+                        case ShapeType::Circle: default: circle.setPointCount(30);
+                            break;
                     }
                     circle.setRadius(r.size.x / 2.f);
                     circle.setPosition(t.x, t.y);

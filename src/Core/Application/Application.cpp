@@ -21,14 +21,14 @@ Application::Application()
     std::cout << "[INFO] [Application] Booting RayneEngine...\n";
     CreateEngineWindow();
     SetIcon();
-    
+
     std::cout << "[INFO] [Application] Initializing UIManager...\n";
     auto font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     UIManager::Get().Init(font);
     UIManager::Get().Load(std::string(ASSET_PATH) + "ui.json");
 
     std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
-    LuaState::Init(m_Registry, [this](const std::string& sceneName) {
+    LuaState::Init(m_Registry, [this](const std::string &sceneName) {
         if (m_SceneManager.CurrentName() == "game")
         {
             m_Registry.Clear();
@@ -93,10 +93,7 @@ void Application::SetIcon()
     {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
         std::cout << "[INFO] [Window] Loaded window icon from " << filePath << "\n";
-    } else
-    {
-        std::cout << "[WARN] [Window] Failed to load window icon from " << filePath << "\n";
-    }
+    } else { std::cout << "[WARN] [Window] Failed to load window icon from " << filePath << "\n"; }
 }
 
 void Application::Update(float deltaTime)

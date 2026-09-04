@@ -4,15 +4,12 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include <memory>
 #include <functional>
 
 #include "SFML/Graphics/RenderWindow.hpp"
-#include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Graphics/Text.hpp"
 #include "SFML/Graphics/Font.hpp"
-#include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Texture.hpp"
 
 namespace fs = std::filesystem;
@@ -82,7 +79,7 @@ public:
     void ClearDrag() { m_Drag.active = false; }
     std::string GetSelectedPath() const { return m_SelectedPath; }
 
-    std::function<void(const std::string&)> onSceneLoadRequest;
+    std::function<void(const std::string &)> onSceneLoadRequest;
 
     void RenderDragGhost(sf::RenderWindow &window);
 
@@ -93,6 +90,7 @@ public:
         return m_SearchActive || m_NewScriptPrompt || m_NewScenePrompt ||
                m_NewFolderPrompt || m_RenamePrompt || m_DeletePrompt;
     }
+
     bool IsContextMenuOpen() const { return m_ContextMenuOpen; }
 
 private:
@@ -165,12 +163,17 @@ private:
     void OpenEntry(const ContentEntry &entry);
 
     void CreateNewFolder(const std::string &name);
+
     void CreateNewScript(const std::string &name);
+
     void CreateNewScene(const std::string &name);
 
     void RenameAsset(const std::string &oldPath, const std::string &newName);
+
     void DuplicateAsset(const std::string &path);
+
     void CopyAssetPath(const std::string &path);
+
     void SetStatusMessage(const std::string &msg);
 
     void RevealInExplorer(const std::string &path);

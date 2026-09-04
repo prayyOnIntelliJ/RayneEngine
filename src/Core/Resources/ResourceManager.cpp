@@ -16,7 +16,8 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
 
     texture->setSmooth(false);
     m_Textures[path] = texture;
-    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << path << " (" << texture->getSize().x << "x" << texture->getSize().y << ")\n";
+    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << path << " (" << texture->getSize().x << "x"
+            << texture->getSize().y << ")\n";
     return texture;
 }
 
@@ -54,7 +55,8 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
     }
 
     m_Sounds[path] = buffer;
-    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << path << " (" << buffer->getDuration().asSeconds() << "s)\n";
+    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << path << " (" << buffer->getDuration().
+            asSeconds() << "s)\n";
     return buffer;
 }
 

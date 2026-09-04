@@ -4,7 +4,6 @@
 #include <string>
 #include <unordered_map>
 #include <memory>
-#include <iostream>
 
 #include <SFML/Graphics/Texture.hpp>
 #include <SFML/Graphics/Font.hpp>

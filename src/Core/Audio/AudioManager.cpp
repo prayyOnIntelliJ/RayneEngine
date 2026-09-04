@@ -3,19 +3,16 @@
 #include <algorithm>
 #include <iostream>
 
-AudioManager::AudioManager()
-{
-    std::cout << "[INFO] [AudioManager] Subsystem initialized.\n";
-}
+AudioManager::AudioManager() { std::cout << "[INFO] [AudioManager] Subsystem initialized.\n"; }
 
 void AudioManager::Update()
 {
-    std::erase_if(m_ActiveSounds, [](const std::unique_ptr<sf::Sound>& sound) {
+    std::erase_if(m_ActiveSounds, [](const std::unique_ptr<sf::Sound> &sound) {
         return sound->getStatus() == sf::SoundSource::Status::Stopped;
     });
 }
 
-void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
+void AudioManager::PlaySound(const std::string &path, float volume, float pitch)
 {
     auto buffer = ResourceManager::Get().GetSoundBuffer(path);
     if (!buffer)
@@ -28,11 +25,13 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
 
     if (m_ActiveSounds.size() >= MaxSoundChannels)
     {
-        std::cout << "[WARN] [AudioManager] Max channels reached (" << MaxSoundChannels << "), dropping oldest sound.\n";
+        std::cout << "[WARN] [AudioManager] Max channels reached (" << MaxSoundChannels <<
+                "), dropping oldest sound.\n";
         m_ActiveSounds.erase(m_ActiveSounds.begin());
     }
 
-    std::cout << "[INFO] [AudioManager] Playing sound: " << path << " (Vol: " << volume << ", Pitch: " << pitch << ")\n";
+    std::cout << "[INFO] [AudioManager] Playing sound: " << path << " (Vol: " << volume << ", Pitch: " << pitch <<
+            ")\n";
 
     auto sound = std::make_unique<sf::Sound>();
     sound->setBuffer(*buffer);
@@ -46,14 +45,11 @@ void AudioManager::PlaySound(const std::string& path, float volume, float pitch)
 void AudioManager::StopAllSounds()
 {
     std::cout << "[INFO] [AudioManager] Stopping all active sounds (" << m_ActiveSounds.size() << " playing).\n";
-    for (auto& sound : m_ActiveSounds)
-    {
-        sound->stop();
-    }
+    for (auto &sound: m_ActiveSounds) { sound->stop(); }
     m_ActiveSounds.clear();
 }
 
-void AudioManager::PlayMusic(const std::string& path, bool loop, float volume)
+void AudioManager::PlayMusic(const std::string &path, bool loop, float volume)
 {
     if (!m_Music.openFromFile(path))
     {
@@ -61,7 +57,8 @@ void AudioManager::PlayMusic(const std::string& path, bool loop, float volume)
         return;
     }
 
-    std::cout << "[INFO] [AudioManager] Playing background music: " << path << " (Loop: " << (loop ? "yes" : "no") << ", Vol: " << volume << ")\n";
+    std::cout << "[INFO] [AudioManager] Playing background music: " << path << " (Loop: " << (loop ? "yes" : "no") <<
+            ", Vol: " << volume << ")\n";
 
     m_MusicVolume = volume;
     m_Music.setLoop(loop);
@@ -70,20 +67,11 @@ void AudioManager::PlayMusic(const std::string& path, bool loop, float volume)
     std::cout << "[AudioManager] Playing music: " << path << "\n";
 }
 
-void AudioManager::StopMusic()
-{
-    m_Music.stop();
-}
+void AudioManager::StopMusic() { m_Music.stop(); }
 
-void AudioManager::PauseMusic()
-{
-    m_Music.pause();
-}
+void AudioManager::PauseMusic() { m_Music.pause(); }
 
-void AudioManager::ResumeMusic()
-{
-    m_Music.play();
-}
+void AudioManager::ResumeMusic() { m_Music.play(); }
 
 void AudioManager::SetMusicVolume(float volume)
 {
@@ -95,61 +83,36 @@ void AudioManager::SetMasterVolume(float volume)
 {
     m_MasterVolume = volume;
     m_Music.setVolume(m_MusicVolume * (m_MasterVolume / 100.f));
-    for (auto& sound : m_ActiveSounds)
-    {
-        sound->setVolume(sound->getVolume() * (m_MasterVolume / 100.f));
-    }
+    for (auto &sound: m_ActiveSounds) { sound->setVolume(sound->getVolume() * (m_MasterVolume / 100.f)); }
 }
 
-void AudioManager::RegisterLua(sol::state& lua)
+void AudioManager::RegisterLua(sol::state &lua)
 {
     auto audio = lua.create_named_table("Audio");
 
     audio.set_function("PlaySound", sol::overload(
-        [](const std::string& path) {
-            Get().PlaySound(path, 100.f, 1.0f);
-        },
-        [](const std::string& path, float volume) {
-            Get().PlaySound(path, volume, 1.0f);
-        },
-        [](const std::string& path, float volume, float pitch) {
-            Get().PlaySound(path, volume, pitch);
-        }
-    ));
+                           [](const std::string &path) { Get().PlaySound(path, 100.f, 1.0f); },
+                           [](const std::string &path, float volume) { Get().PlaySound(path, volume, 1.0f); },
+                           [](const std::string &path, float volume, float pitch) {
+                               Get().PlaySound(path, volume, pitch);
+                           }
+                       ));
 
-    audio.set_function("StopAllSounds", []() {
-        Get().StopAllSounds();
-    });
+    audio.set_function("StopAllSounds", []() { Get().StopAllSounds(); });
 
     audio.set_function("PlayMusic", sol::overload(
-        [](const std::string& path) {
-            Get().PlayMusic(path, true, 100.f);
-        },
-        [](const std::string& path, bool loop) {
-            Get().PlayMusic(path, loop, 100.f);
-        },
-        [](const std::string& path, bool loop, float volume) {
-            Get().PlayMusic(path, loop, volume);
-        }
-    ));
+                           [](const std::string &path) { Get().PlayMusic(path, true, 100.f); },
+                           [](const std::string &path, bool loop) { Get().PlayMusic(path, loop, 100.f); },
+                           [](const std::string &path, bool loop, float volume) { Get().PlayMusic(path, loop, volume); }
+                       ));
 
-    audio.set_function("StopMusic", []() {
-        Get().StopMusic();
-    });
+    audio.set_function("StopMusic", []() { Get().StopMusic(); });
 
-    audio.set_function("PauseMusic", []() {
-        Get().PauseMusic();
-    });
+    audio.set_function("PauseMusic", []() { Get().PauseMusic(); });
 
-    audio.set_function("ResumeMusic", []() {
-        Get().ResumeMusic();
-    });
+    audio.set_function("ResumeMusic", []() { Get().ResumeMusic(); });
 
-    audio.set_function("SetMusicVolume", [](float volume) {
-        Get().SetMusicVolume(volume);
-    });
+    audio.set_function("SetMusicVolume", [](float volume) { Get().SetMusicVolume(volume); });
 
-    audio.set_function("SetMasterVolume", [](float volume) {
-        Get().SetMasterVolume(volume);
-    });
+    audio.set_function("SetMasterVolume", [](float volume) { Get().SetMasterVolume(volume); });
 }

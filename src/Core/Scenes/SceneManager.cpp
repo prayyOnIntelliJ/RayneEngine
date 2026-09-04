@@ -6,9 +6,10 @@ void SceneManager::SwitchSceneTo(const std::string &name)
 {
     std::cout << "[INFO] [SceneManager] Requesting scene switch to '" << name << "'...\n";
     auto it = m_scenes.find(name);
-    if (it == m_scenes.end()) { 
+    if (it == m_scenes.end())
+    {
         std::cerr << "[ERROR] [SceneManager] Scene not found: " << name << "\n";
-        throw std::runtime_error("[SceneManager] Scene not found: " + name); 
+        throw std::runtime_error("[SceneManager] Scene not found: " + name);
     }
 
     if (m_current)
@@ -19,7 +20,7 @@ void SceneManager::SwitchSceneTo(const std::string &name)
 
     m_current = it->second.get();
     m_currentName = name;
-    
+
     std::cout << "[INFO] [SceneManager] Triggering OnEnter() for new scene '" << m_currentName << "'\n";
     m_current->OnEnter();
 

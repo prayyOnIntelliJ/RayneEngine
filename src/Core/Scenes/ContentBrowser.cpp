@@ -4,7 +4,6 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
-#include <cmath>
 
 #include "SFML/Window/Event.hpp"
 #include <SFML/Window/Clipboard.hpp>
@@ -91,7 +90,8 @@ void ContentBrowser::Refresh()
     for (auto &d: dirs) m_Entries.push_back(d);
     for (auto &f: files) m_Entries.push_back(f);
 
-    std::cout << "[INFO] [ContentBrowser] Refreshed directory: " << m_CurrentPath << " (Found " << dirs.size() << " folders, " << files.size() << " files)\n";
+    std::cout << "[INFO] [ContentBrowser] Refreshed directory: " << m_CurrentPath << " (Found " << dirs.size() <<
+            " folders, " << files.size() << " files)\n";
 
     UpdateFilteredEntries();
 }
@@ -126,10 +126,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
     m_MousePos = mouseScreenPos;
 
     if (event.type == sf::Event::MouseButtonReleased &&
-        event.mouseButton.button == sf::Mouse::Left)
-    {
-        m_Drag.active = false;
-    }
+        event.mouseButton.button == sf::Mouse::Left) { m_Drag.active = false; }
 
     if (m_SearchActive && event.type == sf::Event::TextEntered)
     {
@@ -193,22 +190,17 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 
     if (m_NewFolderPrompt && event.type == sf::Event::TextEntered)
     {
-        if (event.text.unicode == '\b')
-        {
-            if (!m_NewFolderName.empty()) m_NewFolderName.pop_back();
-        }
-        else if (event.text.unicode == 27)
+        if (event.text.unicode == '\b') { if (!m_NewFolderName.empty()) m_NewFolderName.pop_back(); } else if (
+            event.text.unicode == 27)
         {
             m_NewFolderPrompt = false;
             m_NewFolderName.clear();
-        }
-        else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        } else if (event.text.unicode == '\r' || event.text.unicode == '\n')
         {
             if (!m_NewFolderName.empty()) { CreateNewFolder(m_NewFolderName); }
             m_NewFolderPrompt = false;
             m_NewFolderName.clear();
-        }
-        else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        } else if (event.text.unicode >= 32 && event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
             if (std::isalnum(c) || c == '_' || c == '-' || c == ' ')
@@ -219,25 +211,21 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 
     if (m_RenamePrompt && event.type == sf::Event::TextEntered)
     {
-        if (event.text.unicode == '\b')
-        {
-            if (!m_RenameInput.empty()) m_RenameInput.pop_back();
-        }
-        else if (event.text.unicode == 27)
+        if (event.text.unicode == '\b') { if (!m_RenameInput.empty()) m_RenameInput.pop_back(); } else if (
+            event.text.unicode == 27)
         {
             m_RenamePrompt = false;
             m_RenameInput.clear();
-        }
-        else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        } else if (event.text.unicode == '\r' || event.text.unicode == '\n')
         {
             if (!m_RenameInput.empty()) { RenameAsset(m_RenameTarget, m_RenameInput); }
             m_RenamePrompt = false;
             m_RenameInput.clear();
-        }
-        else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        } else if (event.text.unicode >= 32 && event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
-            if (c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c != '|')
+            if (c != '/' && c != '\\' && c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c !=
+                '|')
                 m_RenameInput += c;
         }
         return;
@@ -248,8 +236,8 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         if (event.text.unicode == 27 || event.text.unicode == 'n' || event.text.unicode == 'N')
         {
             m_DeletePrompt = false;
-        }
-        else if (event.text.unicode == '\r' || event.text.unicode == '\n' || event.text.unicode == 'y' || event.text.unicode == 'Y')
+        } else if (event.text.unicode == '\r' || event.text.unicode == '\n' || event.text.unicode == 'y' || event.text.
+                   unicode == 'Y')
         {
             DeleteAsset(m_DeleteTarget);
             m_DeletePrompt = false;
@@ -276,8 +264,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
                 m_DeletePrompt = false;
                 return;
             }
-        }
-        else if (!m_SearchActive)
+        } else if (!m_SearchActive)
         {
             if (event.key.code == sf::Keyboard::F2 && !m_SelectedPath.empty())
             {
@@ -424,7 +411,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Right)
     {
         m_ContextMenuOpen = false;
-        
+
         if (m_Bounds.contains(mouseScreenPos))
         {
             for (auto &[rect, idx]: m_ItemBounds)
@@ -903,8 +890,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     {
         statusText.setFillColor(sf::Color(120, 230, 160));
         statusText.setString(m_StatusMessage);
-    }
-    else
+    } else
     {
         const ContentEntry *infoEntry = nullptr;
         for (const auto &[rect, idx]: m_ItemBounds)
@@ -934,8 +920,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             if (!infoEntry->isDirectory)
                 infoStr += "  |  " + FormatFileSize(infoEntry->fileSize);
             statusText.setString(infoStr);
-        }
-        else
+        } else
         {
             statusText.setFillColor(sf::Color(110, 115, 140));
             std::string countStr = std::to_string(m_FilteredEntries.size()) + " items";
@@ -965,10 +950,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         if (m_ContextMenuTarget != m_CurrentPath)
         {
             actions.push_back({"Rename (F2)", "rename"});
-            if (!isDir)
-            {
-                actions.push_back({"Duplicate (Ctrl+D)", "duplicate"});
-            }
+            if (!isDir) { actions.push_back({"Duplicate (Ctrl+D)", "duplicate"}); }
             actions.push_back({"Copy Relative Path (Ctrl+C)", "copy_path"});
         }
         actions.push_back({"New Folder", "new_folder"});
@@ -1293,8 +1275,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
                 preview.setColor(sf::Color(255, 255, 255, 230));
             }
             window.draw(preview);
-        }
-        else
+        } else
         {
             sf::RectangleShape ph({thumbSz - 4.f, thumbSz - 4.f});
             ph.setPosition(ox + 4.f, oy + 4.f);
@@ -1310,8 +1291,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         label.setString(gname);
         label.setPosition(ox + 3.f, oy + thumbSz + 7.f);
         window.draw(label);
-    }
-    else
+    } else
     {
         if (gname.size() > 18) gname = gname.substr(0, 17) + "...";
         const float pw = 124.f, ph = 24.f;
@@ -1458,11 +1438,7 @@ void ContentBrowser::CreateNewFolder(const std::string &name)
         Refresh();
         m_SelectedPath = targetDir.string();
         SetStatusMessage("Created folder: " + name);
-    }
-    else
-    {
-        SetStatusMessage("Failed to create folder: " + name);
-    }
+    } else { SetStatusMessage("Failed to create folder: " + name); }
 }
 
 void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &newName)
@@ -1500,8 +1476,7 @@ void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &
         Refresh();
         m_SelectedPath = newP.string();
         SetStatusMessage("Renamed to: " + finalName);
-    }
-    else
+    } else
     {
         std::cout << "[ERROR] [ContentBrowser] Failed to rename: " << ec.message() << "\n";
         SetStatusMessage("Rename failed: " + ec.message());
@@ -1520,16 +1495,9 @@ void ContentBrowser::DuplicateAsset(const std::string &path)
 
     fs::path dest = parent / (stem + "_copy" + ext);
     int count = 2;
-    while (fs::exists(dest, ec))
-    {
-        dest = parent / (stem + "_copy_" + std::to_string(count++) + ext);
-    }
+    while (fs::exists(dest, ec)) { dest = parent / (stem + "_copy_" + std::to_string(count++) + ext); }
 
-    if (fs::is_directory(src, ec))
-    {
-        fs::copy(src, dest, fs::copy_options::recursive, ec);
-    }
-    else
+    if (fs::is_directory(src, ec)) { fs::copy(src, dest, fs::copy_options::recursive, ec); } else
     {
         fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
     }
@@ -1540,11 +1508,7 @@ void ContentBrowser::DuplicateAsset(const std::string &path)
         Refresh();
         m_SelectedPath = dest.string();
         SetStatusMessage("Duplicated: " + dest.filename().string());
-    }
-    else
-    {
-        SetStatusMessage("Duplicate failed: " + ec.message());
-    }
+    } else { SetStatusMessage("Duplicate failed: " + ec.message()); }
 }
 
 void ContentBrowser::CopyAssetPath(const std::string &path)
@@ -1588,11 +1552,7 @@ void ContentBrowser::DeleteAsset(const std::string &path)
         if (m_SelectedPath == path) m_SelectedPath.clear();
         Refresh();
         SetStatusMessage("Deleted: " + fs::path(path).filename().string());
-    }
-    else
-    {
-        SetStatusMessage("Delete failed: " + ec.message());
-    }
+    } else { SetStatusMessage("Delete failed: " + ec.message()); }
 }
 
 void ContentBrowser::HandleContextMenuAction(const std::string &action)
@@ -1606,45 +1566,28 @@ void ContentBrowser::HandleContextMenuAction(const std::string &action)
                       ? AssetType::Folder
                       : TypeFromExtension(fs::path(m_ContextMenuTarget).extension().string());
         OpenEntry(ce);
-    }
-    else if (action == "play_audio")
-    {
-        AudioManager::Get().PlaySound(m_ContextMenuTarget);
-    }
-    else if (action == "rename")
+    } else if (action == "play_audio") { AudioManager::Get().PlaySound(m_ContextMenuTarget); } else if (
+        action == "rename")
     {
         m_RenameTarget = m_ContextMenuTarget;
         m_RenameInput = fs::path(m_ContextMenuTarget).filename().string();
         m_RenamePrompt = true;
-    }
-    else if (action == "duplicate")
-    {
-        DuplicateAsset(m_ContextMenuTarget);
-    }
-    else if (action == "copy_path")
+    } else if (action == "duplicate") { DuplicateAsset(m_ContextMenuTarget); } else if (action == "copy_path")
     {
         CopyAssetPath(m_ContextMenuTarget);
-    }
-    else if (action == "new_folder")
+    } else if (action == "new_folder")
     {
         m_NewFolderPrompt = true;
         m_NewFolderName = "NewFolder";
-    }
-    else if (action == "new_script")
+    } else if (action == "new_script")
     {
         m_NewScriptPrompt = true;
         m_NewScriptName = "new_script";
-    }
-    else if (action == "new_scene")
+    } else if (action == "new_scene")
     {
         m_NewScenePrompt = true;
         m_NewSceneName = "new_scene";
-    }
-    else if (action == "reveal")
-    {
-        RevealInExplorer(m_ContextMenuTarget);
-    }
-    else if (action == "delete")
+    } else if (action == "reveal") { RevealInExplorer(m_ContextMenuTarget); } else if (action == "delete")
     {
         m_DeleteTarget = m_ContextMenuTarget;
         m_DeletePrompt = true;
