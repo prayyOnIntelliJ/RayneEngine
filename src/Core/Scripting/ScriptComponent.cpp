@@ -1,16 +1,25 @@
 #include "../Scripting/ScriptComponent.h"
 
 ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
-    : m_Lua(&lua)
+    : m_Lua(&lua), m_Path(path)
 {
     m_Env = sol::environment(*m_Lua, sol::create, m_Lua->globals());
+    Reload();
+}
 
-    sol::load_result loadResult = m_Lua->load_file(path);
+void ScriptComponent::Reload()
+{
+    if (std::filesystem::exists(m_Path))
+    {
+        m_LastWriteTime = std::filesystem::last_write_time(m_Path);
+    }
+
+    sol::load_result loadResult = m_Lua->load_file(m_Path);
 
     if (!loadResult.valid())
     {
         sol::error err = loadResult;
-        std::cerr << "[ERROR] [Script] Failed to load Lua script (" << path << "): " << err.what() << std::endl;
+        std::cerr << "[ERROR] [Script] Failed to load Lua script (" << m_Path << "): " << err.what() << std::endl;
         return;
     }
 
@@ -22,15 +31,27 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
     if (!execResult.valid())
     {
         sol::error err = execResult;
-        std::cerr << "[ERROR] [Script] Execution error in Lua script (" << path << "): " << err.what() << std::endl;
+        std::cerr << "[ERROR] [Script] Execution error in Lua script (" << m_Path << "): " << err.what() << std::endl;
         return;
     }
 
-    std::cout << "[INFO] [Script] Successfully compiled and attached script: " << path << "\n";
+    std::cout << "[INFO] [Script] Successfully compiled and attached script: " << m_Path << "\n";
 
     m_OnCreate = m_Env["OnCreate"];
     m_OnUpdate = m_Env["OnUpdate"];
     m_OnCollision = m_Env["OnCollision"];
+}
+
+void ScriptComponent::ReloadIfNeeded()
+{
+    if (!std::filesystem::exists(m_Path)) return;
+    
+    auto currentWriteTime = std::filesystem::last_write_time(m_Path);
+    if (currentWriteTime > m_LastWriteTime)
+    {
+        std::cout << "[INFO] [Script] Hot-reloading script: " << m_Path << "\n";
+        Reload();
+    }
 }
 
 void ScriptComponent::OnCreate() const { if (m_OnCreate.valid()) m_OnCreate(m_Env["self"].get_or(0)); }

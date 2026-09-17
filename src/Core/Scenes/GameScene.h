@@ -31,6 +31,7 @@ private:
     void CheckCollisions();
 
     std::vector<std::pair<Entity, Entity> > m_LastCollisions;
+    float m_HotReloadTimer = 0.f;
 };
 
 #endif

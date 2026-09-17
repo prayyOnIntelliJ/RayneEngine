@@ -9,5 +9,5 @@ function OnUpdate(self, dt)
 end
 
 function OnCollision(self, other)
-    DestroyEntity(self)
+    
 end

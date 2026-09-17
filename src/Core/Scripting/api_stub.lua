@@ -214,6 +214,16 @@ function SetCollisionChannel(e, channel) end
 ---@return integer
 function GetCollisionChannel(e) end
 
+---Sets the collision type for an Entity ("solid" or "static")
+---@param e Entity
+---@param type string
+function SetCollisionType(e, type) end
+
+---Gets the collision type for an Entity
+---@param e Entity
+---@return string
+function GetCollisionType(e) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
 

@@ -9,6 +9,8 @@
 #include "../Resources/ResourceManager.h"
 #include "../Audio/AudioManager.h"
 #include "../UI/UIManager.h"
+#include "TimerManager.h"
+#include "TweenManager.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -30,7 +32,10 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     s_Lua.new_usertype<TransformComponent>("Transform",
                                            "x", &TransformComponent::x,
-                                           "y", &TransformComponent::y);
+                                           "y", &TransformComponent::y,
+                                           "rotation", &TransformComponent::rotation,
+                                           "scaleX", &TransformComponent::scaleX,
+                                           "scaleY", &TransformComponent::scaleY);
 
     s_Lua.new_usertype<VelocityComponent>("Velocity",
                                           "dx", &VelocityComponent::dx,
@@ -59,6 +64,23 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
             auto &t = registry.GetComponent<TransformComponent>(e);
             t.x = x;
             t.y = y;
+        }
+    });
+
+    s_Lua.set_function("SetRotation", [&](const Entity e, const float r) {
+        if (registry.HasComponent<TransformComponent>(e))
+        {
+            auto &t = registry.GetComponent<TransformComponent>(e);
+            t.rotation = r;
+        }
+    });
+
+    s_Lua.set_function("SetScale", [&](const Entity e, const float sx, const float sy) {
+        if (registry.HasComponent<TransformComponent>(e))
+        {
+            auto &t = registry.GetComponent<TransformComponent>(e);
+            t.scaleX = sx;
+            t.scaleY = sy;
         }
     });
 
@@ -147,12 +169,67 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return 0;
     });
 
+    s_Lua.set_function("SetCollisionType", [&](const Entity e, const std::string& typeStr) {
+        if (registry.HasComponent<CollisionComponent>(e)) {
+            if (typeStr == "solid")
+                registry.GetComponent<CollisionComponent>(e).type = CollisionType::Solid;
+            else
+                registry.GetComponent<CollisionComponent>(e).type = CollisionType::Static;
+        }
+    });
+
+    s_Lua.set_function("GetCollisionType", [&](const Entity e) -> std::string {
+        if (registry.HasComponent<CollisionComponent>(e)) {
+            return registry.GetComponent<CollisionComponent>(e).type == CollisionType::Solid ? "solid" : "static";
+        }
+        return "static";
+    });
+
+    s_Lua.set_function("AddTag", [&](const Entity e, const std::string& tag) {
+        registry.AddComponent(e, TagComponent{tag});
+    });
+
+    s_Lua.set_function("GetTag", [&](const Entity e) -> std::string {
+        if (!registry.HasComponent<TagComponent>(e)) return "";
+        return registry.GetComponent<TagComponent>(e).tag;
+    });
+
+    s_Lua.set_function("HasTag", [&](const Entity e) -> bool {
+        return registry.HasComponent<TagComponent>(e);
+    });
+
+    s_Lua.set_function("SetTag", [&](const Entity e, const std::string& tag) {
+        if (registry.HasComponent<TagComponent>(e)) {
+            registry.GetComponent<TagComponent>(e).tag = tag;
+        } else {
+            registry.AddComponent(e, TagComponent{tag});
+        }
+    });
+
+    s_Lua.set_function("FindEntityWithTag", [&](const std::string& tag) -> Entity {
+        Entity found = 0;
+        registry.ForEach<TagComponent>([&](Entity e, TagComponent& tc) {
+            if (tc.tag == tag && found == 0) found = e;
+        });
+        return found;
+    });
+
     s_Lua.set_function("SetColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
         if (registry.HasComponent<RenderComponent>(e))
         {
             auto &rc = registry.GetComponent<RenderComponent>(e);
             rc.color = sf::Color(r, g, b, a.value_or(255));
         }
+    });
+
+    sol::table timerTable = s_Lua.create_named_table("Timer");
+    timerTable.set_function("After", [](float seconds, sol::function cb) {
+        TimerManager::Get().After(seconds, cb);
+    });
+
+    sol::table tweenTable = s_Lua.create_named_table("Tween");
+    tweenTable.set_function("Position", [&registry](Entity e, float targetX, float targetY, float duration, sol::optional<std::string> ease) {
+        TweenManager::Get().Position(e, targetX, targetY, duration, ease.value_or("Linear"), registry);
     });
 
     s_Lua.set_function("LoadScene", [loadSceneCallback](const std::string &sceneName) {

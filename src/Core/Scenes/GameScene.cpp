@@ -6,6 +6,8 @@
 #include "../Scripting/EventManager.h"
 #include "../UI/UIManager.h"
 #include "../Scripting/ScriptComponent.h"
+#include "../Scripting/TimerManager.h"
+#include "../Scripting/TweenManager.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -50,6 +52,8 @@ void GameScene::OnEnter()
 void GameScene::OnExit()
 {
     m_LastCollisions.clear();
+    TimerManager::Get().Clear();
+    TweenManager::Get().Clear();
     std::cout << "[INFO] [GameScene] Stopping simulation, clearing collision state.\n";
 }
 
@@ -60,6 +64,7 @@ void GameScene::CheckCollisions()
         Entity id;
         float x, y, w, h;
         int channel;
+        CollisionType type;
     };
     std::vector<CollidableEntity> collidables;
 
@@ -68,7 +73,7 @@ void GameScene::CheckCollisions()
             if (m_Registry.HasComponent<CollisionComponent>(e))
             {
                 auto &col = m_Registry.GetComponent<CollisionComponent>(e);
-                collidables.push_back({e, t.x, t.y, r.size.x, r.size.y, col.channel});
+                collidables.push_back({e, t.x, t.y, r.size.x, r.size.y, col.channel, col.type});
             }
         });
 
@@ -78,8 +83,8 @@ void GameScene::CheckCollisions()
     {
         for (size_t j = i + 1; j < collidables.size(); j++)
         {
-            const auto &a = collidables[i];
-            const auto &b = collidables[j];
+            auto &a = collidables[i];
+            auto &b = collidables[j];
 
             if (a.channel != b.channel) continue;
 
@@ -100,6 +105,59 @@ void GameScene::CheckCollisions()
 
             if (!wasColliding)
                 EventManager::Get().FireCollision(a.id, b.id);
+                
+            if (a.type == CollisionType::Solid && b.type == CollisionType::Solid)
+            {
+                float aCenterX = a.x + a.w / 2.0f;
+                float aCenterY = a.y + a.h / 2.0f;
+                float bCenterX = b.x + b.w / 2.0f;
+                float bCenterY = b.y + b.h / 2.0f;
+
+                float dx = aCenterX - bCenterX;
+                float dy = aCenterY - bCenterY;
+                
+                float overlapX = (a.w / 2.0f + b.w / 2.0f) - std::abs(dx);
+                float overlapY = (a.h / 2.0f + b.h / 2.0f) - std::abs(dy);
+
+                if (overlapX > 0 && overlapY > 0)
+                {
+                    bool aMovable = m_Registry.HasComponent<VelocityComponent>(a.id);
+                    bool bMovable = m_Registry.HasComponent<VelocityComponent>(b.id);
+                    
+                    if (overlapX < overlapY)
+                    {
+                        float pushX = (dx > 0) ? overlapX : -overlapX;
+                        if (aMovable && !bMovable) {
+                            m_Registry.GetComponent<TransformComponent>(a.id).x += pushX;
+                            a.x += pushX;
+                        } else if (!aMovable && bMovable) {
+                            m_Registry.GetComponent<TransformComponent>(b.id).x -= pushX;
+                            b.x -= pushX;
+                        } else {
+                            m_Registry.GetComponent<TransformComponent>(a.id).x += pushX / 2.0f;
+                            a.x += pushX / 2.0f;
+                            m_Registry.GetComponent<TransformComponent>(b.id).x -= pushX / 2.0f;
+                            b.x -= pushX / 2.0f;
+                        }
+                    }
+                    else
+                    {
+                        float pushY = (dy > 0) ? overlapY : -overlapY;
+                        if (aMovable && !bMovable) {
+                            m_Registry.GetComponent<TransformComponent>(a.id).y += pushY;
+                            a.y += pushY;
+                        } else if (!aMovable && bMovable) {
+                            m_Registry.GetComponent<TransformComponent>(b.id).y -= pushY;
+                            b.y -= pushY;
+                        } else {
+                            m_Registry.GetComponent<TransformComponent>(a.id).y += pushY / 2.0f;
+                            a.y += pushY / 2.0f;
+                            m_Registry.GetComponent<TransformComponent>(b.id).y -= pushY / 2.0f;
+                            b.y -= pushY / 2.0f;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -120,7 +178,17 @@ void GameScene::Update(float deltaTime)
             t.y += v.dy * deltaTime;
         });
 
+    m_HotReloadTimer += deltaTime;
+    if (m_HotReloadTimer >= 0.5f)
+    {
+        m_HotReloadTimer = 0.f;
+        m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.ReloadIfNeeded(); });
+    }
+
     m_Registry.ForEach<ScriptComponent>([deltaTime](Entity, ScriptComponent &sc) { sc.OnUpdate(deltaTime); });
+
+    TimerManager::Get().Update(deltaTime);
+    TweenManager::Get().Update(deltaTime);
 
     CheckCollisions();
 
@@ -159,6 +227,18 @@ void GameScene::Render(sf::RenderWindow &window)
             {
                 auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
                 sc.sprite.setPosition(t.x, t.y);
+                sc.sprite.setRotation(t.rotation);
+                
+                float baseScaleX = 1.f, baseScaleY = 1.f;
+                if (sc.texture) {
+                    auto texSize = sc.texture->getSize();
+                    if (texSize.x > 0 && texSize.y > 0) {
+                        baseScaleX = sc.size.x / static_cast<float>(texSize.x);
+                        baseScaleY = sc.size.y / static_cast<float>(texSize.y);
+                    }
+                }
+                sc.sprite.setScale(baseScaleX * t.scaleX, baseScaleY * t.scaleY);
+                
                 window.draw(sc.sprite);
             } else
             {
@@ -166,6 +246,8 @@ void GameScene::Render(sf::RenderWindow &window)
                 {
                     sf::RectangleShape shape(r.size);
                     shape.setPosition(t.x, t.y);
+                    shape.setRotation(t.rotation);
+                    shape.setScale(t.scaleX, t.scaleY);
                     shape.setFillColor(r.color);
                     window.draw(shape);
                 } else
@@ -184,6 +266,8 @@ void GameScene::Render(sf::RenderWindow &window)
                     }
                     circle.setRadius(r.size.x / 2.f);
                     circle.setPosition(t.x, t.y);
+                    circle.setRotation(t.rotation);
+                    circle.setScale(t.scaleX, t.scaleY);
                     circle.setFillColor(r.color);
                     window.draw(circle);
                 }

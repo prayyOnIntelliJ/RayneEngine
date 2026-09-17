@@ -3,6 +3,7 @@
 
 #include <sol/sol.hpp>
 #include <string>
+#include <filesystem>
 
 #include "../ECS/Entity.h"
 
@@ -21,7 +22,13 @@ public:
 
     sol::environment &GetEnv() { return m_Env; }
 
+    void Reload();
+    void ReloadIfNeeded();
+
 private:
+    std::string m_Path;
+    std::filesystem::file_time_type m_LastWriteTime;
+
     sol::environment m_Env;
     sol::state *m_Lua;
 

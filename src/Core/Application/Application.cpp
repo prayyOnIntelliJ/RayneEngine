@@ -77,9 +77,9 @@ void Application::Run()
         float deltaTime = dt.asSeconds();
 
         SetEvents();
-        InputManager::Get().EndFrame();
         Update(deltaTime);
         Render();
+        InputManager::Get().EndFrame();
     }
 
     std::cout << "[INFO] [Application] Exited cleanly.\n";
@@ -99,7 +99,6 @@ void Application::SetIcon()
 void Application::Update(float deltaTime)
 {
     m_SceneManager.Update(deltaTime);
-    m_PrimitiveManager.Update(deltaTime);
 }
 
 void Application::Render()

@@ -10,7 +10,11 @@
 
 struct TransformComponent
 {
-    float x, y;
+    float x = 0.f;
+    float y = 0.f;
+    float rotation = 0.f;
+    float scaleX = 1.f;
+    float scaleY = 1.f;
 };
 
 struct VelocityComponent
@@ -60,9 +64,17 @@ struct CameraComponent
     bool active = true;
 };
 
+enum class CollisionType { Static, Solid };
+
 struct CollisionComponent
 {
     int channel = 0;
+    CollisionType type = CollisionType::Static;
+};
+
+struct TagComponent
+{
+    std::string tag;
 };
 
 #endif
