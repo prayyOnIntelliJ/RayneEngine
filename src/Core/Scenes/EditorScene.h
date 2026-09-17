@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "ContentBrowser.h"
+#include "ConsolePanel.h"
 #include "../UI/UIManager.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -124,6 +125,18 @@ private:
 
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
+    std::unique_ptr<ConsolePanel> m_ConsolePanel;
+
+    enum class BottomPanelTab
+    {
+        ContentBrowser,
+        Console
+    };
+    BottomPanelTab m_ActiveBottomPanelTab = BottomPanelTab::ContentBrowser;
+    
+    sf::FloatRect m_TabBrowserBounds;
+    sf::FloatRect m_TabConsoleBounds;
+    static constexpr float TabBarHeight = 24.f;
 
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;

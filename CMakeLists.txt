@@ -89,6 +89,8 @@ add_executable(RayneEngine
         src/Core/Scripting/EventManager.h
         src/Core/Scenes/ContentBrowser.cpp
         src/Core/Scenes/ContentBrowser.h
+        src/Core/Scenes/ConsolePanel.cpp
+        src/Core/Scenes/ConsolePanel.h
         src/Core/Resources/ResourceManager.cpp
         src/Core/Resources/ResourceManager.h
         src/Core/Audio/AudioManager.cpp

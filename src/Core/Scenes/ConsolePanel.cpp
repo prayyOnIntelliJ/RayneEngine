@@ -1,0 +1,332 @@
+#include "ConsolePanel.h"
+#include <algorithm>
+#include <iostream>
+#include <chrono>
+
+#include "SFML/Window/Clipboard.hpp"
+
+static const sf::Color C_BG_PANEL = sf::Color(26, 29, 34);
+static const sf::Color C_BG_INPUT = sf::Color(20, 23, 27);
+static const sf::Color C_BORDER = sf::Color(42, 46, 53);
+static const sf::Color C_BORDER_LIGHT = sf::Color(58, 63, 72);
+static const sf::Color C_TEXT_PRIMARY = sf::Color(232, 234, 237);
+static const sf::Color C_TEXT_MUTED = sf::Color(92, 97, 107);
+static const sf::Color C_DANGER = sf::Color(241, 104, 94);
+static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
+static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
+
+ConsoleRedirector::ConsoleRedirector(std::ostream& stream, std::function<void(const std::string&, bool)> callback, bool isError)
+    : m_Stream(stream), m_Callback(std::move(callback)), m_IsError(isError)
+{
+    m_OldBuf = m_Stream.rdbuf(this);
+}
+
+ConsoleRedirector::~ConsoleRedirector()
+{
+    m_Stream.rdbuf(m_OldBuf);
+}
+
+std::streambuf::int_type ConsoleRedirector::overflow(int_type v)
+{
+    if (v == '\n')
+    {
+        if (m_Callback) m_Callback(m_Buffer, m_IsError);
+        m_Buffer.clear();
+    }
+    else if (v != std::char_traits<char>::eof())
+    {
+        m_Buffer += static_cast<char>(v);
+    }
+    
+    // Also output to original buffer
+    if (m_OldBuf && v != std::char_traits<char>::eof()) {
+        m_OldBuf->sputc(v);
+    }
+    
+    return v;
+}
+
+std::streamsize ConsoleRedirector::xsputn(const char* p, std::streamsize n)
+{
+    for (std::streamsize i = 0; i < n; ++i)
+    {
+        if (p[i] == '\n')
+        {
+            if (m_Callback) m_Callback(m_Buffer, m_IsError);
+            m_Buffer.clear();
+        }
+        else
+        {
+            m_Buffer += p[i];
+        }
+    }
+    
+    // Also output to original buffer
+    if (m_OldBuf) {
+        m_OldBuf->sputn(p, n);
+    }
+    
+    return n;
+}
+
+
+std::vector<ConsoleMessage> ConsolePanel::s_Messages;
+std::mutex ConsolePanel::s_Mutex;
+std::unique_ptr<ConsoleRedirector> ConsolePanel::s_CoutRedirector;
+std::unique_ptr<ConsoleRedirector> ConsolePanel::s_CerrRedirector;
+bool ConsolePanel::s_Initialized = false;
+
+void ConsolePanel::InitRedirectors()
+{
+    if (s_Initialized) return;
+    
+    auto callback = [](const std::string& msg, bool isError) {
+        ConsolePanel::AddLogGlobal(msg, isError);
+    };
+
+    s_CoutRedirector = std::make_unique<ConsoleRedirector>(std::cout, callback, false);
+    s_CerrRedirector = std::make_unique<ConsoleRedirector>(std::cerr, callback, true);
+    
+    s_Initialized = true;
+    AddLogGlobal("Console initialized.", false);
+}
+
+void ConsolePanel::AddLogGlobal(const std::string& message, bool isError)
+{
+    std::lock_guard<std::mutex> lock(s_Mutex);
+    s_Messages.push_back({message, isError});
+    if (s_Messages.size() > 2000)
+    {
+        s_Messages.erase(s_Messages.begin());
+    }
+}
+
+ConsolePanel::ConsolePanel(const sf::Font& font)
+    : m_Font(font)
+{
+    // Auto-scroll to bottom on open
+    m_ScrollOffset = 999999.f; 
+}
+
+ConsolePanel::~ConsolePanel()
+{
+}
+
+void ConsolePanel::ExecuteCommand(const std::string& command)
+{
+    if (command.empty()) return;
+    
+    AddLogGlobal("> " + command, false);
+    
+    // TODO: Actually execute command later
+    if (command == "clear") {
+        std::lock_guard<std::mutex> lock(s_Mutex);
+        s_Messages.clear();
+        m_ScrollOffset = 0.f;
+    }
+}
+
+void ConsolePanel::HandleEvent(const sf::Event& event, sf::Vector2f mouseScreenPos)
+{
+    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+    {
+        if (m_ScrollbarBounds.contains(mouseScreenPos))
+        {
+            m_ScrollbarDragging = true;
+            m_DragStartY = mouseScreenPos.y;
+            m_DragStartScroll = m_ScrollOffset;
+        }
+        else if (m_InputBounds.contains(mouseScreenPos))
+        {
+            m_InputActive = true;
+        }
+        else if (m_Bounds.contains(mouseScreenPos))
+        {
+            m_InputActive = false;
+        }
+    }
+
+    if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left)
+    {
+        m_ScrollbarDragging = false;
+    }
+
+    if (event.type == sf::Event::MouseMoved && m_ScrollbarDragging)
+    {
+        float dy = mouseScreenPos.y - m_DragStartY;
+        // Scrollbar logic:
+        // logAreaHeight is height - inputHeight
+        // Track area is logAreaHeight
+        float logAreaHeight = m_Bounds.height - 30.f; // inputHeight is 30
+        float handleHeight = std::max(20.f, (logAreaHeight / (m_MaxScroll + logAreaHeight)) * logAreaHeight);
+        float trackHeight = logAreaHeight - handleHeight;
+        
+        if (trackHeight > 0.f)
+        {
+            float scrollDelta = (dy / trackHeight) * m_MaxScroll;
+            m_ScrollOffset = std::max(0.f, std::min(m_DragStartScroll + scrollDelta, m_MaxScroll));
+            m_AutoScroll = (m_ScrollOffset >= m_MaxScroll - 1.f);
+        }
+    }
+
+    if (event.type == sf::Event::MouseWheelScrolled && m_Bounds.contains(mouseScreenPos))
+    {
+        m_ScrollOffset -= event.mouseWheelScroll.delta * 40.f;
+        m_ScrollOffset = std::max(0.f, std::min(m_ScrollOffset, m_MaxScroll));
+        m_AutoScroll = (m_ScrollOffset >= m_MaxScroll - 1.f);
+    }
+
+    if (m_InputActive)
+    {
+        if (event.type == sf::Event::TextEntered)
+        {
+            if (event.text.unicode == 8) // Backspace
+            {
+                if (!m_InputBuffer.empty())
+                    m_InputBuffer.pop_back();
+            }
+            else if (event.text.unicode == 22) // Ctrl+V
+            {
+                m_InputBuffer += sf::Clipboard::getString().toAnsiString();
+            }
+            else if (event.text.unicode == 13) // Enter
+            {
+                ExecuteCommand(m_InputBuffer);
+                m_InputBuffer.clear();
+            }
+            else if (event.text.unicode >= 32 && event.text.unicode < 127)
+            {
+                m_InputBuffer += static_cast<char>(event.text.unicode);
+            }
+        }
+    }
+}
+
+void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float width, float height)
+{
+    m_Bounds = {x, y, width, height};
+
+    sf::RectangleShape bg({width, height});
+    bg.setPosition(x, y);
+    bg.setFillColor(C_BG_PANEL);
+    window.draw(bg);
+
+    sf::RectangleShape topBorder({width, 1.f});
+    topBorder.setPosition(x, y);
+    topBorder.setFillColor(C_BORDER);
+    window.draw(topBorder);
+
+    // Input area at the bottom
+    float inputHeight = 30.f;
+    m_InputBounds = {x, y + height - inputHeight, width, inputHeight};
+    
+    sf::RectangleShape inputBg({width, inputHeight});
+    inputBg.setPosition(m_InputBounds.left, m_InputBounds.top);
+    inputBg.setFillColor(C_BG_INPUT);
+    window.draw(inputBg);
+    
+    sf::RectangleShape inputBorderTop({width, 1.f});
+    inputBorderTop.setPosition(m_InputBounds.left, m_InputBounds.top);
+    inputBorderTop.setFillColor(C_BORDER);
+    window.draw(inputBorderTop);
+
+    sf::Text inputText;
+    inputText.setFont(m_Font);
+    inputText.setCharacterSize(12);
+    inputText.setFillColor(m_InputActive ? C_TEXT_PRIMARY : C_TEXT_MUTED);
+    
+    std::string dispText = "> " + m_InputBuffer;
+    if (m_InputActive)
+    {
+        // Simple cursor blink
+        if (static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count() / 500) % 2 == 0)
+        {
+            dispText += "|";
+        }
+    }
+    else if (m_InputBuffer.empty())
+    {
+        dispText = "Type command here...";
+        inputText.setFillColor(C_TEXT_MUTED);
+    }
+    
+    inputText.setString(dispText);
+    inputText.setPosition(x + 10.f, y + height - inputHeight + 8.f);
+    window.draw(inputText);
+
+    // Draw logs
+    float logAreaHeight = height - inputHeight;
+    
+    std::lock_guard<std::mutex> lock(s_Mutex);
+    
+    float lh = 18.f; // Approximate line height
+    float contentHeight = 5.f + s_Messages.size() * lh;
+    m_MaxScroll = std::max(0.f, contentHeight - logAreaHeight + 10.f);
+    
+    if (m_AutoScroll) {
+        m_ScrollOffset = m_MaxScroll;
+    }
+    // clamp scroll
+    m_ScrollOffset = std::max(0.f, std::min(m_ScrollOffset, m_MaxScroll));
+    m_LastMessageCount = s_Messages.size();
+
+    sf::View oldView = window.getView();
+    sf::View logView(sf::FloatRect(0.f, 0.f, width, logAreaHeight));
+    logView.setViewport(sf::FloatRect(
+        x / window.getSize().x, 
+        y / window.getSize().y, 
+        width / window.getSize().x, 
+        logAreaHeight / window.getSize().y));
+    window.setView(logView);
+
+    float currentY = 5.f - m_ScrollOffset;
+
+    sf::Text logText;
+    logText.setFont(m_Font);
+    logText.setCharacterSize(12);
+    
+    for (const auto& msg : s_Messages)
+    {
+        if (currentY + lh > 0 && currentY < logAreaHeight)
+        {
+            logText.setString(msg.text);
+            logText.setFillColor(msg.isError ? C_DANGER : C_TEXT_PRIMARY);
+            logText.setPosition(10.f, currentY);
+            window.draw(logText);
+        }
+        
+        currentY += lh;
+    }
+    
+    window.setView(oldView);
+
+    // Draw Scrollbar
+    if (m_MaxScroll > 0.f)
+    {
+        float sbWidth = 10.f;
+        float sbX = x + width - sbWidth - 2.f;
+        float sbY = y + 2.f;
+        float sbH = logAreaHeight - 4.f;
+        
+        m_ScrollbarBounds = {sbX - 5.f, sbY, sbWidth + 10.f, sbH}; // Wider hit box for easy clicking
+
+        // Track
+        sf::RectangleShape track({sbWidth, sbH});
+        track.setPosition(sbX, sbY);
+        track.setFillColor(C_BG_INPUT);
+        window.draw(track);
+        
+        // Handle
+        float handleHeight = std::max(20.f, (logAreaHeight / (m_MaxScroll + logAreaHeight)) * sbH);
+        float trackHeight = sbH - handleHeight;
+        float handleY = sbY + (m_ScrollOffset / m_MaxScroll) * trackHeight;
+        
+        sf::RectangleShape handle({sbWidth, handleHeight});
+        handle.setPosition(sbX, handleY);
+        handle.setFillColor(m_ScrollbarDragging ? C_ACCENT : C_BORDER_LIGHT);
+        handle.setOutlineColor(C_BORDER);
+        handle.setOutlineThickness(1.f);
+        window.draw(handle);
+    }
+}

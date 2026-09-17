@@ -74,6 +74,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
 {
     m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
+    m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         this->LoadFromJson(path);
         std::string relPath = path;
@@ -197,6 +198,11 @@ void EditorScene::UpdateBounds()
 
     m_HierarchyBounds = {0.f, TopBarHeight, HierarchyWidth, h - TopBarHeight};
     m_BrowserBounds = {HierarchyWidth, h - BrowserHeight, w - InspectorWidth - HierarchyWidth, BrowserHeight};
+    
+    // Tab bounds
+    m_TabBrowserBounds = {HierarchyWidth, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
+    m_TabConsoleBounds = {HierarchyWidth + 100.f, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
+    
     m_InspectorBounds = {w - InspectorWidth, TopBarHeight, InspectorWidth, h - TopBarHeight};
 }
 
@@ -434,6 +440,18 @@ void EditorScene::HandleEvent(const sf::Event &event)
     const bool inMenuBar = m_MouseScreenPos.y < MenuBarHeight;
     const bool inBrowser = m_BrowserBounds.contains(m_MouseScreenPos);
     const bool inInspector = m_InspectorBounds.contains(m_MouseScreenPos);
+    const bool inTabs = m_TabBrowserBounds.contains(m_MouseScreenPos) || m_TabConsoleBounds.contains(m_MouseScreenPos);
+
+    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+    {
+        if (m_TabBrowserBounds.contains(m_MouseScreenPos)) {
+            m_ActiveBottomPanelTab = BottomPanelTab::ContentBrowser;
+            return;
+        } else if (m_TabConsoleBounds.contains(m_MouseScreenPos)) {
+            m_ActiveBottomPanelTab = BottomPanelTab::Console;
+            return;
+        }
+    }
 
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left &&
@@ -451,7 +469,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 if (m_Selected)
                     ApplySpriteToObject(*m_Selected, drag.path);
-            } else if (!inBrowser && !inTopBars)
+            } else if (!inBrowser && !inTopBars && !inTabs)
             {
                 EditorObject *hit = ObjectAt(MouseWorldPos());
                 if (hit)
@@ -464,7 +482,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
         } else if (drag.type == AssetType::Script)
         {
-            if (!inBrowser && !inTopBars)
+            if (!inBrowser && !inTopBars && !inTabs)
             {
                 EditorObject *target = nullptr;
                 if (inInspector || inHierarchy)
@@ -485,26 +503,36 @@ void EditorScene::HandleEvent(const sf::Event &event)
         return;
     }
 
-    if (inBrowser || m_ContentBrowser->HasDraggedAsset() ||
-        m_ContentBrowser->IsInputActive() || m_ContentBrowser->IsContextMenuOpen())
+    if (m_ActiveBottomPanelTab == BottomPanelTab::Console)
     {
-        std::string prevSel = m_ContentBrowser->GetSelectedPath();
-        m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
-
-        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        if (inBrowser || m_ConsolePanel->IsInputActive())
         {
-            if (m_ContentBrowser->GetSelectedPath() != prevSel && !m_ContentBrowser->GetSelectedPath().empty())
+            m_ConsolePanel->HandleEvent(event, m_MouseScreenPos);
+        }
+    }
+    else
+    {
+        if (inBrowser || m_ContentBrowser->HasDraggedAsset() ||
+            m_ContentBrowser->IsInputActive() || m_ContentBrowser->IsContextMenuOpen())
+        {
+            std::string prevSel = m_ContentBrowser->GetSelectedPath();
+            m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
+
+            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
             {
-                if (m_Selected) m_Selected->selected = false;
-                m_Selected = nullptr;
-                UpdateStatusText();
+                if (m_ContentBrowser->GetSelectedPath() != prevSel && !m_ContentBrowser->GetSelectedPath().empty())
+                {
+                    if (m_Selected) m_Selected->selected = false;
+                    m_Selected = nullptr;
+                    UpdateStatusText();
+                }
             }
         }
-
-        if (m_ContentBrowser->IsInputActive() &&
-            (event.type == sf::Event::TextEntered || event.type == sf::Event::KeyPressed))
-            return;
     }
+
+    if ((m_ContentBrowser->IsInputActive() || m_ConsolePanel->IsInputActive()) &&
+        (event.type == sf::Event::TextEntered || event.type == sf::Event::KeyPressed))
+        return;
 
     if (event.type == sf::Event::TextEntered && m_ActiveField != EditField::None)
     {
@@ -1087,9 +1115,34 @@ void EditorScene::Render(sf::RenderWindow &window)
     window.setView(uiView);
     UpdateBounds();
 
-    m_ContentBrowser->Render(window,
-                             m_BrowserBounds.left, m_BrowserBounds.top,
-                             m_BrowserBounds.width, m_BrowserBounds.height);
+    // Draw Tabs
+    auto drawTab = [&](const std::string& label, const sf::FloatRect& bounds, bool active) {
+        sf::RectangleShape tabRect({bounds.width, bounds.height});
+        tabRect.setPosition(bounds.left, bounds.top);
+        tabRect.setFillColor(active ? C_BG_PANEL : C_BG_ELEVATED);
+        window.draw(tabRect);
+        
+        sf::Text tabText;
+        tabText.setFont(*m_Font);
+        tabText.setCharacterSize(12);
+        tabText.setFillColor(active ? C_TEXT_PRIMARY : C_TEXT_MUTED);
+        tabText.setString(label);
+        tabText.setPosition(bounds.left + 10.f, bounds.top + 4.f);
+        window.draw(tabText);
+    };
+
+    drawTab("Files", m_TabBrowserBounds, m_ActiveBottomPanelTab == BottomPanelTab::ContentBrowser);
+    drawTab("Console", m_TabConsoleBounds, m_ActiveBottomPanelTab == BottomPanelTab::Console);
+
+    if (m_ActiveBottomPanelTab == BottomPanelTab::ContentBrowser) {
+        m_ContentBrowser->Render(window,
+                                 m_BrowserBounds.left, m_BrowserBounds.top,
+                                 m_BrowserBounds.width, m_BrowserBounds.height);
+    } else {
+        m_ConsolePanel->Render(window,
+                               m_BrowserBounds.left, m_BrowserBounds.top,
+                               m_BrowserBounds.width, m_BrowserBounds.height);
+    }
 
     DrawInspector(window);
     DrawHierarchy(window); {
