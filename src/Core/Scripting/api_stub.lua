@@ -395,3 +395,139 @@ Key = {}
 ---@field Right number
 ---@field Middle number
 Mouse = {}
+
+--------------------------------------------------------------------------------
+-- UI Subsystem API
+--------------------------------------------------------------------------------
+
+---Checks whether a UI button with the specified ID was clicked in the current frame.
+---@param id string The ID of the button configured in the UI Editor.
+---@return boolean True if the button was clicked, false otherwise.
+function UI_IsButtonClicked(id) end
+
+---Sets the text of a UI element (Text or Button).
+---@param id string The ID of the UI element.
+---@param text string The new text to display.
+function UI_SetText(id, text) end
+
+---Gets the text of a UI element.
+---@param id string The ID of the UI element.
+---@return string The current text string.
+function UI_GetText(id) end
+
+---Sets the position of a UI element on the 1920x1080 canvas.
+---@param id string The ID of the UI element.
+---@param x number The X coordinate.
+---@param y number The Y coordinate.
+function UI_SetPosition(id, x, y) end
+
+---Sets the dimensions of a UI element.
+---@param id string The ID of the UI element.
+---@param width number The width in canvas units.
+---@param height number The height in canvas units.
+function UI_SetSize(id, width, height) end
+
+---Sets the color of a UI element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a? integer Alpha (0-255, optional, defaults to 255).
+function UI_SetColor(id, r, g, b, a) end
+
+---Sets the Z-Index (depth layer) of a UI element. Higher values draw in front.
+---@param id string The ID of the UI element.
+---@param z integer The new Z-Index value.
+function UI_SetZIndex(id, z) end
+
+---Gets the Z-Index (depth layer) of a UI element.
+---@param id string The ID of the UI element.
+---@return integer The current Z-Index value.
+function UI_GetZIndex(id) end
+
+---Returns whether a UI button is currently being hovered.
+---@param id string The ID of the button.
+---@return boolean True if the mouse is over the button, false otherwise.
+function UI_IsButtonHovered(id) end
+
+---Sets whether a UI element is visible. Hidden elements are not drawn and cannot be interacted with.
+---@param id string The ID of the UI element.
+---@param visible boolean True to show, false to hide.
+function UI_SetVisible(id, visible) end
+
+---Gets whether a UI element is visible.
+---@param id string The ID of the UI element.
+---@return boolean True if visible, false if hidden.
+function UI_GetVisible(id) end
+
+---Sets the opacity of a UI element (affects the alpha channel).
+---@param id string The ID of the UI element.
+---@param opacity number Alpha value from 0 (fully transparent) to 255 (fully opaque).
+function UI_SetOpacity(id, opacity) end
+
+---Sets the text style of a Text or Button element using a bitmask.
+---@param id string The ID of the UI element.
+---@param style integer Bitmask: 0=Regular, 1=Bold, 2=Italic, 4=Underline, 8=StrikeThrough. Combine with bitwise OR.
+function UI_SetTextStyle(id, style) end
+
+---Sets the horizontal text alignment for a Text element.
+---@param id string The ID of the UI element.
+---@param align integer 0=Left, 1=Center, 2=Right.
+function UI_SetTextAlign(id, align) end
+
+---Sets whether the text of a Text or Button element is displayed in uppercase.
+---@param id string The ID of the UI element.
+---@param upper boolean True to force uppercase display.
+function UI_SetUpperCase(id, upper) end
+
+---Sets the character (font) size of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param size integer Font size in points.
+function UI_SetFontSize(id, size) end
+
+---Sets the letter spacing multiplier of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param spacing number Multiplier. 1.0 is default spacing.
+function UI_SetLetterSpacing(id, spacing) end
+
+---Sets the line spacing multiplier of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param spacing number Multiplier. 1.0 is default spacing.
+function UI_SetLineSpacing(id, spacing) end
+
+---Sets the outline color and thickness of the text on a Text or Button element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+---@param thickness number Outline thickness in pixels.
+function UI_SetTextOutline(id, r, g, b, a, thickness) end
+
+---Sets a manual pixel offset applied to the text position within a Text or Button element.
+---@param id string The ID of the UI element.
+---@param ox number Horizontal offset in canvas units.
+---@param oy number Vertical offset in canvas units.
+function UI_SetTextOffset(id, ox, oy) end
+
+---Sets the text fill color of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+function UI_SetTextColor(id, r, g, b, a) end
+
+---Sets the outline (border) color and thickness of a Panel element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+---@param thickness number Border thickness in canvas units.
+function UI_SetOutline(id, r, g, b, a, thickness) end
+
+---Sets whether a Button element is disabled. Disabled buttons cannot be hovered or clicked and use the disabled color.
+---@param id string The ID of the button.
+---@param disabled boolean True to disable, false to enable.
+function UI_SetDisabled(id, disabled) end

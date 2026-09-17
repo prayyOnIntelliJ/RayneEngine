@@ -159,7 +159,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         if (loadSceneCallback) loadSceneCallback(sceneName);
     });
 
-    // UI Manager bindings
     std::cout << "[INFO] [Lua] Registering UI Manager bindings...\n";
 
     s_Lua.set_function("UI_SetText", [](const std::string &id, const std::string &text) {
@@ -187,7 +186,68 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return UIManager::Get().IsButtonClicked(id);
     });
 
+    s_Lua.set_function("UI_IsButtonHovered", [](const std::string &id) -> bool {
+        return UIManager::Get().IsButtonHovered(id);
+    });
+
+    s_Lua.set_function("UI_SetVisible", [](const std::string &id, bool visible) {
+        UIManager::Get().SetVisible(id, visible);
+    });
+
+    s_Lua.set_function("UI_GetVisible", [](const std::string &id) -> bool {
+        return UIManager::Get().GetVisible(id);
+    });
+
+    s_Lua.set_function("UI_SetOpacity", [](const std::string &id, float opacity) {
+        UIManager::Get().SetOpacity(id, opacity);
+    });
+
+    s_Lua.set_function("UI_SetTextStyle", [](const std::string &id, int style) {
+        UIManager::Get().SetTextStyle(id, style);
+    });
+
+    s_Lua.set_function("UI_SetTextAlign", [](const std::string &id, int align) {
+        UIManager::Get().SetTextAlign(id, align);
+    });
+
+    s_Lua.set_function("UI_SetUpperCase", [](const std::string &id, bool upper) {
+        UIManager::Get().SetUpperCase(id, upper);
+    });
+
+    s_Lua.set_function("UI_SetFontSize", [](const std::string &id, int size) {
+        UIManager::Get().SetFontSize(id, size);
+    });
+
+    s_Lua.set_function("UI_SetLetterSpacing", [](const std::string &id, float spacing) {
+        UIManager::Get().SetLetterSpacing(id, spacing);
+    });
+
+    s_Lua.set_function("UI_SetLineSpacing", [](const std::string &id, float spacing) {
+        UIManager::Get().SetLineSpacing(id, spacing);
+    });
+
+    s_Lua.set_function("UI_SetTextOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
+        UIManager::Get().SetTextOutline(id, r, g, b, a, thickness);
+    });
+
+    s_Lua.set_function("UI_SetTextOffset", [](const std::string &id, float ox, float oy) {
+        UIManager::Get().SetTextOffset(id, ox, oy);
+    });
+
+    s_Lua.set_function("UI_SetTextColor", [](const std::string &id, int r, int g, int b, int a) {
+        UIManager::Get().SetTextColor(id, r, g, b, a);
+    });
+
+    s_Lua.set_function("UI_SetOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
+        UIManager::Get().SetOutline(id, r, g, b, a, thickness);
+    });
+
+    s_Lua.set_function("UI_SetDisabled", [](const std::string &id, bool disabled) {
+        UIManager::Get().SetDisabled(id, disabled);
+    });
+
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
+
 }
 
 sol::state &LuaState::GetLua() { return s_Lua; }

@@ -28,4 +28,8 @@ function OnUpdate(self, dt)
 
     t.x = t.x + dx * speed * dt
     t.y = t.y + dy * speed * dt
+
+    if UI_IsButtonClicked("Button_1") then
+        UI_SetText("Text", "Clicked")
+    end
 end
