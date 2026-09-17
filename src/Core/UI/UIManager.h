@@ -8,6 +8,8 @@
 
 enum class UIElementType { Text, Panel, Button };
 
+enum class TextAlign { Left, Center, Right };
+
 struct UIElement
 {
     std::string id;
@@ -17,19 +19,38 @@ struct UIElement
     sf::Color color;
     int zIndex = 0;
 
-    // Text properties
     std::string text;
     unsigned int characterSize = 16;
     sf::Color textColor = sf::Color::White;
 
-    // Button properties
+    // --- Text / Button shared ---
+    sf::Text::Style textStyle = sf::Text::Regular;
+    TextAlign textAlign = TextAlign::Left;
+    bool textUpperCase = false;
+    float letterSpacing = 1.0f;
+    float lineSpacing = 1.0f;
+    sf::Color textOutlineColor = sf::Color::Transparent;
+    float textOutlineThickness = 0.f;
+    sf::Vector2f textOffset = {0.f, 0.f};
+
+    // --- Panel properties ---
+    sf::Color outlineColor = sf::Color::Transparent;
+    float outlineThickness = 0.f;
+    float cornerRadius = 0.f;
+    float opacity = 255.f;
+    bool visible = true;
+
+    // --- Button properties ---
     sf::Color normalColor = sf::Color(100, 100, 100);
     sf::Color hoverColor = sf::Color(150, 150, 150);
     sf::Color pressedColor = sf::Color(80, 80, 80);
+    sf::Color borderColor = sf::Color::Transparent;
+    float borderThickness = 0.f;
+    bool disabled = false;
+    sf::Color disabledColor = sf::Color(60, 60, 60, 180);
     bool isHovered = false;
     bool isPressed = false;
 
-    // Internal rendering
     sf::RectangleShape shape;
     sf::Text drawableText;
     std::shared_ptr<sf::Font> font;
@@ -64,7 +85,6 @@ public:
 
     std::vector<UIElement> &GetElements() { return m_Elements; }
 
-    // Lua API
     void SetText(const std::string &id, const std::string &text);
 
     std::string GetText(const std::string &id);
@@ -82,6 +102,34 @@ public:
     bool IsButtonClicked(const std::string &id);
 
     void ClearClickedButton() { m_LastClickedButton.clear(); }
+
+    // --- New methods ---
+    void SetVisible(const std::string &id, bool visible);
+    bool GetVisible(const std::string &id);
+
+    void SetOpacity(const std::string &id, float opacity);
+    float GetOpacity(const std::string &id);
+
+    void SetTextStyle(const std::string &id, int style);
+    void SetTextAlign(const std::string &id, int align);
+
+    void SetUpperCase(const std::string &id, bool upper);
+    bool GetUpperCase(const std::string &id);
+
+    void SetFontSize(const std::string &id, int size);
+
+    void SetLetterSpacing(const std::string &id, float spacing);
+    void SetLineSpacing(const std::string &id, float spacing);
+
+    void SetTextOutline(const std::string &id, int r, int g, int b, int a, float thickness);
+    void SetTextOffset(const std::string &id, float ox, float oy);
+    void SetTextColor(const std::string &id, int r, int g, int b, int a);
+
+    void SetOutline(const std::string &id, int r, int g, int b, int a, float thickness);
+
+    void SetDisabled(const std::string &id, bool disabled);
+
+    bool IsButtonHovered(const std::string &id);
 
 private:
     UIManager() = default;
