@@ -31,7 +31,6 @@ private:
 
     std::shared_ptr<sf::Font> m_Font;
 
-    // UI Panels Layout
     static constexpr float ToolbarHeight = 34.f;
     static constexpr float PaletteWidth = 200.f;
     static constexpr float InspectorWidth = 270.f;
@@ -42,14 +41,12 @@ private:
     sf::FloatRect m_InspectorBounds;
     sf::FloatRect m_HierarchyBounds;
 
-    // Virtual Canvas view
     sf::View m_CanvasView;
     sf::Vector2f m_CanvasSize = {1920.f, 1080.f};
     bool m_Panning = false;
     sf::Vector2f m_PanStart;
     bool m_ViewInitialized = false;
 
-    // Input / Selection
     sf::Vector2f m_MouseScreenPos;
     sf::Vector2f m_MouseCanvasPos;
 
@@ -57,14 +54,12 @@ private:
     bool m_Dragging = false;
     sf::Vector2f m_DragOffset;
 
-    // Resizing
     bool m_Resizing = false;
     int m_ResizeHandle = -1;
     sf::Vector2f m_ResizeMouseStart;
     sf::Vector2f m_ResizeObjOrigin;
     sf::Vector2f m_ResizeObjSize;
 
-    // Editing
     enum class EditField
     {
         None,
@@ -77,13 +72,43 @@ private:
         ColorR,
         ColorG,
         ColorB,
-        UIText
+        ColorA,
+        UIText,
+        CharacterSize,
+        LetterSpacing,
+        LineSpacing,
+        TextOutlineR,
+        TextOutlineG,
+        TextOutlineB,
+        TextOutlineThickness,
+        TextOffsetX,
+        TextOffsetY,
+        OutlineR,
+        OutlineG,
+        OutlineB,
+        OutlineThickness,
+        BorderR,
+        BorderG,
+        BorderB,
+        BorderThickness,
+        Opacity,
+        HoverR,
+        HoverG,
+        HoverB,
+        PressedR,
+        PressedG,
+        PressedB,
+        NormalR,
+        NormalG,
+        NormalB,
+        TextColorR,
+        TextColorG,
+        TextColorB,
     };
 
     EditField m_ActiveField = EditField::None;
     std::string m_ActiveInputText;
 
-    // Hitboxes
     struct ButtonHitbox
     {
         sf::FloatRect bounds;
@@ -95,9 +120,17 @@ private:
     std::vector<ButtonHitbox> m_ToolbarHitboxes;
     std::vector<std::pair<sf::FloatRect, UIElement *> > m_HierarchyHitboxes;
 
+    float m_InspectorScrollOffset = 0.f;
+    float m_InspectorTargetScroll = 0.f;
+    float m_InspectorMaxScroll = 0.f;
+    sf::View m_InspectorView;
+
+    // Active clip region for inspector helpers (set each frame in DrawInspector)
+    float m_InspectorClipTop    = 0.f;
+    float m_InspectorClipBottom = 99999.f;
+
     void UpdateBounds();
 
-    // Rendering parts
     void DrawToolbar(sf::RenderWindow &window);
 
     void DrawPalette(sf::RenderWindow &window);
@@ -110,7 +143,6 @@ private:
 
     void DrawResizeHandles(sf::RenderWindow &window);
 
-    // UI Helpers
     float DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x, float y);
 
     float DrawRow(sf::RenderWindow &window, const std::string &key, const std::string &val, float x, float y);
@@ -123,7 +155,6 @@ private:
 
     void DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, sf::Color fill, sf::Color outline);
 
-    // Interaction
     void HandleAction(const std::string &action);
 
     int GetResizeHandle(sf::Vector2f canvasPos) const;
