@@ -23,6 +23,29 @@ static double CurrentTimeSeconds()
     return duration<double>(steady_clock::now().time_since_epoch()).count();
 }
 
+static const sf::Color C_BG_CANVAS = sf::Color(18, 20, 23);
+static const sf::Color C_BG_PANEL = sf::Color(26, 29, 34);
+static const sf::Color C_BG_ELEVATED = sf::Color(33, 37, 43);
+static const sf::Color C_BG_INPUT = sf::Color(20, 23, 27);
+static const sf::Color C_BORDER = sf::Color(42, 46, 53);
+static const sf::Color C_BORDER_LIGHT = sf::Color(58, 63, 72);
+static const sf::Color C_TEXT_PRIMARY = sf::Color(232, 234, 237);
+static const sf::Color C_TEXT_SECONDARY = sf::Color(154, 160, 172);
+static const sf::Color C_TEXT_MUTED = sf::Color(92, 97, 107);
+static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
+static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
+static const sf::Color C_ACCENT_ACT = sf::Color(100, 85, 217);
+static const sf::Color C_ACCENT_DIM = sf::Color(40, 35, 80, 200);
+static const sf::Color C_ACCENT_BRIGHT = sf::Color(146, 132, 245);
+static const sf::Color C_ACCENT2 = sf::Color(67, 217, 200);
+static const sf::Color C_SUCCESS = sf::Color(74, 222, 128);
+static const sf::Color C_SUCCESS_DIM = sf::Color(20, 55, 35, 200);
+static const sf::Color C_WARNING = sf::Color(245, 185, 77);
+static const sf::Color C_DANGER = sf::Color(241, 104, 94);
+static const sf::Color C_DANGER_DIM = sf::Color(70, 20, 18, 200);
+static const sf::Color C_GRID_MINOR = sf::Color(38, 43, 51);
+static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
+
 ContentBrowser::ContentBrowser(const sf::Font &font, const std::string &rootPath)
     : m_Font(font)
 {
@@ -128,8 +151,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left) { m_Drag.active = false; }
 
-    if (m_SearchActive && event.type == sf::Event::TextEntered)
-    {
+    if (m_SearchActive &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == '\b')
         {
             if (!m_SearchQuery.empty())
@@ -146,8 +168,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_NewScriptPrompt && event.type == sf::Event::TextEntered)
-    {
+    if (m_NewScriptPrompt &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == '\b') { if (!m_NewScriptName.empty()) m_NewScriptName.pop_back(); } else if (
             event.text.unicode == 27)
         {
@@ -167,8 +188,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_NewScenePrompt && event.type == sf::Event::TextEntered)
-    {
+    if (m_NewScenePrompt &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == '\b') { if (!m_NewSceneName.empty()) m_NewSceneName.pop_back(); } else if (
             event.text.unicode == 27)
         {
@@ -188,8 +208,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_NewFolderPrompt && event.type == sf::Event::TextEntered)
-    {
+    if (m_NewFolderPrompt &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == '\b') { if (!m_NewFolderName.empty()) m_NewFolderName.pop_back(); } else if (
             event.text.unicode == 27)
         {
@@ -209,8 +228,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_RenamePrompt && event.type == sf::Event::TextEntered)
-    {
+    if (m_RenamePrompt &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == '\b') { if (!m_RenameInput.empty()) m_RenameInput.pop_back(); } else if (
             event.text.unicode == 27)
         {
@@ -231,8 +249,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_DeletePrompt && event.type == sf::Event::TextEntered)
-    {
+    if (m_DeletePrompt &&event.type == sf::Event::TextEntered) {
         if (event.text.unicode == 27 || event.text.unicode == 'n' || event.text.unicode == 'N')
         {
             m_DeletePrompt = false;
@@ -258,8 +275,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
                 m_DeletePrompt = false;
                 return;
             }
-            if (m_DeletePrompt && event.key.code == sf::Keyboard::Enter)
-            {
+            if (m_DeletePrompt &&event.key.code == sf::Keyboard::Enter) {
                 DeleteAsset(m_DeleteTarget);
                 m_DeletePrompt = false;
                 return;
@@ -443,20 +459,20 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
     sf::RectangleShape bg({width, height});
     bg.setPosition(x, y);
-    bg.setFillColor(sf::Color(16, 17, 24, 252));
-    bg.setOutlineColor(sf::Color(44, 46, 62));
+    bg.setFillColor(sf::Color(C_BG_CANVAS.r, C_BG_CANVAS.g, C_BG_CANVAS.b, 252));
+    bg.setOutlineColor(C_BORDER);
     bg.setOutlineThickness(1.f);
     window.draw(bg);
 
     const float toolbarH = 32.f;
     sf::RectangleShape toolbar({width, toolbarH});
     toolbar.setPosition(x, y);
-    toolbar.setFillColor(sf::Color(24, 25, 36, 255));
+    toolbar.setFillColor(C_BG_PANEL);
     window.draw(toolbar);
 
     sf::RectangleShape toolbarBorder({width, 1.f});
     toolbarBorder.setPosition(x, y + toolbarH);
-    toolbarBorder.setFillColor(sf::Color(45, 48, 66));
+    toolbarBorder.setFillColor(C_BORDER);
     window.draw(toolbarBorder);
 
     float curX = x + 8.f;
@@ -468,15 +484,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
     sf::RectangleShape upBtn({m_UpBtnBounds.width, m_UpBtnBounds.height});
     upBtn.setPosition(m_UpBtnBounds.left, m_UpBtnBounds.top);
-    upBtn.setFillColor(canGoUp ? (upHovered ? sf::Color(60, 65, 90) : sf::Color(38, 41, 56)) : sf::Color(28, 30, 42));
-    upBtn.setOutlineColor(upHovered ? sf::Color(100, 110, 150) : sf::Color(45, 48, 66));
+    upBtn.setFillColor(canGoUp ? (upHovered ? C_BG_ELEVATED : C_BORDER) : C_BG_PANEL);
+    upBtn.setOutlineColor(upHovered ? C_BORDER_LIGHT : C_BORDER);
     upBtn.setOutlineThickness(1.f);
     window.draw(upBtn);
 
     sf::Text upText;
     upText.setFont(m_Font);
     upText.setCharacterSize(12);
-    upText.setFillColor(canGoUp ? (upHovered ? sf::Color::White : sf::Color(180, 185, 210)) : sf::Color(80, 85, 110));
+    upText.setFillColor(canGoUp ? (upHovered ? sf::Color::White : C_TEXT_SECONDARY) : C_TEXT_MUTED);
     upText.setString("<");
     upText.setPosition(m_UpBtnBounds.left + 8.f, m_UpBtnBounds.top + 2.f);
     window.draw(upText);
@@ -528,12 +544,12 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape crumbBg({crumbBounds.width, crumbBounds.height});
         crumbBg.setPosition(crumbBounds.left, crumbBounds.top);
-        crumbBg.setFillColor(isHovered ? sf::Color(50, 55, 78) : sf::Color(32, 34, 48));
-        crumbBg.setOutlineColor(isHovered ? sf::Color(80, 90, 130) : sf::Color(45, 48, 66));
+        crumbBg.setFillColor(isHovered ? C_BG_ELEVATED : C_BG_INPUT);
+        crumbBg.setOutlineColor(isHovered ? C_BORDER_LIGHT : C_BORDER);
         crumbBg.setOutlineThickness(1.f);
         window.draw(crumbBg);
 
-        cText.setFillColor(isLast ? sf::Color(100, 180, 255) : isHovered ? sf::Color::White : sf::Color(170, 175, 200));
+        cText.setFillColor(isLast ? C_TEXT_PRIMARY : isHovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
         cText.setPosition(curX + 6.f, curY + 4.f);
         window.draw(cText);
 
@@ -544,7 +560,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             sf::Text sep;
             sep.setFont(m_Font);
             sep.setCharacterSize(11);
-            sep.setFillColor(sf::Color(80, 85, 110));
+            sep.setFillColor(C_TEXT_MUTED);
             sep.setString("/");
             sep.setPosition(curX, curY + 4.f);
             window.draw(sep);
@@ -559,15 +575,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     bool refHover = m_RefreshBtnBounds.contains(m_MousePos);
     sf::RectangleShape refBtn({m_RefreshBtnBounds.width, m_RefreshBtnBounds.height});
     refBtn.setPosition(m_RefreshBtnBounds.left, m_RefreshBtnBounds.top);
-    refBtn.setFillColor(refHover ? sf::Color(40, 70, 50) : sf::Color(28, 45, 34));
-    refBtn.setOutlineColor(refHover ? sf::Color(80, 180, 100) : sf::Color(40, 80, 50));
+    refBtn.setFillColor(refHover ? C_ACCENT_DIM : C_BG_INPUT);
+    refBtn.setOutlineColor(refHover ? C_ACCENT_HOV : C_ACCENT);
     refBtn.setOutlineThickness(1.f);
     window.draw(refBtn);
 
     sf::Text refText;
     refText.setFont(m_Font);
     refText.setCharacterSize(12);
-    refText.setFillColor(refHover ? sf::Color(140, 255, 160) : sf::Color(100, 200, 120));
+    refText.setFillColor(refHover ? C_TEXT_PRIMARY : C_ACCENT_BRIGHT);
     refText.setString("R");
     refText.setPosition(m_RefreshBtnBounds.left + 8.f, m_RefreshBtnBounds.top + 2.f);
     window.draw(refText);
@@ -577,15 +593,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     bool newScriptHover = m_NewScriptBtnBounds.contains(m_MousePos);
     sf::RectangleShape newScriptBtn({m_NewScriptBtnBounds.width, m_NewScriptBtnBounds.height});
     newScriptBtn.setPosition(m_NewScriptBtnBounds.left, m_NewScriptBtnBounds.top);
-    newScriptBtn.setFillColor(newScriptHover ? sf::Color(40, 60, 95) : sf::Color(28, 40, 65));
-    newScriptBtn.setOutlineColor(newScriptHover ? sf::Color(80, 140, 230) : sf::Color(45, 70, 110));
+    newScriptBtn.setFillColor(newScriptHover ? C_BG_ELEVATED : C_BG_INPUT);
+    newScriptBtn.setOutlineColor(newScriptHover ? C_BORDER_LIGHT : C_BORDER);
     newScriptBtn.setOutlineThickness(1.f);
     window.draw(newScriptBtn);
 
     sf::Text newScriptText;
     newScriptText.setFont(m_Font);
     newScriptText.setCharacterSize(10);
-    newScriptText.setFillColor(newScriptHover ? sf::Color(140, 200, 255) : sf::Color(100, 160, 230));
+    newScriptText.setFillColor(newScriptHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
     newScriptText.setString("+ Script");
     newScriptText.setPosition(m_NewScriptBtnBounds.left + 8.f, m_NewScriptBtnBounds.top + 4.f);
     window.draw(newScriptText);
@@ -595,15 +611,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     bool newFolderHover = m_NewFolderBtnBounds.contains(m_MousePos);
     sf::RectangleShape newFolderBtn({m_NewFolderBtnBounds.width, m_NewFolderBtnBounds.height});
     newFolderBtn.setPosition(m_NewFolderBtnBounds.left, m_NewFolderBtnBounds.top);
-    newFolderBtn.setFillColor(newFolderHover ? sf::Color(65, 55, 30) : sf::Color(45, 38, 20));
-    newFolderBtn.setOutlineColor(newFolderHover ? sf::Color(220, 180, 70) : sf::Color(140, 110, 40));
+    newFolderBtn.setFillColor(newFolderHover ? C_BG_ELEVATED : C_BG_INPUT);
+    newFolderBtn.setOutlineColor(newFolderHover ? C_BORDER_LIGHT : C_BORDER);
     newFolderBtn.setOutlineThickness(1.f);
     window.draw(newFolderBtn);
 
     sf::Text newFolderText;
     newFolderText.setFont(m_Font);
     newFolderText.setCharacterSize(10);
-    newFolderText.setFillColor(newFolderHover ? sf::Color(255, 225, 130) : sf::Color(200, 170, 90));
+    newFolderText.setFillColor(newFolderHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
     newFolderText.setString("+ Folder");
     newFolderText.setPosition(m_NewFolderBtnBounds.left + 7.f, m_NewFolderBtnBounds.top + 4.f);
     window.draw(newFolderText);
@@ -614,15 +630,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     sf::RectangleShape searchBox({m_SearchBoxBounds.width, m_SearchBoxBounds.height});
     searchBox.setPosition(m_SearchBoxBounds.left, m_SearchBoxBounds.top);
     searchBox.setFillColor(m_SearchActive
-                               ? sf::Color(35, 38, 55)
+                               ? C_BG_ELEVATED
                                : searchHover
-                                     ? sf::Color(30, 32, 45)
-                                     : sf::Color(22, 24, 34));
+                                     ? C_BG_ELEVATED
+                                     : C_BG_INPUT);
     searchBox.setOutlineColor(m_SearchActive
-                                  ? sf::Color(100, 160, 255)
+                                  ? C_ACCENT
                                   : searchHover
-                                        ? sf::Color(70, 75, 105)
-                                        : sf::Color(45, 48, 66));
+                                        ? C_BORDER_LIGHT
+                                        : C_BORDER);
     searchBox.setOutlineThickness(1.f);
     window.draw(searchBox);
 
@@ -631,11 +647,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     searchContent.setCharacterSize(10);
     if (m_SearchQuery.empty() && !m_SearchActive)
     {
-        searchContent.setFillColor(sf::Color(90, 95, 120));
+        searchContent.setFillColor(C_TEXT_MUTED);
         searchContent.setString("Search...");
     } else
     {
-        searchContent.setFillColor(sf::Color(220, 225, 245));
+        searchContent.setFillColor(C_TEXT_PRIMARY);
         searchContent.setString(m_SearchQuery + (m_SearchActive ? "|" : ""));
     }
     searchContent.setPosition(m_SearchBoxBounds.left + 6.f, m_SearchBoxBounds.top + 4.f);
@@ -648,7 +664,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::Text clearX;
         clearX.setFont(m_Font);
         clearX.setCharacterSize(10);
-        clearX.setFillColor(sf::Color(160, 160, 180));
+        clearX.setFillColor(C_TEXT_MUTED);
         clearX.setString("x");
         clearX.setPosition(m_SearchClearBounds.left + 2.f, m_SearchClearBounds.top + 1.f);
         window.draw(clearX);
@@ -681,12 +697,12 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape fChip({fRect.width, fRect.height});
         fChip.setPosition(fRect.left, fRect.top);
-        fChip.setFillColor(isActive ? sf::Color(45, 60, 95) : isHover ? sf::Color(35, 38, 52) : sf::Color(26, 28, 38));
+        fChip.setFillColor(isActive ? C_ACCENT_DIM : isHover ? C_BG_ELEVATED : C_BG_PANEL);
         fChip.setOutlineColor(isActive
-                                  ? sf::Color(100, 160, 255)
+                                  ? C_ACCENT
                                   : isHover
-                                        ? sf::Color(65, 70, 95)
-                                        : sf::Color(40, 42, 58));
+                                        ? C_BORDER_LIGHT
+                                        : C_BORDER);
         fChip.setOutlineThickness(1.f);
         window.draw(fChip);
 
@@ -694,10 +710,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         fText.setFont(m_Font);
         fText.setCharacterSize(10);
         fText.setFillColor(isActive
-                               ? sf::Color(140, 200, 255)
+                               ? C_TEXT_PRIMARY
                                : isHover
-                                     ? sf::Color(200, 205, 225)
-                                     : sf::Color(130, 135, 155));
+                                     ? C_TEXT_PRIMARY
+                                     : C_TEXT_SECONDARY);
         fText.setString(filters[i].label);
         fText.setPosition(fRect.left + (fRect.width - fText.getLocalBounds().width) / 2.f, fRect.top + 4.f);
         window.draw(fText);
@@ -729,15 +745,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             sf::RectangleShape cardBg({cardW, cardH});
             cardBg.setPosition(ix, iy);
             cardBg.setFillColor(selected
-                                    ? sf::Color(35, 48, 75, 240)
+                                    ? C_ACCENT_DIM
                                     : hovered
-                                          ? sf::Color(30, 33, 48, 230)
-                                          : sf::Color(22, 23, 33, 200));
+                                          ? C_BG_ELEVATED
+                                          : sf::Color(C_BG_PANEL.r, C_BG_PANEL.g, C_BG_PANEL.b, 200));
             cardBg.setOutlineColor(selected
-                                       ? sf::Color(100, 160, 255)
+                                       ? C_ACCENT
                                        : hovered
-                                             ? sf::Color(70, 85, 125)
-                                             : sf::Color(38, 40, 56));
+                                             ? C_ACCENT
+                                             : C_BORDER);
             cardBg.setOutlineThickness(selected ? 1.5f : 1.f);
             window.draw(cardBg);
 
@@ -768,7 +784,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                     sf::RectangleShape previewFrame({previewW, previewH});
                     previewFrame.setPosition(previewX, previewY);
                     previewFrame.setFillColor(sf::Color::Transparent);
-                    previewFrame.setOutlineColor(sf::Color(55, 60, 85));
+                    previewFrame.setOutlineColor(C_BORDER_LIGHT);
                     previewFrame.setOutlineThickness(1.f);
                     window.draw(previewFrame);
                 }
@@ -806,10 +822,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             nameText.setFont(m_Font);
             nameText.setCharacterSize(10);
             nameText.setFillColor(selected
-                                      ? sf::Color(140, 200, 255)
+                                      ? C_TEXT_PRIMARY
                                       : hovered
                                             ? sf::Color::White
-                                            : sf::Color(185, 190, 210));
+                                            : C_TEXT_SECONDARY);
 
             std::string displayName = entry.name;
             if (displayName.size() > 11) displayName = displayName.substr(0, 10) + "...";
@@ -820,7 +836,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             sf::Text subText;
             subText.setFont(m_Font);
             subText.setCharacterSize(8);
-            subText.setFillColor(sf::Color(110, 115, 140));
+            subText.setFillColor(C_TEXT_MUTED);
             if (entry.isDirectory)
                 subText.setString("Folder");
             else
@@ -845,7 +861,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::Text emptyText;
         emptyText.setFont(m_Font);
         emptyText.setCharacterSize(11);
-        emptyText.setFillColor(sf::Color(100, 105, 130));
+        emptyText.setFillColor(C_TEXT_MUTED);
         emptyText.setString(m_SearchQuery.empty() ? "Folder is empty" : "No matching assets found");
         emptyText.setPosition(x + (width - emptyText.getLocalBounds().width) / 2.f, y + toolbarH + 40.f);
         window.draw(emptyText);
@@ -860,7 +876,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape track({sbW, sbH});
         track.setPosition(sbX, sbY);
-        track.setFillColor(sf::Color(20, 22, 30, 160));
+        track.setFillColor(C_BG_INPUT);
         window.draw(track);
 
         float thumbRatio = gridHeight / (gridHeight + m_MaxScroll);
@@ -869,15 +885,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape thumb({sbW, thumbH});
         thumb.setPosition(sbX, thumbY);
-        thumb.setFillColor(sf::Color(65, 75, 105));
+        thumb.setFillColor(C_BORDER_LIGHT);
         window.draw(thumb);
     }
 
     const float statusBarY = y + height - statusBarH;
     sf::RectangleShape statusBg({width, statusBarH});
     statusBg.setPosition(x, statusBarY);
-    statusBg.setFillColor(sf::Color(20, 21, 30, 255));
-    statusBg.setOutlineColor(sf::Color(38, 41, 56));
+    statusBg.setFillColor(C_BG_PANEL);
+    statusBg.setOutlineColor(C_BORDER);
     statusBg.setOutlineThickness(1.f);
     window.draw(statusBg);
 
@@ -888,7 +904,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     double now = CurrentTimeSeconds();
     if (!m_StatusMessage.empty() && (now - m_StatusMessageTime < 3.5))
     {
-        statusText.setFillColor(sf::Color(120, 230, 160));
+        statusText.setFillColor(C_SUCCESS);
         statusText.setString(m_StatusMessage);
     } else
     {
@@ -915,14 +931,14 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         if (infoEntry)
         {
-            statusText.setFillColor(sf::Color(190, 200, 225));
+            statusText.setFillColor(C_TEXT_PRIMARY);
             std::string infoStr = "[" + LabelForType(infoEntry->type) + "] " + infoEntry->name;
             if (!infoEntry->isDirectory)
                 infoStr += "  |  " + FormatFileSize(infoEntry->fileSize);
             statusText.setString(infoStr);
         } else
         {
-            statusText.setFillColor(sf::Color(110, 115, 140));
+            statusText.setFillColor(C_TEXT_MUTED);
             std::string countStr = std::to_string(m_FilteredEntries.size()) + " items";
             if (m_FilteredEntries.size() != m_Entries.size())
                 countStr += " (filtered from " + std::to_string(m_Entries.size()) + ")";
@@ -970,8 +986,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape menuBg({menuW, menuH});
         menuBg.setPosition(menuX, menuY);
-        menuBg.setFillColor(sf::Color(25, 27, 38, 255));
-        menuBg.setOutlineColor(sf::Color(65, 75, 110));
+        menuBg.setFillColor(C_BG_ELEVATED);
+        menuBg.setOutlineColor(C_BORDER_LIGHT);
         menuBg.setOutlineThickness(1.f);
         window.draw(menuBg);
 
@@ -986,7 +1002,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             {
                 sf::RectangleShape rowHighlight({itemRect.width, itemRect.height});
                 rowHighlight.setPosition(itemRect.left, itemRect.top);
-                rowHighlight.setFillColor(act == "delete" ? sf::Color(80, 30, 30) : sf::Color(45, 60, 95));
+                rowHighlight.setFillColor(act == "delete" ? C_DANGER_DIM : C_ACCENT_DIM);
                 window.draw(rowHighlight);
             }
 
@@ -994,10 +1010,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             rowText.setFont(m_Font);
             rowText.setCharacterSize(10);
             rowText.setFillColor(act == "delete"
-                                     ? sf::Color(255, 120, 120)
+                                     ? C_DANGER
                                      : isRowHover
                                            ? sf::Color::White
-                                           : sf::Color(200, 205, 225));
+                                           : C_TEXT_PRIMARY);
             rowText.setString(label);
             rowText.setPosition(itemRect.left + 8.f, itemRect.top + 4.f);
             window.draw(rowText);
@@ -1020,8 +1036,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
-        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
-        modalBg.setOutlineColor(sf::Color(80, 130, 220));
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_BORDER_LIGHT);
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1029,15 +1045,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setFont(m_Font);
         title.setCharacterSize(11);
         title.setStyle(sf::Text::Bold);
-        title.setFillColor(sf::Color(140, 190, 255));
+        title.setFillColor(C_TEXT_PRIMARY);
         title.setString("Create Lua Script (Enter to save, Esc to cancel)");
         title.setPosition(modalX + 10.f, modalY + 8.f);
         window.draw(title);
 
         sf::RectangleShape inputField({modalW - 20.f, 24.f});
         inputField.setPosition(modalX + 10.f, modalY + 32.f);
-        inputField.setFillColor(sf::Color(16, 18, 28));
-        inputField.setOutlineColor(sf::Color(100, 160, 255));
+        inputField.setFillColor(C_BG_INPUT);
+        inputField.setOutlineColor(C_ACCENT);
         inputField.setOutlineThickness(1.f);
         window.draw(inputField);
 
@@ -1064,8 +1080,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
-        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
-        modalBg.setOutlineColor(sf::Color(80, 220, 130));
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_SUCCESS);
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1073,15 +1089,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setFont(m_Font);
         title.setCharacterSize(11);
         title.setStyle(sf::Text::Bold);
-        title.setFillColor(sf::Color(140, 255, 190));
+        title.setFillColor(C_SUCCESS);
         title.setString("Create Scene (Enter to save, Esc to cancel)");
         title.setPosition(modalX + 10.f, modalY + 8.f);
         window.draw(title);
 
         sf::RectangleShape inputField({modalW - 20.f, 24.f});
         inputField.setPosition(modalX + 10.f, modalY + 32.f);
-        inputField.setFillColor(sf::Color(16, 18, 28));
-        inputField.setOutlineColor(sf::Color(100, 255, 160));
+        inputField.setFillColor(C_BG_INPUT);
+        inputField.setOutlineColor(C_SUCCESS);
         inputField.setOutlineThickness(1.f);
         window.draw(inputField);
 
@@ -1108,8 +1124,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
-        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
-        modalBg.setOutlineColor(sf::Color(220, 180, 80));
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_WARNING);
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1117,15 +1133,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setFont(m_Font);
         title.setCharacterSize(11);
         title.setStyle(sf::Text::Bold);
-        title.setFillColor(sf::Color(235, 200, 100));
+        title.setFillColor(C_WARNING);
         title.setString("Create Folder (Enter to create, Esc to cancel)");
         title.setPosition(modalX + 10.f, modalY + 8.f);
         window.draw(title);
 
         sf::RectangleShape inputField({modalW - 20.f, 24.f});
         inputField.setPosition(modalX + 10.f, modalY + 32.f);
-        inputField.setFillColor(sf::Color(16, 18, 28));
-        inputField.setOutlineColor(sf::Color(220, 180, 80));
+        inputField.setFillColor(C_BG_INPUT);
+        inputField.setOutlineColor(C_WARNING);
         inputField.setOutlineThickness(1.f);
         window.draw(inputField);
 
@@ -1152,8 +1168,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
-        modalBg.setFillColor(sf::Color(25, 27, 40, 255));
-        modalBg.setOutlineColor(sf::Color(140, 190, 255));
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_TEXT_PRIMARY);
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1161,15 +1177,15 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setFont(m_Font);
         title.setCharacterSize(11);
         title.setStyle(sf::Text::Bold);
-        title.setFillColor(sf::Color(140, 190, 255));
+        title.setFillColor(C_TEXT_PRIMARY);
         title.setString("Rename (Enter to save, Esc to cancel)");
         title.setPosition(modalX + 10.f, modalY + 8.f);
         window.draw(title);
 
         sf::RectangleShape inputField({modalW - 20.f, 24.f});
         inputField.setPosition(modalX + 10.f, modalY + 34.f);
-        inputField.setFillColor(sf::Color(16, 18, 28));
-        inputField.setOutlineColor(sf::Color(100, 160, 255));
+        inputField.setFillColor(C_BG_INPUT);
+        inputField.setOutlineColor(C_ACCENT);
         inputField.setOutlineThickness(1.f);
         window.draw(inputField);
 
@@ -1196,8 +1212,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
-        modalBg.setFillColor(sf::Color(32, 22, 26, 255));
-        modalBg.setOutlineColor(sf::Color(240, 80, 80));
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_DANGER);
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1205,7 +1221,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setFont(m_Font);
         title.setCharacterSize(11);
         title.setStyle(sf::Text::Bold);
-        title.setFillColor(sf::Color(255, 120, 120));
+        title.setFillColor(C_DANGER);
         title.setString("Delete Item? (Enter to delete, Esc to cancel)");
         title.setPosition(modalX + 10.f, modalY + 8.f);
         window.draw(title);
@@ -1216,7 +1232,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::Text info;
         info.setFont(m_Font);
         info.setCharacterSize(11);
-        info.setFillColor(sf::Color(230, 200, 205));
+        info.setFillColor(C_TEXT_PRIMARY);
         info.setString("\"" + fname + "\"");
         info.setPosition(modalX + 12.f, modalY + 36.f);
         window.draw(info);
@@ -1224,7 +1240,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::Text sub;
         sub.setFont(m_Font);
         sub.setCharacterSize(9);
-        sub.setFillColor(sf::Color(160, 130, 140));
+        sub.setFillColor(C_TEXT_SECONDARY);
         sub.setString("This action cannot be undone.");
         sub.setPosition(modalX + 12.f, modalY + 58.f);
         window.draw(sub);
@@ -1254,7 +1270,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
 
         sf::RectangleShape card({thumbSz + 4.f, thumbSz + 22.f});
         card.setPosition(ox, oy);
-        card.setFillColor(sf::Color(22, 26, 42, 240));
+        card.setFillColor(C_BG_ELEVATED);
         card.setOutlineColor(accent);
         card.setOutlineThickness(1.5f);
         window.draw(card);
@@ -1279,7 +1295,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         {
             sf::RectangleShape ph({thumbSz - 4.f, thumbSz - 4.f});
             ph.setPosition(ox + 4.f, oy + 4.f);
-            ph.setFillColor(sf::Color(40, 45, 70));
+            ph.setFillColor(C_BORDER);
             window.draw(ph);
         }
 
@@ -1287,7 +1303,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         sf::Text label;
         label.setFont(m_Font);
         label.setCharacterSize(9);
-        label.setFillColor(sf::Color(200, 210, 255, 240));
+        label.setFillColor(C_TEXT_PRIMARY);
         label.setString(gname);
         label.setPosition(ox + 3.f, oy + thumbSz + 7.f);
         window.draw(label);
@@ -1303,7 +1319,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
 
         sf::RectangleShape pill({pw, ph});
         pill.setPosition(ox, oy);
-        pill.setFillColor(sf::Color(22, 26, 42, 240));
+        pill.setFillColor(C_BG_ELEVATED);
         pill.setOutlineColor(accent);
         pill.setOutlineThickness(1.5f);
         window.draw(pill);
@@ -1316,7 +1332,7 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         sf::Text label;
         label.setFont(m_Font);
         label.setCharacterSize(10);
-        label.setFillColor(sf::Color(210, 220, 255, 240));
+        label.setFillColor(C_TEXT_PRIMARY);
         label.setString(gname);
         label.setPosition(ox + 18.f, oy + 6.f);
         window.draw(label);

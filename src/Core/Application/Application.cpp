@@ -104,7 +104,7 @@ void Application::Update(float deltaTime)
 
 void Application::Render()
 {
-    m_RenderWindow.clear(sf::Color(10, 18, 25));
+    m_RenderWindow.clear(sf::Color(18, 20, 23));
     m_SceneManager.Render(m_RenderWindow);
     m_RenderWindow.display();
 }

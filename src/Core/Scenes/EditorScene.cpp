@@ -42,24 +42,32 @@ static size_t GetPolygonPointCount(ObjectType type)
 
 namespace fs = std::filesystem;
 
-static const sf::Color C_BG_DEEP = sf::Color(10, 10, 18);
-static const sf::Color C_BG_PANEL = sf::Color(16, 16, 28);
-static const sf::Color C_BG_INSPECTOR = sf::Color(13, 13, 22);
-static const sf::Color C_BG_TOOLBAR = sf::Color(9, 9, 16);
-static const sf::Color C_SURFACE = sf::Color(24, 24, 40);
-static const sf::Color C_SURFACE_HOV = sf::Color(32, 32, 54);
-static const sf::Color C_BORDER = sf::Color(36, 36, 58);
-static const sf::Color C_BORDER_LIGHT = sf::Color(48, 48, 78);
-static const sf::Color C_ACCENT = sf::Color(99, 102, 241);
-static const sf::Color C_ACCENT_DIM = sf::Color(60, 62, 160);
-static const sf::Color C_ACCENT_BRIGHT = sf::Color(148, 150, 255);
-static const sf::Color C_TEXT_PRIMARY = sf::Color(220, 220, 238);
-static const sf::Color C_TEXT_SECONDARY = sf::Color(140, 140, 168);
-static const sf::Color C_TEXT_MUTED = sf::Color(72, 72, 100);
-static const sf::Color C_GREEN = sf::Color(52, 211, 100);
-static const sf::Color C_GREEN_DIM = sf::Color(22, 78, 42);
-static const sf::Color C_RED = sf::Color(248, 80, 80);
-static const sf::Color C_RED_DIM = sf::Color(80, 20, 20);
+static const sf::Color C_BG_CANVAS = sf::Color(18, 20, 23);
+static const sf::Color C_BG_PANEL = sf::Color(26, 29, 34);
+static const sf::Color C_BG_ELEVATED = sf::Color(33, 37, 43);
+static const sf::Color C_BG_INPUT = sf::Color(20, 23, 27);
+static const sf::Color C_BORDER = sf::Color(42, 46, 53);
+static const sf::Color C_BORDER_LIGHT = sf::Color(58, 63, 72);
+static const sf::Color C_TEXT_PRIMARY = sf::Color(232, 234, 237);
+static const sf::Color C_TEXT_SECONDARY = sf::Color(154, 160, 172);
+static const sf::Color C_TEXT_MUTED = sf::Color(92, 97, 107);
+
+static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
+static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
+static const sf::Color C_ACCENT_ACT = sf::Color(100, 85, 217);
+static const sf::Color C_ACCENT_DIM = sf::Color(40, 35, 80, 200);
+static const sf::Color C_ACCENT_BRIGHT = sf::Color(146, 132, 245);
+
+static const sf::Color C_ACCENT2 = sf::Color(67, 217, 200);
+
+static const sf::Color C_SUCCESS = sf::Color(74, 222, 128);
+static const sf::Color C_SUCCESS_DIM = sf::Color(20, 55, 35, 200);
+static const sf::Color C_WARNING = sf::Color(245, 185, 77);
+static const sf::Color C_DANGER = sf::Color(241, 104, 94);
+static const sf::Color C_DANGER_DIM = sf::Color(70, 20, 18, 200);
+
+static const sf::Color C_GRID_MINOR = sf::Color(38, 43, 51);
+static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 
 EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
@@ -68,7 +76,6 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         this->LoadFromJson(path);
-        // Set the active scene save path relative to ASSET_PATH
         std::string relPath = path;
         std::string assetPathStr = ASSET_PATH;
         if (relPath.find(assetPathStr) == 0) { relPath = relPath.substr(assetPathStr.length()); }
@@ -94,21 +101,21 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     UpdateBounds();
 
     m_Preview.setSize({m_GridSize, m_GridSize});
-    m_Preview.setFillColor(sf::Color(100, 200, 100, 60));
-    m_Preview.setOutlineColor(sf::Color(100, 255, 100, 180));
+    m_Preview.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 45));
+    m_Preview.setOutlineColor(sf::Color(C_ACCENT_HOV.r, C_ACCENT_HOV.g, C_ACCENT_HOV.b, 160));
     m_Preview.setOutlineThickness(1.f);
 
     m_CirclePreview.setRadius(m_GridSize / 2.f);
-    m_CirclePreview.setFillColor(sf::Color(100, 200, 100, 60));
-    m_CirclePreview.setOutlineColor(sf::Color(100, 255, 100, 180));
+    m_CirclePreview.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 45));
+    m_CirclePreview.setOutlineColor(sf::Color(C_ACCENT_HOV.r, C_ACCENT_HOV.g, C_ACCENT_HOV.b, 160));
     m_CirclePreview.setOutlineThickness(1.f);
 
     m_StatusText.setFont(*m_Font);
     m_StatusText.setCharacterSize(11);
     m_StatusText.setFillColor(C_TEXT_MUTED);
 
-    m_InspectorPanel.setFillColor(C_BG_INSPECTOR);
-    m_HierarchyPanel.setFillColor(C_BG_INSPECTOR);
+    m_InspectorPanel.setFillColor(C_BG_PANEL);
+    m_HierarchyPanel.setFillColor(C_BG_PANEL);
 
     InitMenus();
     UpdateStatusText();
@@ -735,8 +742,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         newObj.id = NextId();
                         newObj.selected = false;
                         newObj.shape.setPosition(m_ContextObject->shape.getPosition() + sf::Vector2f(20.f, 20.f));
-                        if (newObj.objectType == ObjectType::Circle) newObj.circleShape.setPosition(
-                            newObj.shape.getPosition());
+                        if (newObj.objectType == ObjectType::Circle)
+                            newObj.circleShape.setPosition(
+                                newObj.shape.getPosition());
                         if (newObj.entity != 0)
                         {
                             newObj.entity = m_Registry.CreateEntity();
@@ -1036,7 +1044,7 @@ void EditorScene::Render(sf::RenderWindow &window)
             sf::RectangleShape colBox(obj.shape.getSize());
             colBox.setPosition(obj.shape.getPosition());
             colBox.setFillColor(sf::Color::Transparent);
-            colBox.setOutlineColor(sf::Color(80, 255, 80, 160));
+            colBox.setOutlineColor(sf::Color(C_DANGER.r, C_DANGER.g, C_DANGER.b, 160));
             colBox.setOutlineThickness(1.f);
             window.draw(colBox);
         }
@@ -1117,7 +1125,7 @@ void EditorScene::Render(sf::RenderWindow &window)
         sf::Text asText;
         asText.setFont(*m_Font);
         asText.setCharacterSize(14);
-        asText.setFillColor(sf::Color::White);
+        asText.setFillColor(C_TEXT_PRIMARY);
         int secondsLeft = static_cast<int>(m_AutoSavePopupTimer + 0.99f);
         asText.setString("AutoSave in " + std::to_string(secondsLeft) + " seconds...");
 
@@ -1129,14 +1137,19 @@ void EditorScene::Render(sf::RenderWindow &window)
         float pY = m_Window.getSize().y - 100.f;
 
         sf::RectangleShape asBg({pW, pH});
-        asBg.setFillColor(sf::Color(40, 40, 60, 240));
-        asBg.setOutlineColor(sf::Color(100, 150, 255, 200));
-        asBg.setOutlineThickness(2.f);
+        asBg.setFillColor(C_BG_ELEVATED);
+        asBg.setOutlineColor(C_BORDER_LIGHT);
+        asBg.setOutlineThickness(1.f);
         asBg.setPosition(pX, pY);
+
+        sf::RectangleShape warningBar({4.f, pH});
+        warningBar.setFillColor(C_WARNING);
+        warningBar.setPosition(pX, pY);
 
         asText.setPosition(pX + 20.f, pY + (pH - th) / 2.f - 4.f);
 
         window.draw(asBg);
+        window.draw(warningBar);
         window.draw(asText);
     }
 
@@ -1154,15 +1167,15 @@ void EditorScene::Render(sf::RenderWindow &window)
         {
             sf::RectangleShape glow(sf::Vector2f(m_InspectorBounds.width, m_InspectorBounds.height));
             glow.setPosition(m_InspectorBounds.left, m_InspectorBounds.top);
-            glow.setFillColor(sf::Color(150, 100, 255, 18));
-            glow.setOutlineColor(sf::Color(150, 100, 255, 180));
+            glow.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 18));
+            glow.setOutlineColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 160));
             glow.setOutlineThickness(2.f);
             window.draw(glow);
 
             sf::Text dropHint;
             dropHint.setFont(*m_Font);
             dropHint.setCharacterSize(11);
-            dropHint.setFillColor(sf::Color(200, 170, 255, 230));
+            dropHint.setFillColor(sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 230));
             dropHint.setString("Drop to set Sprite");
             const float hw = dropHint.getLocalBounds().width;
             dropHint.setPosition(
@@ -1173,8 +1186,8 @@ void EditorScene::Render(sf::RenderWindow &window)
         {
             sf::RectangleShape glow(sf::Vector2f(m_HierarchyBounds.width, m_HierarchyBounds.height));
             glow.setPosition(m_HierarchyBounds.left, m_HierarchyBounds.top);
-            glow.setFillColor(sf::Color(150, 100, 255, 18));
-            glow.setOutlineColor(sf::Color(150, 100, 255, 160));
+            glow.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 18));
+            glow.setOutlineColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 140));
             glow.setOutlineThickness(2.f);
             window.draw(glow);
         }
@@ -1263,7 +1276,7 @@ void EditorScene::DrawMenuBar(sf::RenderWindow &window)
         if (hovered)
         {
             sf::RectangleShape hbg({itemW - 2.f, MenuBarHeight - 6.f});
-            hbg.setFillColor(open ? C_ACCENT_DIM : C_SURFACE_HOV);
+            hbg.setFillColor(open ? C_ACCENT_DIM : C_BG_ELEVATED);
             hbg.setPosition(x + 1.f, 3.f);
             window.draw(hbg);
         }
@@ -1301,7 +1314,7 @@ void EditorScene::DrawMenuBar(sf::RenderWindow &window)
                 dropH += item.isSeparator ? 8.f : 28.f;
 
             sf::RectangleShape dbg({dropW, dropH});
-            dbg.setFillColor(C_SURFACE);
+            dbg.setFillColor(C_BG_ELEVATED);
             dbg.setOutlineColor(C_BORDER_LIGHT);
             dbg.setOutlineThickness(1.f);
             dbg.setPosition(dropX, dropY);
@@ -1361,7 +1374,7 @@ void EditorScene::DrawMenuBar(sf::RenderWindow &window)
     sf::Text watermark;
     watermark.setFont(*m_Font);
     watermark.setCharacterSize(11);
-    watermark.setFillColor(sf::Color(42, 42, 68));
+    watermark.setFillColor(C_TEXT_MUTED);
     watermark.setString("RayneEngine");
     watermark.setPosition(w - watermark.getLocalBounds().width - 12.f, 9.f);
     window.draw(watermark);
@@ -1373,7 +1386,7 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
     const float ty = MenuBarHeight;
 
     sf::RectangleShape bg({w, ToolbarHeight});
-    bg.setFillColor(C_BG_TOOLBAR);
+    bg.setFillColor(C_BG_PANEL);
     bg.setPosition(0.f, ty);
     window.draw(bg);
 
@@ -1395,16 +1408,16 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
                              sf::Color accentFill = C_ACCENT, sf::Color accentBorder = C_ACCENT) {
         const bool hov = r.contains(m_MouseScreenPos);
         sf::Color fill = active
-                             ? sf::Color(accentFill.r / 5, accentFill.g / 5, accentFill.b / 3, 230)
+                             ? C_ACCENT_DIM
                              : hov
-                                   ? C_SURFACE_HOV
+                                   ? C_BG_ELEVATED
                                    : sf::Color(0, 0, 0, 0);
-        sf::Color border = active
-                               ? sf::Color(accentBorder.r, accentBorder.g, accentBorder.b, 200)
-                               : hov
-                                     ? C_BORDER_LIGHT
-                                     : sf::Color(0, 0, 0, 0);
-        DrawPill(window, r, fill, border);
+        sf::Color bdr = active
+                            ? sf::Color(accentBorder.r, accentBorder.g, accentBorder.b, 200)
+                            : hov
+                                  ? C_BORDER_LIGHT
+                                  : sf::Color(0, 0, 0, 0);
+        DrawPill(window, r, fill, bdr);
 
         sf::Text t;
         t.setFont(*m_Font);
@@ -1425,9 +1438,9 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         const bool hov = ar.contains(m_MouseScreenPos);
         const bool act = m_AddDropdownOpen;
 
-        sf::Color fill = act ? C_ACCENT_DIM : hov ? C_SURFACE_HOV : C_SURFACE;
-        sf::Color border = act ? C_ACCENT : hov ? C_BORDER_LIGHT : C_BORDER;
-        DrawPill(window, ar, fill, border);
+        sf::Color fill = act ? C_ACCENT_DIM : hov ? C_BG_ELEVATED : C_BG_ELEVATED;
+        sf::Color bdr = act ? C_ACCENT : hov ? C_BORDER_LIGHT : C_BORDER;
+        DrawPill(window, ar, fill, bdr);
 
         sf::Text at;
         at.setFont(*m_Font);
@@ -1446,7 +1459,7 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
     drawSep(cx);
     cx += 12.f; {
         const sf::FloatRect dr(cx, ty + 4.f, 56.f, ToolbarHeight - 8.f);
-        drawBtn(dr, "Delete", false, C_RED, C_RED);
+        drawBtn(dr, "Delete", false, C_DANGER, C_DANGER);
         m_ToolbarHitboxes.push_back({dr, "delete"});
         cx += dr.width + 8.f;
     }
@@ -1454,7 +1467,7 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
     drawSep(cx);
     cx += 12.f; {
         const sf::FloatRect ur(cx, ty + 4.f, 76.f, ToolbarHeight - 8.f);
-        drawBtn(ur, "UI Editor", false, sf::Color(200, 100, 255), sf::Color(200, 100, 255));
+        drawBtn(ur, "UI Editor", false, C_ACCENT, C_ACCENT);
         m_ToolbarHitboxes.push_back({ur, "open_ui_editor"});
         cx += ur.width + 8.f;
     }
@@ -1465,20 +1478,22 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         drawBtn(gr, m_SnapToGrid ? "Grid ON" : "Grid", m_SnapToGrid);
         m_ToolbarHitboxes.push_back({gr, "toggle_grid"});
     } {
-        const float runW = 88.f;
+        const float runW = 92.f;
         const float runX = w - InspectorWidth - runW - 10.f;
         const sf::FloatRect rr(runX, ty + 4.f, runW, ToolbarHeight - 8.f);
         const bool hov = rr.contains(m_MouseScreenPos);
 
-        sf::Color fill = hov ? sf::Color(22, 70, 38, 240) : C_GREEN_DIM;
-        sf::Color border = hov ? C_GREEN : sf::Color(34, 140, 64);
-        DrawPill(window, rr, fill, border);
+        sf::Color fill = hov
+                             ? sf::Color(C_ACCENT_ACT.r, C_ACCENT_ACT.g, C_ACCENT_ACT.b, 240)
+                             : C_ACCENT_DIM;
+        sf::Color runBdr = hov ? C_ACCENT_HOV : C_ACCENT;
+        DrawPill(window, rr, fill, runBdr);
 
         sf::Text rt;
         rt.setFont(*m_Font);
         rt.setCharacterSize(12);
-        rt.setFillColor(hov ? C_GREEN : sf::Color(80, 180, 110));
-        rt.setString("Run   F5");
+        rt.setFillColor(hov ? C_TEXT_PRIMARY : C_ACCENT_BRIGHT);
+        rt.setString("Run  F5");
         rt.setPosition(rr.left + (rr.width - rt.getLocalBounds().width) / 2.f,
                        rr.top + (rr.height - rt.getLocalBounds().height) / 2.f - 2.f);
         window.draw(rt);
@@ -1519,7 +1534,7 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
     for (const auto &item: items) { dropH += item.isHeader ? headerH : itemH; }
 
     sf::RectangleShape bg({dropW, dropH});
-    bg.setFillColor(C_SURFACE);
+    bg.setFillColor(C_BG_ELEVATED);
     bg.setOutlineColor(C_BORDER_LIGHT);
     bg.setOutlineThickness(1.f);
     bg.setPosition(dropX, dropY);
@@ -1533,7 +1548,7 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
             sf::Text ht;
             ht.setFont(*m_Font);
             ht.setCharacterSize(11);
-            ht.setFillColor(C_ACCENT_BRIGHT);
+            ht.setFillColor(C_TEXT_SECONDARY);
             ht.setString(item.label);
             ht.setPosition(dropX + 8.f, iy + 6.f);
             window.draw(ht);
@@ -1604,7 +1619,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     window.draw(leftBorder); {
         sf::RectangleShape header({InspectorWidth, 36.f});
         header.setPosition(panelX, panelY);
-        header.setFillColor(C_SURFACE);
+        header.setFillColor(C_BG_ELEVATED);
         window.draw(header);
 
         sf::RectangleShape headerLine({InspectorWidth, 1.f});
@@ -1615,7 +1630,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         sf::Text title;
         title.setFont(*m_Font);
         title.setCharacterSize(11);
-        title.setFillColor(C_TEXT_MUTED);
+        title.setFillColor(C_TEXT_SECONDARY);
         title.setStyle(sf::Text::Bold);
         title.setString("INSPECTOR");
         title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
@@ -1749,7 +1764,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     float y = panelY + 42.f;
 
-    y = DrawSectionHeader(window, "OBJECT", sf::Color(100, 160, 255), panelX, y);
+    y = DrawSectionHeader(window, "OBJECT", C_TEXT_SECONDARY, panelX, y);
 
     std::string nameDisplay = (m_ActiveField == EditField::Name && !m_ActiveInputText.empty())
                                   ? m_ActiveInputText + "|"
@@ -1766,7 +1781,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     }
 
     y += 8.f;
-    y = DrawSectionHeader(window, "TRANSFORM", sf::Color(80, 200, 120), panelX, y);
+    y = DrawSectionHeader(window, "TRANSFORM", C_TEXT_SECONDARY, panelX, y);
 
     std::string txDisplay = (m_ActiveField == EditField::TransformX && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
@@ -1782,7 +1797,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     y = DrawEditableRow(window, "Y", tyDisplay, "edit_y", panelX, y);
 
     y += 8.f;
-    y = DrawSectionHeader(window, "RENDER", sf::Color(220, 170, 60), panelX, y);
+    y = DrawSectionHeader(window, "RENDER", C_TEXT_SECONDARY, panelX, y);
 
     std::string wDisplay = (m_ActiveField == EditField::SizeW && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
@@ -1828,7 +1843,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (m_Selected->previewTexture)
     {
-        y = DrawSectionHeader(window, "SPRITE COMPONENT", sf::Color(150, 100, 255), panelX, y);
+        y = DrawSectionHeader(window, "SPRITE COMPONENT", C_TEXT_SECONDARY, panelX, y);
 
         std::string spriteName = m_Selected->spritePath;
         const size_t sl = spriteName.find_last_of("/\\");
@@ -1841,7 +1856,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             const float thumbW = InspectorWidth - InspectorPad * 2;
             sf::RectangleShape thumb({thumbW, thumbH});
             thumb.setPosition(panelX + InspectorPad, y);
-            thumb.setFillColor(sf::Color(30, 30, 50));
+            thumb.setFillColor(C_BG_INPUT);
             thumb.setOutlineColor(C_BORDER);
             thumb.setOutlineThickness(1.f);
             window.draw(thumb);
@@ -1863,10 +1878,10 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             y += thumbH + 4.f;
         }
 
-        y = DrawActionButton(window, "Remove Sprite", "remove_sprite", panelX, y, C_RED_DIM, C_RED);
+        y = DrawActionButton(window, "Remove Sprite", "remove_sprite", panelX, y, C_DANGER_DIM, C_DANGER);
     } else
     {
-        y = DrawActionButton(window, "+ Sprite Component", "change_sprite", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "+ Sprite Component", "change_sprite", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         sf::Text hint;
         hint.setFont(*m_Font);
         hint.setCharacterSize(10);
@@ -1882,35 +1897,35 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     if (m_Selected->entity != 0 && m_Registry.HasComponent<VelocityComponent>(m_Selected->entity))
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(m_Selected->entity);
-        y = DrawSectionHeader(window, "VELOCITY", sf::Color(200, 110, 230), panelX, y);
+        y = DrawSectionHeader(window, "VELOCITY", C_TEXT_SECONDARY, panelX, y);
         y = DrawRow(window, "dX", std::to_string(vel.dx), panelX, y);
         y = DrawRow(window, "dY", std::to_string(vel.dy), panelX, y);
         y += 4.f;
-        y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_RED_DIM, C_RED);
+        y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
     } else if (m_Selected->entity != 0)
     {
-        y = DrawActionButton(window, "+ Velocity", "add_velocity", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "+ Velocity", "add_velocity", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
     if (m_Selected->entity != 0 && m_Registry.HasComponent<CameraComponent>(m_Selected->entity))
     {
-        y = DrawSectionHeader(window, "CAMERA", sf::Color(100, 200, 255), panelX, y);
+        y = DrawSectionHeader(window, "CAMERA", C_TEXT_SECONDARY, panelX, y);
         y = DrawRow(window, "Status", "Following Entity", panelX, y);
         y += 4.f;
-        y = DrawActionButton(window, "Remove Camera", "remove_camera", panelX, y, C_RED_DIM, C_RED);
+        y = DrawActionButton(window, "Remove Camera", "remove_camera", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
     } else if (m_Selected->entity != 0)
     {
-        y = DrawActionButton(window, "+ Camera Follow", "add_camera", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "+ Camera Follow", "add_camera", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
     if (m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
     {
         auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
-        y = DrawSectionHeader(window, "COLLISION", sf::Color(255, 100, 100), panelX, y);
+        y = DrawSectionHeader(window, "COLLISION", C_TEXT_SECONDARY, panelX, y);
         std::string chanDisplay = (m_ActiveField == EditField::CollisionChannel && !m_ActiveInputText.empty())
                                       ? m_ActiveInputText + "|"
                                       : (m_ActiveField == EditField::CollisionChannel
@@ -1918,17 +1933,17 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                              : std::to_string(col.channel));
         y = DrawEditableRow(window, "Channel", chanDisplay, "edit_collision_channel", panelX, y);
         y += 4.f;
-        y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_RED_DIM, C_RED);
+        y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
     } else if (m_Selected->entity != 0)
     {
-        y = DrawActionButton(window, "+ Collision", "add_collision", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "+ Collision", "add_collision", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
     if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
-        y = DrawSectionHeader(window, "SCRIPT", sf::Color(230, 90, 90), panelX, y);
+        y = DrawSectionHeader(window, "SCRIPT", C_TEXT_SECONDARY, panelX, y);
         std::string scriptName = m_Selected->scriptPath;
         const size_t slash = scriptName.find_last_of("/\\");
         if (slash != std::string::npos) scriptName = scriptName.substr(slash + 1);
@@ -1936,11 +1951,11 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawRow(window, "OnCreate", "bound", panelX, y);
         y = DrawRow(window, "OnUpdate", "bound", panelX, y);
         y += 4.f;
-        y = DrawActionButton(window, "Open Script", "open_script", panelX, y, C_SURFACE, C_BORDER_LIGHT);
-        y = DrawActionButton(window, "Remove Script", "remove_script", panelX, y, C_RED_DIM, C_RED);
+        y = DrawActionButton(window, "Open Script", "open_script", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "Remove Script", "remove_script", panelX, y, C_DANGER_DIM, C_DANGER);
     } else if (m_Selected->entity != 0)
     {
-        y = DrawActionButton(window, "+ Script", "add_script", panelX, y, C_SURFACE, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "+ Script", "add_script", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         if (m_ActiveField == EditField::Script)
             DrawScriptInput(window, panelX, y);
     }
@@ -1964,7 +1979,7 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
     window.draw(rightBorder); {
         sf::RectangleShape header({HierarchyWidth, 36.f});
         header.setPosition(panelX, panelY);
-        header.setFillColor(C_SURFACE);
+        header.setFillColor(C_BG_ELEVATED);
         window.draw(header);
 
         sf::RectangleShape headerLine({HierarchyWidth, 1.f});
@@ -1975,7 +1990,7 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         sf::Text title;
         title.setFont(*m_Font);
         title.setCharacterSize(11);
-        title.setFillColor(C_TEXT_MUTED);
+        title.setFillColor(C_TEXT_SECONDARY);
         title.setStyle(sf::Text::Bold);
         title.setString("SCENE HIERARCHY");
         title.setPosition(panelX + 12.f, panelY + 12.f);
@@ -2008,12 +2023,12 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         {
             sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
             rowBg.setPosition(panelX, y);
-            rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_SURFACE_HOV);
+            rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_BG_ELEVATED);
             window.draw(rowBg);
 
             if (isSelected)
             {
-                sf::RectangleShape indicator({3.f, rowHeight});
+                sf::RectangleShape indicator({2.f, rowHeight});
                 indicator.setPosition(panelX, y);
                 indicator.setFillColor(C_ACCENT);
                 window.draw(indicator);
@@ -2084,7 +2099,7 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         const float menuH = actions.size() * itemH;
         sf::RectangleShape bg({menuW, menuH});
         bg.setPosition(m_ContextMenuPos);
-        bg.setFillColor(C_SURFACE);
+        bg.setFillColor(C_BG_ELEVATED);
         bg.setOutlineColor(C_BORDER_LIGHT);
         bg.setOutlineThickness(1.f);
         window.draw(bg);
@@ -2098,7 +2113,7 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             {
                 sf::RectangleShape hovBg({menuW, itemH});
                 hovBg.setPosition(m_ContextMenuPos.x, cy);
-                hovBg.setFillColor(C_SURFACE_HOV);
+                hovBg.setFillColor(sf::Color(C_BG_ELEVATED.r + 10, C_BG_ELEVATED.g + 10, C_BG_ELEVATED.b + 10));
                 window.draw(hovBg);
             }
 
@@ -2106,7 +2121,7 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             t.setFont(*m_Font);
             t.setCharacterSize(12);
             t.setString(action.first);
-            t.setFillColor(action.second == "delete" ? C_RED : C_TEXT_PRIMARY);
+            t.setFillColor(action.second == "delete" ? C_DANGER : (hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY));
             t.setPosition(m_ContextMenuPos.x + 12.f, cy + 6.f);
             window.draw(t);
 
@@ -2119,25 +2134,11 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
 float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string &title,
                                      sf::Color accent, float x, float y)
 {
-    sf::RectangleShape sepLine({InspectorWidth, 2.f});
-    sepLine.setFillColor(sf::Color(accent.r, accent.g, accent.b, 60));
-    sepLine.setPosition(x, y);
-    window.draw(sepLine);
-    y += 2.f;
-
-    sf::RectangleShape bar({InspectorWidth, 26.f});
-    bar.setFillColor(sf::Color(
-        static_cast<sf::Uint8>(accent.r / 8),
-        static_cast<sf::Uint8>(accent.g / 8),
-        static_cast<sf::Uint8>(accent.b / 8),
-        210));
-    bar.setPosition(x, y);
-    window.draw(bar);
-
-    sf::RectangleShape accentBar({4.f, 26.f});
-    accentBar.setFillColor(accent);
-    accentBar.setPosition(x, y);
-    window.draw(accentBar);
+    sf::RectangleShape hairline({InspectorWidth, 1.f});
+    hairline.setFillColor(C_BORDER);
+    hairline.setPosition(x, y + 2.f);
+    window.draw(hairline);
+    y += 4.f;
 
     sf::Text text;
     text.setFont(*m_Font);
@@ -2145,10 +2146,10 @@ float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string
     text.setFillColor(accent);
     text.setStyle(sf::Text::Bold);
     text.setString(title);
-    text.setPosition(x + InspectorPad + 4.f, y + 8.f);
+    text.setPosition(x + InspectorPad + 2.f, y + 4.f);
     window.draw(text);
 
-    return y + 28.f;
+    return y + 20.f;
 }
 
 float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
@@ -2157,7 +2158,7 @@ float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
-    keyText.setFillColor(C_TEXT_MUTED);
+    keyText.setFillColor(C_TEXT_SECONDARY);
     keyText.setString(key);
     keyText.setPosition(x + InspectorPad + 4.f, y + 2.f);
     window.draw(keyText);
@@ -2184,7 +2185,7 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
-    keyText.setFillColor(C_TEXT_MUTED);
+    keyText.setFillColor(C_TEXT_SECONDARY);
     keyText.setString(key);
     keyText.setPosition(x + InspectorPad + 4.f, y + 3.f);
     window.draw(keyText);
@@ -2195,7 +2196,7 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     const bool hovered = fieldRect.contains(m_MouseScreenPos);
     const bool active = (m_InspectorButtons.size() > 0) && false;
 
-    sf::Color fieldFill = hovered ? C_SURFACE_HOV : C_SURFACE;
+    sf::Color fieldFill = hovered ? C_BG_ELEVATED : C_BG_INPUT;
     sf::Color fieldBorder = hovered ? C_ACCENT : C_BORDER;
 
     sf::RectangleShape field({fieldRect.width, fieldRect.height});
@@ -2208,7 +2209,7 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     sf::Text valText;
     valText.setFont(*m_Font);
     valText.setCharacterSize(12);
-    valText.setFillColor(hovered ? C_TEXT_PRIMARY : sf::Color(200, 200, 220));
+    valText.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
     valText.setString(val);
     valText.setPosition(valX + 5.f, y + 3.f);
     window.draw(valText);
@@ -2226,13 +2227,13 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
 float EditorScene::DrawAddButton(sf::RenderWindow &window, const std::string &label,
                                  const std::string &action, float x, float y)
 {
-    return DrawActionButton(window, label, action, x, y, C_SURFACE, C_BORDER_LIGHT);
+    return DrawActionButton(window, label, action, x, y, C_BG_ELEVATED, C_BORDER_LIGHT);
 }
 
 float EditorScene::DrawRemoveButton(sf::RenderWindow &window, const std::string &label,
                                     const std::string &action, float x, float y)
 {
-    return DrawActionButton(window, label, action, x, y, C_RED_DIM, C_RED);
+    return DrawActionButton(window, label, action, x, y, C_DANGER_DIM, C_DANGER);
 }
 
 float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string &label,
@@ -2274,7 +2275,7 @@ float EditorScene::DrawScriptInput(sf::RenderWindow &window, float x, float y)
     const sf::FloatRect inputRect(x + InspectorPad, y + 2.f, InspectorWidth - InspectorPad * 2, 24.f);
 
     sf::RectangleShape bg({inputRect.width, inputRect.height});
-    bg.setFillColor(C_SURFACE);
+    bg.setFillColor(C_BG_INPUT);
     bg.setOutlineColor(C_ACCENT);
     bg.setOutlineThickness(1.f);
     bg.setPosition(inputRect.left, inputRect.top);
@@ -2729,16 +2730,22 @@ void EditorScene::DrawGrid()
     const float right = center.x + camSize.x / 2 + m_GridSize;
     const float bottom = center.y + camSize.y / 2 + m_GridSize;
 
-    const sf::Color gc(m_GridColor.r, m_GridColor.g, m_GridColor.b,
-                       static_cast<sf::Uint8>(m_GridOpacity));
+    const sf::Uint8 alpha = static_cast<sf::Uint8>(m_GridOpacity);
+    const sf::Color gcMinor(C_GRID_MINOR.r, C_GRID_MINOR.g, C_GRID_MINOR.b, alpha);
+    const sf::Color gcMajor(C_GRID_MAJOR.r, C_GRID_MAJOR.g, C_GRID_MAJOR.b, alpha);
+    const float majorStep = m_GridSize * 4.f;
 
     for (float x = left; x < right; x += m_GridSize)
     {
+        const bool major = (std::fmod(std::abs(x), majorStep) < 0.5f);
+        const sf::Color &gc = major ? gcMajor : gcMinor;
         lines.append({{x, top}, gc});
         lines.append({{x, bottom}, gc});
     }
     for (float y = top; y < bottom; y += m_GridSize)
     {
+        const bool major = (std::fmod(std::abs(y), majorStep) < 0.5f);
+        const sf::Color &gc = major ? gcMajor : gcMinor;
         lines.append({{left, y}, gc});
         lines.append({{right, y}, gc});
     }
@@ -2808,12 +2815,12 @@ void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
 
         if (i == 7)
         {
-            handle.setFillColor(sf::Color(99, 102, 241, 220));
-            handle.setOutlineColor(sf::Color(200, 200, 255, 255));
+            handle.setFillColor(sf::Color(C_ACCENT_HOV.r, C_ACCENT_HOV.g, C_ACCENT_HOV.b, 230));
+            handle.setOutlineColor(sf::Color(C_ACCENT_ACT.r, C_ACCENT_ACT.g, C_ACCENT_ACT.b, 255));
         } else
         {
-            handle.setFillColor(sf::Color(220, 220, 238, 200));
-            handle.setOutlineColor(sf::Color(60, 60, 90, 200));
+            handle.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 210));
+            handle.setOutlineColor(sf::Color(C_ACCENT_ACT.r, C_ACCENT_ACT.g, C_ACCENT_ACT.b, 200));
         }
         handle.setOutlineThickness(0.5f);
         window.draw(handle);
@@ -2821,12 +2828,19 @@ void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
         const sf::Vector2f brp = HandlePos(b, 7);
         const float a = hw * 1.5f;
         sf::VertexArray arrow(sf::Lines, 6);
-        arrow[0] = {{brp.x + hw * 0.3f, brp.y + hw * 0.3f}, sf::Color(200, 200, 255, 220)};
-        arrow[1] = {{brp.x + a, brp.y + a}, sf::Color(200, 200, 255, 220)};
-        arrow[2] = {{brp.x + a, brp.y + a * 0.4f}, sf::Color(200, 200, 255, 220)};
-        arrow[3] = {{brp.x + a, brp.y + a}, sf::Color(200, 200, 255, 220)};
-        arrow[4] = {{brp.x + a * 0.4f, brp.y + a}, sf::Color(200, 200, 255, 220)};
-        arrow[5] = {{brp.x + a, brp.y + a}, sf::Color(200, 200, 255, 220)};
+        arrow[0] = {
+            {brp.x + hw * 0.3f, brp.y + hw * 0.3f},
+            sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
+        };
+        arrow[1] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
+        arrow[2] = {
+            {brp.x + a, brp.y + a * 0.4f}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
+        };
+        arrow[3] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
+        arrow[4] = {
+            {brp.x + a * 0.4f, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
+        };
+        arrow[5] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
         window.draw(arrow);
     }
 }
@@ -2859,7 +2873,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
 
     sf::RectangleShape bg({winW, winH});
     bg.setPosition(winX, winY);
-    bg.setFillColor(C_BG_INSPECTOR);
+    bg.setFillColor(C_BG_ELEVATED);
     bg.setOutlineColor(C_BORDER_LIGHT);
     bg.setOutlineThickness(1.f);
     window.draw(bg);
@@ -2867,7 +2881,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     const float titleH = 38.f;
     sf::RectangleShape titleBar({winW, titleH});
     titleBar.setPosition(winX, winY);
-    titleBar.setFillColor(C_SURFACE);
+    titleBar.setFillColor(C_BG_ELEVATED);
     window.draw(titleBar);
 
     sf::RectangleShape titleBorder({winW, 1.f});
@@ -2888,14 +2902,14 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     const bool closeHov = closeRect.contains(m_MouseScreenPos);
     sf::RectangleShape closeBg({26.f, 26.f});
     closeBg.setPosition(closeRect.left, closeRect.top);
-    closeBg.setFillColor(closeHov ? C_RED_DIM : sf::Color::Transparent);
-    closeBg.setOutlineColor(closeHov ? C_RED : sf::Color::Transparent);
+    closeBg.setFillColor(closeHov ? C_DANGER_DIM : sf::Color::Transparent);
+    closeBg.setOutlineColor(closeHov ? C_DANGER : sf::Color::Transparent);
     closeBg.setOutlineThickness(1.f);
     window.draw(closeBg);
     sf::Text closeText;
     closeText.setFont(*m_Font);
     closeText.setCharacterSize(14);
-    closeText.setFillColor(closeHov ? C_RED : C_TEXT_MUTED);
+    closeText.setFillColor(closeHov ? C_DANGER : C_TEXT_MUTED);
     closeText.setString("x");
     closeText.setPosition(closeRect.left + 8.f, closeRect.top + 4.f);
     window.draw(closeText);
@@ -2906,8 +2920,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
     const float tabW = winW / 5.f;
     const std::vector<std::string> tabNames = {"General", "Editor", "Rendering", "Input", "Debug"};
     const std::vector<sf::Color> tabAccents = {
-        C_ACCENT, sf::Color(80, 200, 120), sf::Color(220, 170, 60),
-        sf::Color(200, 110, 230), sf::Color(248, 80, 80)
+        C_ACCENT, C_ACCENT, C_ACCENT, C_ACCENT, C_ACCENT
     };
 
     sf::RectangleShape tabBar({winW, tabH});
@@ -2929,7 +2942,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         {
             sf::RectangleShape tabBg({tabW, tabH});
             tabBg.setPosition(tabRect.left, tabRect.top);
-            tabBg.setFillColor(sf::Color(tabAccents[i].r / 6, tabAccents[i].g / 6, tabAccents[i].b / 6, 220));
+            tabBg.setFillColor(C_ACCENT_DIM);
             window.draw(tabBg);
 
             sf::RectangleShape accentLine({tabW, 2.f});
@@ -2940,7 +2953,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         {
             sf::RectangleShape tabBg({tabW, tabH});
             tabBg.setPosition(tabRect.left, tabRect.top);
-            tabBg.setFillColor(C_SURFACE_HOV);
+            tabBg.setFillColor(C_BG_ELEVATED);
             window.draw(tabBg);
         }
 
@@ -3054,7 +3067,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             const bool hov = btnRect.contains(m_MouseScreenPos);
             sf::RectangleShape btn({contentW, 26.f});
             btn.setPosition(contentX, y + 2.f);
-            btn.setFillColor(hov ? C_SURFACE_HOV : C_SURFACE);
+            btn.setFillColor(hov ? C_BG_ELEVATED : C_BG_INPUT);
             btn.setOutlineColor(hov ? C_BORDER_LIGHT : C_BORDER);
             btn.setOutlineThickness(1.f);
             window.draw(btn);
@@ -3103,7 +3116,7 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
             const bool hov = btnRect.contains(m_MouseScreenPos);
             sf::RectangleShape btn({contentW, 26.f});
             btn.setPosition(contentX, y + 2.f);
-            btn.setFillColor(hov ? C_SURFACE_HOV : C_SURFACE);
+            btn.setFillColor(hov ? C_BG_ELEVATED : C_BG_INPUT);
             btn.setOutlineColor(hov ? C_BORDER_LIGHT : C_BORDER);
             btn.setOutlineThickness(1.f);
             window.draw(btn);
@@ -3387,7 +3400,7 @@ float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     {
         sf::RectangleShape rowBg({winW, rowH});
         rowBg.setPosition(x, y);
-        rowBg.setFillColor(C_SURFACE_HOV);
+        rowBg.setFillColor(C_BG_ELEVATED);
         window.draw(rowBg);
     }
 
@@ -3403,7 +3416,7 @@ float EditorScene::DrawSettingsToggle(sf::RenderWindow &window,
     const float pillX = x + winW - pillW - 8.f;
     const float pillY = y + (rowH - pillH) / 2.f;
 
-    sf::Color pillColor = value ? sf::Color(52, 180, 90) : C_SURFACE;
+    sf::Color pillColor = value ? C_ACCENT : C_BG_INPUT;
     sf::Color pillBorder = value ? sf::Color(60, 200, 100) : C_BORDER;
     sf::RectangleShape pill({pillW, pillH});
     pill.setPosition(pillX, pillY);
@@ -3458,7 +3471,7 @@ float EditorScene::DrawSettingsSlider(sf::RenderWindow &window,
 
     sf::RectangleShape track({trackW, trackH});
     track.setPosition(trackX, trackY);
-    track.setFillColor(C_SURFACE);
+    track.setFillColor(C_BG_INPUT);
     track.setOutlineColor(C_BORDER);
     track.setOutlineThickness(1.f);
     window.draw(track);
@@ -3514,7 +3527,7 @@ float EditorScene::DrawSettingsInputField(sf::RenderWindow &window,
 
     sf::RectangleShape fieldBg({fieldW, 22.f});
     fieldBg.setPosition(fieldX, y + 4.f);
-    fieldBg.setFillColor(active ? sf::Color(30, 30, 50) : hov ? C_SURFACE_HOV : C_SURFACE);
+    fieldBg.setFillColor(active ? sf::Color(30, 30, 50) : hov ? C_BG_ELEVATED : C_BG_INPUT);
     fieldBg.setOutlineColor(active ? C_ACCENT : hov ? C_BORDER_LIGHT : C_BORDER);
     fieldBg.setOutlineThickness(1.f);
     window.draw(fieldBg);
@@ -3584,7 +3597,7 @@ float EditorScene::DrawSettingsDropdown(sf::RenderWindow &window,
 
         sf::RectangleShape opt({optRect.width, optRect.height});
         opt.setPosition(optRect.left, optRect.top);
-        opt.setFillColor(active ? C_ACCENT_DIM : hov ? C_SURFACE_HOV : C_SURFACE);
+        opt.setFillColor(active ? C_ACCENT_DIM : hov ? C_BG_ELEVATED : C_BG_INPUT);
         opt.setOutlineColor(active ? C_ACCENT : hov ? C_BORDER_LIGHT : C_BORDER);
         opt.setOutlineThickness(1.f);
         window.draw(opt);

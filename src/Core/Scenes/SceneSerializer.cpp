@@ -5,7 +5,7 @@
 #include "../ECS/Components.h"
 #include "../Scripting/ScriptComponent.h"
 #include "../Scripting/LuaState.h"
-#include "../Application/Application.h" // For ASSET_PATH
+#include "../Application/Application.h"
 using json = nlohmann::json;
 
 void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &path)

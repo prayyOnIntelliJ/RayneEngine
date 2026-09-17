@@ -1,7 +1,7 @@
 {
     "debug": {
         "logLevel": 2,
-        "showAutoSaveInTitle": true,
+        "showAutoSaveInTitle": false,
         "showColliderOutlines": false,
         "showEntityIDs": false
     },
@@ -26,10 +26,10 @@
         "selectionOutlineThickness": 2.0
     },
     "general": {
-        "autoSaveEnabled": true,
+        "autoSaveEnabled": false,
         "autoSaveIntervalSeconds": 180.0,
         "autoSavePopupDuration": 10.0,
-        "autoSavePopupEnabled": true
+        "autoSavePopupEnabled": false
     },
     "input": {
         "invertPan": false,
@@ -37,10 +37,10 @@
         "scrollSensitivity": 20.0
     },
     "rendering": {
-        "fpsCapIndex": 1,
-        "showFPS": false,
+        "fpsCapIndex": 0,
+        "showFPS": true,
         "zoomMax": 5.0,
         "zoomMin": 0.20000000298023224,
-        "zoomSensitivity": 0.10000000149011612
+        "zoomSensitivity": 0.10754629969596863
     }
 }

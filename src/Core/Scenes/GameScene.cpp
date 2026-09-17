@@ -128,21 +128,12 @@ void GameScene::Update(float deltaTime)
         [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.x, t.y); } });
 
     bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
-    // Simple way: Update is called per frame, UIManager tracks state
-    // We actually need accurate mouse events, but for simplicity we'll just poll
-    // In a real scenario we'd pass events from HandleEvent
     static bool wasClicked = false;
     bool justClicked = mouseClicked && !wasClicked;
     bool justReleased = !mouseClicked && wasClicked;
     wasClicked = mouseClicked;
 
-    // We need window reference or input manager for mouse pos relative to window.
-    // The engine's InputManager has GetMousePosition() which might be relative to desktop if not passed window.
-    // Let's rely on sf::Mouse::getPosition(*m_RenderWindow) if we have it, but we don't.
-    // So we'll update UIManager in HandleEvent, or pass window to Update.
-    // Since GameScene doesn't get window in Update, let's just clear the clicked button state here:
     UIManager::Get().ClearClickedButton();
-    // And actually, we can update it in Render since we get the window there, or just poll global mouse for now.
 }
 
 void GameScene::Render(sf::RenderWindow &window)

@@ -175,11 +175,11 @@ private:
     float m_AutoSavePopupDuration = 10.f;
     std::string m_SceneSavePath = "scenes/game.json";
 
-    sf::Color m_GridColor = sf::Color(38, 38, 52);
+    sf::Color m_GridColor = sf::Color(38, 43, 51);
     int m_GridOpacity = 255;
-    sf::Color m_EditorBgColor = sf::Color(10, 10, 18);
+    sf::Color m_EditorBgColor = sf::Color(18, 20, 23);
     float m_DefaultObjectSize = 40.f;
-    sf::Color m_SelectionOutlineColor = sf::Color(255, 220, 60);
+    sf::Color m_SelectionOutlineColor = sf::Color(124, 108, 240);
     float m_SelectionOutlineThickness = 2.f;
 
     bool m_ShowFPS = false;
