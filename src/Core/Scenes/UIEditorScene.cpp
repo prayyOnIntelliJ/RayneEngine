@@ -4,29 +4,33 @@
 #include "../Resources/ResourceManager.h"
 #include <SFML/Window/Event.hpp>
 
-static const sf::Color C_BG_DEEP = sf::Color(10, 10, 18);
-static const sf::Color C_BG_PANEL = sf::Color(16, 16, 28);
-static const sf::Color C_BG_INSPECTOR = sf::Color(13, 13, 22);
-static const sf::Color C_BG_TOOLBAR = sf::Color(9, 9, 16);
-static const sf::Color C_SURFACE = sf::Color(24, 24, 40);
-static const sf::Color C_SURFACE_HOV = sf::Color(32, 32, 54);
-static const sf::Color C_BORDER = sf::Color(36, 36, 58);
-static const sf::Color C_BORDER_LIGHT = sf::Color(48, 48, 78);
-static const sf::Color C_ACCENT = sf::Color(99, 102, 241);
-static const sf::Color C_ACCENT_DIM = sf::Color(60, 62, 160);
-static const sf::Color C_ACCENT_BRIGHT = sf::Color(148, 150, 255);
-static const sf::Color C_TEXT_PRIMARY = sf::Color(220, 220, 238);
-static const sf::Color C_TEXT_SECONDARY = sf::Color(140, 140, 168);
-static const sf::Color C_TEXT_MUTED = sf::Color(72, 72, 100);
-static const sf::Color C_GREEN = sf::Color(52, 211, 100);
-static const sf::Color C_GREEN_DIM = sf::Color(22, 78, 42);
-static const sf::Color C_RED = sf::Color(248, 80, 80);
+static const sf::Color C_BG_CANVAS = sf::Color(18, 20, 23);
+static const sf::Color C_BG_PANEL = sf::Color(26, 29, 34);
+static const sf::Color C_BG_ELEVATED = sf::Color(33, 37, 43);
+static const sf::Color C_BG_INPUT = sf::Color(20, 23, 27);
+static const sf::Color C_BORDER = sf::Color(42, 46, 53);
+static const sf::Color C_BORDER_LIGHT = sf::Color(58, 63, 72);
+static const sf::Color C_TEXT_PRIMARY = sf::Color(232, 234, 237);
+static const sf::Color C_TEXT_SECONDARY = sf::Color(154, 160, 172);
+static const sf::Color C_TEXT_MUTED = sf::Color(92, 97, 107);
+static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
+static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
+static const sf::Color C_ACCENT_ACT = sf::Color(100, 85, 217);
+static const sf::Color C_ACCENT_DIM = sf::Color(40, 35, 80, 200);
+static const sf::Color C_ACCENT_BRIGHT = sf::Color(146, 132, 245);
+static const sf::Color C_SUCCESS = sf::Color(74, 222, 128);
+static const sf::Color C_SUCCESS_DIM = sf::Color(20, 55, 35, 200);
+static const sf::Color C_DANGER = sf::Color(241, 104, 94);
+static const sf::Color C_DANGER_DIM = sf::Color(70, 20, 18, 200);
+static const sf::Color C_GRID_MINOR = sf::Color(38, 43, 51);
+static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 
 UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
     : Scene(manager), m_Window(window)
 {
     m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     m_CanvasView = window.getDefaultView();
+    InitMenus();
     UpdateBounds();
 }
 
@@ -44,14 +48,14 @@ void UIEditorScene::UpdateBounds()
     const float winW = static_cast<float>(m_Window.getSize().x);
     const float winH = static_cast<float>(m_Window.getSize().y);
 
-    m_PaletteBounds = {0.f, ToolbarHeight, PaletteWidth, winH - ToolbarHeight};
-    m_InspectorBounds = {winW - InspectorWidth, ToolbarHeight, InspectorWidth, winH - ToolbarHeight - HierarchyHeight};
+    m_PaletteBounds = {0.f, TopBarHeight, PaletteWidth, winH - TopBarHeight};
+    m_InspectorBounds = {winW - InspectorWidth, TopBarHeight, InspectorWidth, winH - TopBarHeight - HierarchyHeight};
     m_HierarchyBounds = {winW - InspectorWidth, winH - HierarchyHeight, InspectorWidth, HierarchyHeight};
-    m_CanvasBounds = {PaletteWidth, ToolbarHeight, winW - PaletteWidth - InspectorWidth, winH - ToolbarHeight};
+    m_CanvasBounds = {PaletteWidth, TopBarHeight, winW - PaletteWidth - InspectorWidth, winH - TopBarHeight};
 
     sf::FloatRect vp(
         PaletteWidth / winW,
-        ToolbarHeight / winH,
+        TopBarHeight / winH,
         m_CanvasBounds.width / winW,
         m_CanvasBounds.height / winH
     );
@@ -112,6 +116,32 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
     {
         if (event.mouseButton.button == sf::Mouse::Left)
         {
+            if (m_OpenMenuIndex >= 0)
+            {
+                for (auto &[r, a]: m_MenuItemHitboxes)
+                {
+                    if (r.contains(m_MouseScreenPos))
+                    {
+                        HandleMenuAction(a);
+                        m_OpenMenuIndex = -1;
+                        return;
+                    }
+                }
+                m_OpenMenuIndex = -1;
+            }
+
+            if (m_MouseScreenPos.y < MenuBarHeight)
+            {
+                for (int i = 0; i < (int)m_Menus.size(); i++)
+                {
+                    if (m_Menus[i].bounds.contains(m_MouseScreenPos))
+                    {
+                        m_OpenMenuIndex = i;
+                        return;
+                    }
+                }
+            }
+
             if (m_PaletteBounds.contains(m_MouseScreenPos))
             {
                 for (auto &btn: m_PaletteHitboxes)
@@ -134,7 +164,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                     }
                 }
             }
-            if (m_ToolbarHitboxes.size() > 0 && m_MouseScreenPos.y < ToolbarHeight)
+            if (m_ToolbarHitboxes.size() > 0 && m_MouseScreenPos.y > MenuBarHeight && m_MouseScreenPos.y < TopBarHeight)
             {
                 for (auto &btn: m_ToolbarHitboxes)
                 {
@@ -209,6 +239,18 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::MouseMoved)
     {
+        if (m_OpenMenuIndex >= 0 && m_MouseScreenPos.y < MenuBarHeight)
+        {
+            for (int i = 0; i < (int)m_Menus.size(); i++)
+            {
+                if (m_Menus[i].bounds.contains(m_MouseScreenPos))
+                {
+                    m_OpenMenuIndex = i;
+                    break;
+                }
+            }
+        }
+
         if (m_Panning)
         {
             sf::Vector2f newPos = m_Window.mapPixelToCoords(pixelPos, m_CanvasView);
@@ -481,16 +523,18 @@ void UIEditorScene::Update(float deltaTime)
 void UIEditorScene::Render(sf::RenderWindow &window)
 {
     window.setView(window.getDefaultView());
-    window.clear(C_BG_DEEP);
+    window.clear(C_BG_CANVAS);
 
     DrawCanvas(window);
 
     window.setView(window.getDefaultView());
 
+
     DrawToolbar(window);
     DrawPalette(window);
     DrawInspector(window);
     DrawHierarchy(window);
+    DrawMenuBar(window);
 }
 
 void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
@@ -499,21 +543,21 @@ void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
     const float winW = static_cast<float>(window.getSize().x);
 
     sf::RectangleShape bar({winW, ToolbarHeight});
-    bar.setFillColor(C_BG_TOOLBAR);
-    bar.setPosition(0, 0);
+    bar.setFillColor(C_BG_PANEL);
+    bar.setPosition(0, MenuBarHeight);
     window.draw(bar);
 
     sf::RectangleShape border({winW, 1.f});
     border.setFillColor(C_BORDER);
-    border.setPosition(0, ToolbarHeight - 1.f);
+    border.setPosition(0, TopBarHeight - 1.f);
     window.draw(border);
 
-    sf::FloatRect backRect(10.f, 4.f, 120.f, ToolbarHeight - 8.f);
-    DrawActionButton(window, "<- Back to Editor", "back", backRect.left, backRect.top, C_SURFACE, C_BORDER_LIGHT);
+    sf::FloatRect backRect(10.f, MenuBarHeight + 4.f, 120.f, ToolbarHeight - 8.f);
+    DrawActionButton(window, "Game Editor", "back", backRect.left, backRect.top, C_ACCENT_DIM, C_ACCENT);
     m_ToolbarHitboxes.push_back({backRect, "back"});
 
-    sf::FloatRect saveRect(140.f, 4.f, 80.f, ToolbarHeight - 8.f);
-    DrawActionButton(window, "Save UI", "save", saveRect.left, saveRect.top, C_GREEN_DIM, C_GREEN);
+    sf::FloatRect saveRect(140.f, MenuBarHeight + 4.f, 80.f, ToolbarHeight - 8.f);
+    DrawActionButton(window, "Save UI", "save", saveRect.left, saveRect.top, C_SUCCESS_DIM, C_SUCCESS);
     m_ToolbarHitboxes.push_back({saveRect, "save"});
 }
 
@@ -537,7 +581,7 @@ void UIEditorScene::DrawPalette(sf::RenderWindow &window)
 
     auto drawAddBtn = [&](const std::string &label, const std::string &action) {
         sf::FloatRect r(m_PaletteBounds.left + 10.f, y, PaletteWidth - 20.f, 28.f);
-        DrawActionButton(window, "+ " + label, action, r.left, r.top, C_SURFACE, C_BORDER);
+        DrawActionButton(window, "+ " + label, action, r.left, r.top, C_BG_ELEVATED, C_BORDER);
         m_PaletteHitboxes.push_back({r, action});
         y += 34.f;
     };
@@ -581,7 +625,7 @@ void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
         {
             sf::RectangleShape bg(r.getSize());
             bg.setPosition(r.getPosition());
-            bg.setFillColor(sel ? C_ACCENT_DIM : C_SURFACE_HOV);
+            bg.setFillColor(sel ? C_ACCENT_DIM : C_BG_ELEVATED);
             window.draw(bg);
         }
 
@@ -605,7 +649,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 
     // Background and border drawn at real screen coords
     sf::RectangleShape panel({InspectorWidth, m_InspectorBounds.height});
-    panel.setFillColor(C_BG_INSPECTOR);
+    panel.setFillColor(C_BG_PANEL);
     panel.setPosition(m_InspectorBounds.left, m_InspectorBounds.top);
     window.draw(panel);
 
@@ -665,8 +709,8 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
     y = DrawEditableRow(window, "Z (Depth)", zDisplay, "edit_z", px, y);
 
     y += 4.f;
-    DrawActionButton(window, "+ Forward", "layer_forward", px + 10.f, y, C_SURFACE, C_BORDER_LIGHT);
-    DrawActionButton(window, "- Backward", "layer_backward", px + 110.f, y, C_SURFACE, C_BORDER_LIGHT);
+    DrawActionButton(window, "+ Forward", "layer_forward", px + 10.f, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+    DrawActionButton(window, "- Backward", "layer_backward", px + 110.f, y, C_BG_ELEVATED, C_BORDER_LIGHT);
     y += 30.f;
 
     std::string wDisplay = (m_ActiveField == EditField::SizeW && !m_ActiveInputText.empty())
@@ -715,8 +759,8 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
     bool isVisible = m_SelectedElement->visible;
     DrawActionButton(window, isVisible ? "[Visible]" : "[Hidden]", "visible_toggle",
                      px + 10.f, y,
-                     isVisible ? C_GREEN_DIM : C_SURFACE,
-                     isVisible ? C_GREEN : C_BORDER_LIGHT);
+                     isVisible ? C_SUCCESS_DIM : C_BG_ELEVATED,
+                     isVisible ? C_SUCCESS : C_BORDER_LIGHT);
     y += 30.f;
 
     // Opacity
@@ -766,9 +810,9 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         bool isLeft   = m_SelectedElement->textAlign == TextAlign::Left;
         bool isCenter = m_SelectedElement->textAlign == TextAlign::Center;
         bool isRight  = m_SelectedElement->textAlign == TextAlign::Right;
-        DrawActionButton(window, "Left",   "align_left",   px + 10.f,  y, isLeft   ? C_ACCENT_DIM : C_SURFACE, isLeft   ? C_ACCENT : C_BORDER_LIGHT);
-        DrawActionButton(window, "Center", "align_center", px + 70.f,  y, isCenter ? C_ACCENT_DIM : C_SURFACE, isCenter ? C_ACCENT : C_BORDER_LIGHT);
-        DrawActionButton(window, "Right",  "align_right",  px + 150.f, y, isRight  ? C_ACCENT_DIM : C_SURFACE, isRight  ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Left",   "align_left",   px + 10.f,  y, isLeft   ? C_ACCENT_DIM : C_BG_ELEVATED, isLeft   ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Center", "align_center", px + 70.f,  y, isCenter ? C_ACCENT_DIM : C_BG_ELEVATED, isCenter ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Right",  "align_right",  px + 150.f, y, isRight  ? C_ACCENT_DIM : C_BG_ELEVATED, isRight  ? C_ACCENT : C_BORDER_LIGHT);
         y += 30.f;
 
         // Style toggles
@@ -776,11 +820,11 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         bool isItalic    = (m_SelectedElement->textStyle & sf::Text::Italic) != 0;
         bool isUnderline = (m_SelectedElement->textStyle & sf::Text::Underlined) != 0;
         bool isUpperCase = m_SelectedElement->textUpperCase;
-        DrawActionButton(window, "Bold",      "style_bold_toggle",      px + 10.f,  y, isBold      ? C_ACCENT_DIM : C_SURFACE, isBold      ? C_ACCENT : C_BORDER_LIGHT);
-        DrawActionButton(window, "Italic",    "style_italic_toggle",    px + 70.f,  y, isItalic    ? C_ACCENT_DIM : C_SURFACE, isItalic    ? C_ACCENT : C_BORDER_LIGHT);
-        DrawActionButton(window, "Underline", "style_underline_toggle", px + 130.f, y, isUnderline ? C_ACCENT_DIM : C_SURFACE, isUnderline ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Bold",      "style_bold_toggle",      px + 10.f,  y, isBold      ? C_ACCENT_DIM : C_BG_ELEVATED, isBold      ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Italic",    "style_italic_toggle",    px + 70.f,  y, isItalic    ? C_ACCENT_DIM : C_BG_ELEVATED, isItalic    ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "Underline", "style_underline_toggle", px + 130.f, y, isUnderline ? C_ACCENT_DIM : C_BG_ELEVATED, isUnderline ? C_ACCENT : C_BORDER_LIGHT);
         y += 30.f;
-        DrawActionButton(window, "UpperCase", "uppercase_toggle", px + 10.f, y, isUpperCase ? C_ACCENT_DIM : C_SURFACE, isUpperCase ? C_ACCENT : C_BORDER_LIGHT);
+        DrawActionButton(window, "UpperCase", "uppercase_toggle", px + 10.f, y, isUpperCase ? C_ACCENT_DIM : C_BG_ELEVATED, isUpperCase ? C_ACCENT : C_BORDER_LIGHT);
         y += 30.f;
 
         // Letter/Line spacing
@@ -906,8 +950,8 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         bool isDisabled = m_SelectedElement->disabled;
         DrawActionButton(window, isDisabled ? "[Disabled]" : "[Enabled]", "disabled_toggle",
                          px + 10.f, y,
-                         isDisabled ? sf::Color(80, 20, 20) : C_GREEN_DIM,
-                         isDisabled ? C_RED : C_GREEN);
+                         isDisabled ? C_DANGER_DIM : C_SUCCESS_DIM,
+                         isDisabled ? C_DANGER : C_SUCCESS);
         y += 30.f;
     }
 
@@ -950,21 +994,21 @@ void UIEditorScene::DrawCanvas(sf::RenderWindow &window)
 
     sf::RectangleShape canvasBg(m_CanvasSize);
     canvasBg.setPosition(0, 0);
-    canvasBg.setFillColor(sf::Color(18, 18, 28));
-    canvasBg.setOutlineColor(sf::Color(99, 102, 241, 200));
+    canvasBg.setFillColor(C_BG_CANVAS);
+    canvasBg.setOutlineColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 200));
     canvasBg.setOutlineThickness(2.f);
     window.draw(canvasBg);
 
     sf::Text badge;
     badge.setFont(*m_Font);
     badge.setCharacterSize(16);
-    badge.setFillColor(sf::Color(160, 165, 205));
+    badge.setFillColor(C_TEXT_MUTED);
     badge.setString("Screen Canvas (1920 x 1080) - 16:9  [Stretched in Game]");
     badge.setPosition(0.f, -28.f);
     window.draw(badge);
 
     sf::RectangleShape line;
-    line.setFillColor(sf::Color(255, 255, 255, 12));
+    line.setFillColor(C_GRID_MINOR);
     for (float i = 100.f; i < m_CanvasSize.x; i += 100.f)
     {
         line.setPosition(i, 0);
@@ -1378,10 +1422,11 @@ void UIEditorScene::DeleteSelected()
 
 void UIEditorScene::DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, sf::Color fill, sf::Color outline)
 {
-    float radius = r.height / 2.f;
-    sf::ConvexShape shape(40);
-    int cornerPoints = 10;
+    float radius = 4.f;
+    const int cornerPoints = 8;
+    sf::ConvexShape shape(32);
 
+    const float PI = 3.141592654f;
     auto addArc = [&](int startIndex, float cx, float cy, float startAngle, float endAngle) {
         for (int i = 0; i < cornerPoints; ++i)
         {
@@ -1391,10 +1436,10 @@ void UIEditorScene::DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, s
         }
     };
 
-    addArc(0, r.left + radius, r.top + radius, 3.14159f, 3.14159f * 1.5f);
-    addArc(cornerPoints, r.left + r.width - radius, r.top + radius, 3.14159f * 1.5f, 3.14159f * 2.f);
-    addArc(cornerPoints * 2, r.left + r.width - radius, r.top + r.height - radius, 0.f, 3.14159f * 0.5f);
-    addArc(cornerPoints * 3, r.left + radius, r.top + r.height - radius, 3.14159f * 0.5f, 3.14159f);
+    addArc(0, r.left + radius, r.top + radius, PI, PI * 1.5f);
+    addArc(cornerPoints, r.left + r.width - radius, r.top + radius, PI * 1.5f, PI * 2.f);
+    addArc(cornerPoints * 2, r.left + r.width - radius, r.top + r.height - radius, 0.f, PI * 0.5f);
+    addArc(cornerPoints * 3, r.left + radius, r.top + r.height - radius, PI * 0.5f, PI);
 
     shape.setFillColor(fill);
     shape.setOutlineColor(outline);
@@ -1405,18 +1450,14 @@ void UIEditorScene::DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, s
 float UIEditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x,
                                        float y)
 {
-    if (y + 28.f <= m_InspectorClipTop || y >= m_InspectorClipBottom)
-        return y + 28.f;
+    if (y + 20.f <= m_InspectorClipTop || y >= m_InspectorClipBottom)
+        return y + 20.f;
 
-    sf::RectangleShape bg({InspectorWidth, 22.f});
-    bg.setFillColor(C_SURFACE);
-    bg.setPosition(x, y);
-    window.draw(bg);
-
-    sf::RectangleShape accentLine({3.f, 22.f});
-    accentLine.setFillColor(accent);
-    accentLine.setPosition(x, y);
-    window.draw(accentLine);
+    sf::RectangleShape hairline({InspectorWidth, 1.f});
+    hairline.setFillColor(C_BORDER);
+    hairline.setPosition(x, y + 2.f);
+    window.draw(hairline);
+    y += 4.f;
 
     sf::Text text;
     text.setFont(*m_Font);
@@ -1424,69 +1465,74 @@ float UIEditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::stri
     text.setFillColor(accent);
     text.setStyle(sf::Text::Bold);
     text.setString(title);
-    text.setPosition(x + 10.f, y + 6.f);
+    text.setPosition(x + 10.f + 2.f, y + 4.f);
     window.draw(text);
 
-    return y + 28.f;
+    return y + 20.f;
 }
 
 float UIEditorScene::DrawRow(sf::RenderWindow &window, const std::string &key, const std::string &val, float x, float y)
 {
-    sf::Text tk;
-    tk.setFont(*m_Font);
-    tk.setCharacterSize(12);
-    tk.setFillColor(C_TEXT_SECONDARY);
-    tk.setString(key);
-    tk.setPosition(x + 10.f, y + 4.f);
-    window.draw(tk);
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(key);
+    keyText.setPosition(x + 10.f + 4.f, y + 3.f);
+    window.draw(keyText);
 
-    sf::Text tv;
-    tv.setFont(*m_Font);
-    tv.setCharacterSize(12);
-    tv.setFillColor(C_TEXT_PRIMARY);
-    tv.setString(val);
-    tv.setPosition(x + 100.f, y + 4.f);
-    window.draw(tv);
+    sf::Text valText;
+    valText.setFont(*m_Font);
+    valText.setCharacterSize(12);
+    valText.setFillColor(C_TEXT_PRIMARY);
+    valText.setString(val);
+    const float valX = x + InspectorWidth * 0.44f;
+    valText.setPosition(valX + 4.f, y + 3.f);
+    window.draw(valText);
 
-    return y + 26.f;
+    return y + 20.f;
 }
 
 float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &key, const std::string &val,
                                      const std::string &action, float x, float y)
 {
-    const float rowH = 26.f;
+    const float rowH = 20.f;
     // Skip drawing and hitbox if completely outside the visible inspector area
     if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + rowH;
 
-    sf::FloatRect r(x + 96.f, y + 2.f, InspectorWidth - 106.f, 20.f);
-    bool hov = r.contains(m_MouseScreenPos);
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(key);
+    keyText.setPosition(x + 10.f + 4.f, y + 3.f);
+    window.draw(keyText);
 
-    if (hov)
-    {
-        sf::RectangleShape hbg(r.getSize());
-        hbg.setPosition(r.getPosition());
-        hbg.setFillColor(C_SURFACE_HOV);
-        window.draw(hbg);
-    }
+    const float valX = x + InspectorWidth * 0.44f;
+    const float valW = InspectorWidth - InspectorWidth * 0.44f - 10.f;
+    const sf::FloatRect fieldRect(valX, y, valW, 20.f);
+    const bool hovered = fieldRect.contains(m_MouseScreenPos);
 
-    sf::Text tk;
-    tk.setFont(*m_Font);
-    tk.setCharacterSize(12);
-    tk.setFillColor(C_TEXT_SECONDARY);
-    tk.setString(key);
-    tk.setPosition(x + 10.f, y + 4.f);
-    window.draw(tk);
+    sf::Color fieldFill = hovered ? C_BG_ELEVATED : C_BG_INPUT;
+    sf::Color fieldBorder = hovered ? C_ACCENT : C_BORDER;
 
-    sf::Text tv;
-    tv.setFont(*m_Font);
-    tv.setCharacterSize(12);
-    tv.setFillColor(C_TEXT_PRIMARY);
-    tv.setString(val);
-    tv.setPosition(x + 100.f, y + 4.f);
-    window.draw(tv);
+    sf::RectangleShape field({fieldRect.width, fieldRect.height});
+    field.setPosition(fieldRect.left, fieldRect.top);
+    field.setFillColor(fieldFill);
+    field.setOutlineColor(fieldBorder);
+    field.setOutlineThickness(1.f);
+    window.draw(field);
 
-    m_InspectorHitboxes.push_back({r, action});
+    sf::Text valText;
+    valText.setFont(*m_Font);
+    valText.setCharacterSize(12);
+    valText.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+    valText.setString(val);
+    valText.setPosition(valX + 4.f, y + 3.f);
+    window.draw(valText);
+
+    m_InspectorHitboxes.push_back({fieldRect, action});
     return y + rowH;
 }
 
@@ -1505,14 +1551,213 @@ float UIEditorScene::DrawActionButton(sf::RenderWindow &window, const std::strin
     r.width = t.getLocalBounds().width + 24.f;
 
     bool hov = r.contains(m_MouseScreenPos);
-    if (hov) fillColor.a = std::min(255, fillColor.a + 40);
+    bool active = (fillColor != C_BG_ELEVATED);
 
-    DrawPill(window, r, fillColor, borderColor);
+    sf::Color fill = active
+                         ? fillColor
+                         : hov
+                               ? C_BG_ELEVATED
+                               : sf::Color::Transparent;
+    sf::Color bdr = active
+                        ? sf::Color(borderColor.r, borderColor.g, borderColor.b, 200)
+                        : hov
+                              ? C_BORDER_LIGHT
+                              : sf::Color::Transparent;
+    DrawPill(window, r, fill, bdr);
 
-    t.setFillColor(C_TEXT_PRIMARY);
-    t.setPosition(x + 12.f, y + 3.f);
+    t.setFillColor(active
+                       ? sf::Color(borderColor.r, borderColor.g, borderColor.b, 255)
+                       : hov
+                             ? C_TEXT_PRIMARY
+                             : C_TEXT_SECONDARY);
+    t.setPosition(r.left + (r.width - t.getLocalBounds().width) / 2.f,
+                  r.top + (r.height - t.getLocalBounds().height) / 2.f - 2.f);
     window.draw(t);
 
     m_InspectorHitboxes.push_back({r, action});
     return y + 30.f;
+}
+void UIEditorScene::InitMenus()
+{
+    MenuEntry datei;
+    datei.label = "File";
+    datei.items = {
+        {"Save UI", "save", false, "Ctrl+S"},
+        {"", "", true, ""},
+        {"Quit", "quit", false, ""}
+    };
+
+    MenuEntry edit;
+    edit.label = "Edit";
+    edit.items = {
+        {"Delete Element", "delete", false, "Del"},
+        {"Deselect", "deselect", false, "Esc"},
+        {"", "", true, ""},
+        {"Clear UI", "clear", false, ""}
+    };
+
+    MenuEntry ansicht;
+    ansicht.label = "View";
+    ansicht.items = {
+        {"Center Camera", "center_camera", false, ""}
+    };
+
+    MenuEntry tools;
+    tools.label = "Tools";
+    tools.items = {
+        {"Game Editor", "back", false, ""}
+    };
+
+    m_Menus = {datei, edit, ansicht, tools};
+}
+
+void UIEditorScene::HandleMenuAction(const std::string &action)
+{
+    if (action == "save") {
+        HandleAction("save");
+    } else if (action == "quit") {
+        m_Window.close();
+    } else if (action == "delete") {
+        DeleteSelected();
+    } else if (action == "deselect") {
+        m_SelectedElement = nullptr;
+        m_ActiveField = EditField::None;
+    } else if (action == "clear") {
+        UIManager::Get().GetElements().clear();
+        m_SelectedElement = nullptr;
+    } else if (action == "center_camera") {
+        m_CanvasView.setCenter(m_CanvasSize.x / 2.f, m_CanvasSize.y / 2.f);
+    } else if (action == "back") {
+        HandleAction("back");
+    }
+}
+
+void UIEditorScene::DrawMenuBar(sf::RenderWindow &window)
+{
+    const float w = static_cast<float>(window.getSize().x);
+
+    sf::RectangleShape bg({w, MenuBarHeight});
+    bg.setFillColor(C_BG_PANEL);
+    bg.setPosition(0.f, 0.f);
+    window.draw(bg);
+
+    sf::RectangleShape border({w, 1.f});
+    border.setFillColor(C_BORDER);
+    border.setPosition(0.f, MenuBarHeight - 1.f);
+    window.draw(border);
+
+    m_MenuItemHitboxes.clear();
+
+    float x = 6.f;
+    for (int i = 0; i < (int) m_Menus.size(); i++)
+    {
+        auto &menu = m_Menus[i];
+        const bool open = (m_OpenMenuIndex == i);
+        const bool hovered = menu.bounds.contains(m_MouseScreenPos) || open;
+
+        sf::Text lbl;
+        lbl.setFont(*m_Font);
+        lbl.setCharacterSize(12);
+        lbl.setString(menu.label);
+
+        const float itemW = lbl.getLocalBounds().width + 22.f;
+        menu.bounds = sf::FloatRect(x, 0.f, itemW, MenuBarHeight);
+
+        if (hovered)
+        {
+            sf::RectangleShape hbg({itemW - 2.f, MenuBarHeight - 6.f});
+            hbg.setFillColor(open ? C_ACCENT_DIM : C_BG_ELEVATED);
+            hbg.setPosition(x + 1.f, 3.f);
+            window.draw(hbg);
+        }
+
+        lbl.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        lbl.setPosition(x + 10.f, 8.f);
+        window.draw(lbl);
+
+        if (open)
+        {
+            float maxLabelW = 0.f;
+            float maxShortW = 0.f;
+            for (auto &item: menu.items)
+            {
+                if (item.isSeparator) continue;
+                sf::Text tmp;
+                tmp.setFont(*m_Font);
+                tmp.setCharacterSize(12);
+                tmp.setString(item.label);
+                maxLabelW = std::max(maxLabelW, tmp.getLocalBounds().width);
+                if (!item.shortcut.empty())
+                {
+                    tmp.setCharacterSize(11);
+                    tmp.setString(item.shortcut);
+                    maxShortW = std::max(maxShortW, tmp.getLocalBounds().width);
+                }
+            }
+
+            const float dropW = std::max(maxLabelW + maxShortW + 52.f, 190.f);
+            const float dropX = x;
+            const float dropY = MenuBarHeight;
+
+            float dropH = 8.f;
+            for (auto &item: menu.items)
+                dropH += item.isSeparator ? 8.f : 28.f;
+
+            sf::RectangleShape dbg({dropW, dropH});
+            dbg.setFillColor(C_BG_ELEVATED);
+            dbg.setOutlineColor(C_BORDER_LIGHT);
+            dbg.setOutlineThickness(1.f);
+            dbg.setPosition(dropX, dropY);
+            window.draw(dbg);
+
+            float iy = dropY + 4.f;
+            for (auto &item: menu.items)
+            {
+                if (item.isSeparator)
+                {
+                    sf::RectangleShape sep({dropW - 12.f, 1.f});
+                    sep.setFillColor(C_BORDER);
+                    sep.setPosition(dropX + 6.f, iy + 3.f);
+                    window.draw(sep);
+                    iy += 8.f;
+                    continue;
+                }
+
+                const sf::FloatRect ir(dropX, iy, dropW, 28.f);
+                const bool ih = ir.contains(m_MouseScreenPos);
+
+                if (ih)
+                {
+                    sf::RectangleShape ibg({dropW - 6.f, 26.f});
+                    ibg.setFillColor(C_ACCENT_DIM);
+                    ibg.setPosition(dropX + 3.f, iy + 1.f);
+                    window.draw(ibg);
+                }
+
+                sf::Text il;
+                il.setFont(*m_Font);
+                il.setCharacterSize(12);
+                il.setFillColor(ih ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+                il.setString(item.label);
+                il.setPosition(dropX + 14.f, iy + 7.f);
+                window.draw(il);
+
+                if (!item.shortcut.empty())
+                {
+                    sf::Text sl;
+                    sl.setFont(*m_Font);
+                    sl.setCharacterSize(10);
+                    sl.setFillColor(C_TEXT_MUTED);
+                    sl.setString(item.shortcut);
+                    sl.setPosition(dropX + dropW - sl.getLocalBounds().width - 10.f, iy + 8.f);
+                    window.draw(sl);
+                }
+
+                m_MenuItemHitboxes.push_back({ir, item.action});
+                iy += 28.f;
+            }
+        }
+
+        x += itemW;
+    }
 }

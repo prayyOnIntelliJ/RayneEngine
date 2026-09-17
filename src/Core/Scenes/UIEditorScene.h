@@ -31,7 +31,9 @@ private:
 
     std::shared_ptr<sf::Font> m_Font;
 
+    static constexpr float MenuBarHeight = 30.f;
     static constexpr float ToolbarHeight = 34.f;
+    static constexpr float TopBarHeight = MenuBarHeight + ToolbarHeight;
     static constexpr float PaletteWidth = 200.f;
     static constexpr float InspectorWidth = 270.f;
     static constexpr float HierarchyHeight = 350.f;
@@ -40,6 +42,29 @@ private:
     sf::FloatRect m_PaletteBounds;
     sf::FloatRect m_InspectorBounds;
     sf::FloatRect m_HierarchyBounds;
+
+    struct MenuItem
+    {
+        std::string label;
+        std::string action;
+        bool isSeparator = false;
+        std::string shortcut;
+    };
+
+    struct MenuEntry
+    {
+        std::string label;
+        std::vector<MenuItem> items;
+        sf::FloatRect bounds;
+    };
+
+    std::vector<MenuEntry> m_Menus;
+    int m_OpenMenuIndex = -1;
+    std::vector<std::pair<sf::FloatRect, std::string>> m_MenuItemHitboxes;
+
+    void InitMenus();
+    void DrawMenuBar(sf::RenderWindow &window);
+    void HandleMenuAction(const std::string &action);
 
     sf::View m_CanvasView;
     sf::Vector2f m_CanvasSize = {1920.f, 1080.f};
