@@ -42,6 +42,11 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             registry.AddComponent(entity, SpriteComponent(j["sprite"].get<std::string>(), size));
         }
 
+        if (j.contains("tag"))
+        {
+            registry.AddComponent(entity, TagComponent{j["tag"].get<std::string>()});
+        }
+
         if (j.contains("velocity"))
         {
             registry.AddComponent(entity, VelocityComponent{
@@ -58,6 +63,12 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
 
         if (j.contains("camera") && j["camera"] == true) { registry.AddComponent(entity, CameraComponent{true}); }
 
-        if (j.contains("collision")) { registry.AddComponent(entity, CollisionComponent{j["collision"]["channel"]}); }
+        if (j.contains("collision")) 
+        { 
+            CollisionType cType = CollisionType::Static;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
+                cType = CollisionType::Solid;
+            registry.AddComponent(entity, CollisionComponent{j["collision"]["channel"], cType}); 
+        }
     }
 }

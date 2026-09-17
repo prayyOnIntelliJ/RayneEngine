@@ -59,9 +59,10 @@ RayneEngine
 
 The built-in level editor provides a real-time environment for constructing and previewing 2D game scenes:
 
-- **Entity Hierarchy:** Scrollable list displaying all active scene entities. Supports selection, inspection, and context menu actions (duplicate, delete).
+- **Entity Hierarchy:** Scrollable list displaying all active scene entities. Supports multi-selection, tag inspection, and context menu actions (rename, duplicate, delete).
 - **Property Inspector:**
-  - Live numerical manipulation of position (`x`, `y`) and size (`width`, `height`).
+  - Live numerical manipulation of position (`x`, `y`), size (`width`, `height`), rotation (degrees), and scale (`scaleX`, `scaleY`).
+  - Entity Tag and Name assignment for easy query from Lua scripts.
   - Color palette tinting (`R`, `G`, `B`) for primitives and sprites.
   - Script path assignment with automatic Lua binding.
   - Sprite asset assignment with aspect-correct scaling.
@@ -72,12 +73,17 @@ The built-in level editor provides a real-time environment for constructing and 
   - File management: Create scripts, scenes, or folders, rename assets, and delete files.
   - Drag-and-drop: Drag textures or scripts from the browser directly onto viewport entities.
   - Scene loading: Double-click or trigger scene loading requests directly from the browser.
-- **Interactive Viewport:**
+- **Interactive Viewport & Selection:**
   - Free camera panning using Middle Mouse Button (invertible and sensitivity-configurable).
   - Smooth camera zooming with user-defined min/max limits.
+  - **Multi-Selection & Box-Select:** Drag in empty space to create a selection box (marquee select); hold `Shift` or `Ctrl` to toggle entities in the selection group.
+  - **Group Manipulation:** Move or delete multiple selected entities simultaneously.
+  - **Undo / Redo (Command Pattern):** Full history stack supporting `Ctrl + Z` and `Ctrl + Y` for entity creation, deletion, dragging, and resizing (including atomic macro-actions for multi-object operations).
   - 8-point interactive resize handles for live scaling of selected objects.
   - Grid rendering with configurable cell dimensions, color, and opacity.
   - Toggleable snap-to-grid alignment.
+- **Scene Serialization:**
+  - Completely relative asset paths: Sprite textures and script files are saved relative to `assets/` for cross-platform and team portability.
 - **Auto-Save & Configuration:**
   - Configurable auto-save intervals with on-screen notification popups.
   - Persistent JSON-based editor settings dialog covering general, editor, camera, and debug parameters.
@@ -96,13 +102,14 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 - **`Pool<T>`:** Contiguous memory pools storing component instances with sparse-to-dense mappings for fast iteration.
 - **`View<Components...>`:** Multi-component query views enabling `Registry::ForEach<T1, T2>(...)` iteration patterns.
 - **Available Components:**
-  - `TransformComponent`: 2D position (`float x`, `float y`).
+  - `TagComponent`: Name and classification tag for entities (`std::string tag`).
+  - `TransformComponent`: 2D spatial position (`float x`, `float y`), rotation angle in degrees (`float rotation`), and scaling (`float scaleX`, `float scaleY`).
   - `VelocityComponent`: Movement delta (`float dx`, `float dy`).
   - `RenderComponent`: Visual representation (`sf::Color`, `sf::Vector2f size`, and `ShapeType`: Rectangle, Circle, Triangle, Pentagon, Hexagon).
   - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions.
   - `CameraComponent`: Marks an entity as the active camera focus (`bool active`).
   - `CollisionComponent`: Configures collision filtering via an integer `channel`.
-  - `ScriptComponent`: Encapsulates a sol2 Lua state environment and lifecycle hooks.
+  - `ScriptComponent`: Encapsulates a sol2 Lua state environment, filesystem modification timestamp tracking for live hot-reloading, and lifecycle hooks.
 
 ---
 
@@ -151,25 +158,30 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 | Shortcut / Input | Context | Action |
 |---|---|---|
 | `F5` | Editor | Run simulation in Play Mode (`GameScene`) |
+| `F6` | Game Mode | Hot-reload all modified Lua scripts dynamically |
 | `Escape` | Game Mode | Return to Editor Mode |
 | `Escape` | Editor | Cancel text input, close menus, or deselect active entity |
-| `Ctrl + S` | Editor | Save current scene to JSON |
+| `Ctrl + Z` | Editor | Undo last action (create, delete, move, resize) |
+| `Ctrl + Y` | Editor | Redo last undone action |
+| `Ctrl + S` | Editor | Save current scene to JSON (using relative asset paths) |
 | `Ctrl + L` | Editor | Reload current scene from JSON |
 | `Ctrl + D` | Editor | Duplicate selected entity with offset |
 | `Ctrl + ,` | Editor | Open / Close Editor Settings modal |
 | `G` | Editor | Toggle grid snapping on / off |
-| `Delete` | Editor | Delete currently selected entity |
+| `Delete` | Editor | Delete all currently selected entities |
 | `Middle Mouse Drag` | Editor | Pan camera viewport |
 | `Mouse Scroll Wheel` | Editor | Zoom camera in / out |
 | `Left Click (Entity)` | Editor | Select entity and drag to reposition |
+| `Shift / Ctrl + Click`| Editor | Add or toggle entity in multi-selection group |
+| `Left Click + Drag (Empty)` | Editor | Box-select (marquee) multiple entities in viewport |
 | `Left Click (Handles)`| Editor | Resize entity along 8 anchor handles |
-| `Left Click (Empty)`  | Editor | Place new primitive shape of selected type |
+| `Left Click (Empty)`  | Editor | Place new primitive shape of selected type (on click) |
 
 ---
 
 ## Complete Lua Scripting API
 
-RayneEngine embeds Lua 5.4 using `sol2`. Every script attached to an entity receives its own isolated environment with the entity handle available through the global `self` variable.
+RayneEngine embeds Lua 5.4 using `sol2`. Every script attached to an entity receives its own isolated environment with the entity handle available through the global `self` variable. Scripts are automatically monitored and hot-reloaded at runtime upon file modification.
 
 ### Lifecycle Hooks
 
@@ -195,9 +207,17 @@ end
 |---|---|---|
 | `CreateEntity` | `() -> Entity` | Instantiates a new entity and returns its integer ID |
 | `DestroyEntity` | `(e: Entity)` | Removes an entity and all its attached components |
+| `AddTag` | `(e: Entity, tag: string)` | Attaches or updates entity `TagComponent` |
+| `GetTag` | `(e: Entity) -> string` | Retrieves entity tag / name string |
+| `HasTag` | `(e: Entity) -> boolean` | Checks if entity has a `TagComponent` |
+| `FindEntityWithTag` | `(tag: string) -> Entity` | Searches and returns first entity with matching tag, or 0 |
 | `AddTransform` | `(e: Entity, x: number, y: number)` | Attaches a `TransformComponent` |
-| `GetTransform` | `(e: Entity) -> Transform` | Returns a mutable reference to `{ x, y }` |
+| `GetTransform` | `(e: Entity) -> Transform` | Returns a mutable reference to `{ x, y, rotation, scaleX, scaleY }` |
 | `SetPosition` | `(e: Entity, x: number, y: number)` | Sets spatial position directly |
+| `GetRotation` | `(e: Entity) -> number` | Gets spatial rotation angle in degrees |
+| `SetRotation` | `(e: Entity, angle: number)` | Sets spatial rotation angle in degrees |
+| `GetScale` | `(e: Entity) -> table` | Returns current scale `{ x, y }` |
+| `SetScale` | `(e: Entity, sx: number, sy: number)` | Sets spatial scale factors |
 | `HasTransform` | `(e: Entity) -> boolean` | Checks if entity has a transform |
 | `AddVelocity` | `(e: Entity, dx: number, dy: number)` | Attaches a `VelocityComponent` |
 | `GetVelocity` | `(e: Entity) -> Velocity` | Returns a mutable reference to `{ dx, dy }` |
@@ -290,6 +310,49 @@ Strings `"Left"`, `"Right"`, `"Middle"` are also accepted.
 | `Resource.FontCount` | `() -> number` | Number of cached fonts |
 | `Resource.SoundCount` | `() -> number` | Number of cached sounds |
 | `Resource.PrintStats` | `()` | Prints memory statistics to console |
+
+---
+
+### Timer Library (`Timer`)
+
+The `Timer` utility allows scheduling one-shot and recurring Lua callbacks without manual delta-time accumulators:
+
+| Function | Signature | Description |
+|---|---|---|
+| `Timer.After` | `(delay: number, callback: function)` | Executes the callback function once after `delay` seconds |
+| `Timer.Every` | `(interval: number, callback: function)` | Periodically executes the callback every `interval` seconds |
+
+```lua
+-- Example: Spawn an effect after 1.5 seconds, and play a heart-beat sound every 2 seconds
+Timer.After(1.5, function()
+    print("One-shot timer fired!")
+end)
+
+Timer.Every(2.0, function()
+    Audio.PlaySound("assets/sounds/heartbeat.wav", 60)
+end)
+```
+
+---
+
+### Tween Library (`Tween`)
+
+The `Tween` utility provides smooth position interpolation for entities with easing curves:
+
+| Function | Signature | Description |
+|---|---|---|
+| `Tween.Position` | `(entity: Entity, targetX: number, targetY: number, duration: number, [easing="linear"]: string)` | Interpolates entity position over `duration` seconds |
+
+**Supported Easing Modes:**
+- `"linear"`: Constant velocity interpolation
+- `"ease_in"`: Quadratic acceleration starting slowly
+- `"ease_out"`: Quadratic deceleration ending gently
+- `"ease_in_out"`: Smooth ease-in followed by ease-out
+
+```lua
+-- Example: Move an entity smoothly to (500, 300) over 1.2 seconds with ease_out
+Tween.Position(self, 500, 300, 1.2, "ease_out")
+```
 
 ---
 

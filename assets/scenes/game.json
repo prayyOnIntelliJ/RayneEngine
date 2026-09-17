@@ -4,7 +4,8 @@
         {
             "camera": true,
             "collision": {
-                "channel": 0
+                "channel": 0,
+                "type": "static"
             },
             "color": [
                 100,
@@ -21,7 +22,8 @@
         },
         {
             "collision": {
-                "channel": 0
+                "channel": 0,
+                "type": "solid"
             },
             "color": [
                 149,
@@ -105,6 +107,32 @@
             "width": 80.0,
             "x": 1840.0,
             "y": 480.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 1080.0,
+            "y": 720.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_1",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 1080.0,
+            "y": 640.0
         }
     ]
 }

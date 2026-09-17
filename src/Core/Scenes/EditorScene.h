@@ -2,7 +2,9 @@
 #define EDITORSCENE_H
 
 #include <vector>
+#include <list>
 #include <string>
+#include <map>
 #include <nlohmann/json.hpp>
 
 #include "ContentBrowser.h"
@@ -25,6 +27,7 @@ enum class ObjectType { Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite }
 struct EditorObject
 {
     std::string id;
+    std::string tag;
     Entity entity = 0;
     sf::RectangleShape shape;
     sf::CircleShape circleShape;
@@ -35,6 +38,9 @@ struct EditorObject
     std::string spritePath;
     std::shared_ptr<sf::Texture> previewTexture;
     sf::Sprite previewSprite;
+    float rotation = 0.f;
+    float scaleX = 1.f;
+    float scaleY = 1.f;
 };
 
 struct InspectorButton
@@ -58,6 +64,35 @@ struct MenuEntry
     sf::FloatRect bounds;
 };
 
+class EditorScene;
+
+class EditorCommand {
+public:
+    virtual ~EditorCommand() = default;
+    virtual void Execute(EditorScene* scene) = 0;
+    virtual void Undo(EditorScene* scene) = 0;
+};
+
+class ObjectStateCommand : public EditorCommand {
+public:
+    std::string objectId;
+    nlohmann::json beforeState;
+    nlohmann::json afterState;
+
+    ObjectStateCommand(std::string id, nlohmann::json before, nlohmann::json after) 
+        : objectId(std::move(id)), beforeState(std::move(before)), afterState(std::move(after)) {}
+
+    void Execute(EditorScene* scene) override;
+    void Undo(EditorScene* scene) override;
+};
+
+class MacroCommand : public EditorCommand {
+public:
+    std::vector<std::shared_ptr<EditorCommand>> commands;
+    void Execute(EditorScene* scene) override { for(auto& c : commands) c->Execute(scene); }
+    void Undo(EditorScene* scene) override { for(auto it = commands.rbegin(); it != commands.rend(); ++it) (*it)->Undo(scene); }
+};
+
 class EditorScene : public Scene
 {
 public:
@@ -77,8 +112,12 @@ private:
     sf::RenderWindow &m_Window;
     Registry &m_Registry;
 
-    std::vector<EditorObject> m_Objects;
+    std::list<EditorObject> m_Objects;
     EditorObject *m_Selected = nullptr;
+    std::vector<EditorObject*> m_SelectedObjects;
+    bool m_BoxSelecting = false;
+    sf::Vector2f m_BoxSelectStart;
+    sf::RectangleShape m_BoxSelectShape;
     int m_IdCounter = 0;
 
     sf::View m_camera;
@@ -159,8 +198,12 @@ private:
     {
         None,
         Name,
+        Tag,
         TransformX,
         TransformY,
+        Rotation,
+        ScaleX,
+        ScaleY,
         SizeW,
         SizeH,
         ColorR,
@@ -249,6 +292,23 @@ private:
     void UpdateBounds();
 
     void DeleteSelected();
+    
+    void ClearSelection();
+    void SelectObject(EditorObject* obj, bool multi);
+    bool IsSelected(const EditorObject* obj) const;
+
+    json SerializeObject(const EditorObject& obj) const;
+    void DeserializeObject(const json& j);
+    void ApplyState(EditorObject& obj, const json& j);
+    void RemoveObject(const std::string& id);
+
+    void ExecuteCommand(std::shared_ptr<EditorCommand> command);
+    void UndoCommand();
+    void RedoCommand();
+
+    std::vector<std::shared_ptr<EditorCommand>> m_UndoStack;
+    std::vector<std::shared_ptr<EditorCommand>> m_RedoStack;
+    std::map<std::string, json> m_DragBeforeStates;
 
     void SaveToJson(const std::string &path);
 
@@ -265,6 +325,7 @@ private:
     sf::Vector2f MouseWorldPos() const;
 
     EditorObject *ObjectAt(sf::Vector2f pos);
+    EditorObject *ObjectById(const std::string& id);
 
     void DrawGrid();
 
