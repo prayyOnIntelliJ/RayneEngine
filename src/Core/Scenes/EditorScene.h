@@ -95,6 +95,9 @@ public:
 
 class EditorScene : public Scene
 {
+    friend class EditorCommand;
+    friend class ObjectStateCommand;
+
 public:
     EditorScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry);
 
