@@ -5,6 +5,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Version-0.1.0-blue.svg" alt="Version 0.1.0" />
   <img src="https://img.shields.io/badge/Language-C%2B%2B20-blue.svg" alt="C++20" />
   <img src="https://img.shields.io/badge/Framework-SFML_2.6-darkgreen.svg" alt="SFML 2.6" />
   <img src="https://img.shields.io/badge/Scripting-Lua_5.4_%2B_sol2-purple.svg" alt="Lua 5.4" />
@@ -19,12 +20,15 @@
 
 **RayneEngine** is a modular 2D game engine built with modern C++20 and [SFML](https://www.sfml-dev.org/). Designed as an in-depth portfolio project during game engineering training, it focuses on exploring clean software design patterns, high performance, and core engine subsystems from first principles:
 
-- Custom, cache-conscious **Entity Component System (ECS)**
-- Native **Visual Level Editor** with live property inspection, grid snapping, and content browser
-- Embedded **Lua 5.4 scripting environment** via `sol2` with lifecycle events
-- **AABB Collision Detection** with multi-channel filtering
+- Custom, cache-conscious **Entity Component System (ECS)** supporting up to 5 000 entities
+- Native **Visual Level Editor** with live property inspection, grid snapping, and undo/redo
+- Dedicated **UI Editor** for designing game HUDs visually on a fixed 1920×1080 canvas
+- **In-Editor Console Panel** with live stdout/stderr capture, scrollable log, and command input
+- Embedded **Lua 5.4 scripting environment** via `sol2` with lifecycle events and hot-reload
+- **Solid & Static AABB Collision Detection** with multi-channel filtering and physical push-apart resolution
 - Multi-channel **Audio Engine** and hardware input polling
-- Complete **JSON Scene Serialization** and project auto-saving
+- Complete **JSON Scene & UI Serialization** and project auto-saving
+- **UI Manager** for runtime Text, Panel, and Button elements controlled from Lua
 
 ---
 
@@ -39,12 +43,15 @@ RayneEngine
 |   |-- Audio/           AudioManager sound effect pool (32 channels) and music streaming
 |   |-- ECS/             Registry, component pools, view iterators, entity handles
 |   |-- Input/           InputManager keyboard & mouse tracking with frame edge detection
-|   |-- Math/            MathR custom math routines, interpolation, trigonometric tables
+|   |-- Math/            MathR custom math routines, interpolation, trigonometric tables; Vector3
 |   |-- Primitives/      Geometric primitive factories (Rectangles, Circles, Polygons)
 |   |-- Resources/       ResourceManager centralized caching (textures, fonts, sounds)
-|   |-- Scenes/          SceneManager, EditorScene, GameScene, ContentBrowser, SceneSerializer
-|   `-- Scripting/       LuaState bindings, ScriptComponent lifecycle, EventManager
-`-- assets/              Scenes, scripts, audio files, fonts, and textures
+|   |-- Scenes/          SceneManager, EditorScene, UIEditorScene, GameScene,
+|   |                    ContentBrowser, ConsolePanel, SceneSerializer
+|   |-- Scripting/       LuaState bindings, ScriptComponent lifecycle, EventManager,
+|   |                    TimerManager, TweenManager, api_stub.lua
+|   `-- UI/              UIManager (Text, Panel, Button elements, JSON persistence)
+`-- assets/              Scenes, scripts, audio files, fonts, textures, and UI layouts
 ```
 
 <p align="center">
@@ -66,19 +73,28 @@ The built-in level editor provides a real-time environment for constructing and 
   - Color palette tinting (`R`, `G`, `B`) for primitives and sprites.
   - Script path assignment with automatic Lua binding.
   - Sprite asset assignment with aspect-correct scaling.
-  - Collision channel configuration for physics filtering.
+  - Collision channel and type configuration (`Static` / `Solid`) for physics filtering.
+  - UI element text editing directly from the inspector (`UIText` field).
 - **Content Browser:**
   - Integrated file browser with breadcrumb navigation and path history.
-  - Asset category filters: All, Images, Scripts, Audio, and Scenes.
-  - File management: Create scripts, scenes, or folders, rename assets, and delete files.
+  - Asset category filters: All, Images, Scripts, Audio, Scenes.
+  - Live search bar with instant filtering across all entries.
+  - File management: Create scripts, scenes, or folders; rename, duplicate, or delete assets; copy asset path to clipboard; reveal file in OS file explorer.
   - Drag-and-drop: Drag textures or scripts from the browser directly onto viewport entities.
   - Scene loading: Double-click or trigger scene loading requests directly from the browser.
+- **In-Editor Console Panel:**
+  - Switchable bottom panel (Content Browser ↔ Console via tab bar).
+  - Captures all `std::cout` and `std::cerr` output in real time via stream redirectors installed at engine boot.
+  - Color-coded log lines: normal output in light grey, errors in red.
+  - Scrollable log area with draggable scrollbar and mouse-wheel support; auto-scrolls to the newest message.
+  - Command input field with blinking cursor, Ctrl+V paste support, and Enter-to-submit.
+  - Built-in `clear` command to reset the log. Buffer capped at 2 000 messages.
 - **Interactive Viewport & Selection:**
   - Free camera panning using Middle Mouse Button (invertible and sensitivity-configurable).
   - Smooth camera zooming with user-defined min/max limits.
   - **Multi-Selection & Box-Select:** Drag in empty space to create a selection box (marquee select); hold `Shift` or `Ctrl` to toggle entities in the selection group.
   - **Group Manipulation:** Move or delete multiple selected entities simultaneously.
-  - **Undo / Redo (Command Pattern):** Full history stack supporting `Ctrl + Z` and `Ctrl + Y` for entity creation, deletion, dragging, and resizing (including atomic macro-actions for multi-object operations).
+  - **Undo / Redo (Command Pattern):** Full history stack supporting `Ctrl + Z` and `Ctrl + Y` for entity creation, deletion, dragging, and resizing — including atomic `MacroCommand` grouping for multi-object operations.
   - 8-point interactive resize handles for live scaling of selected objects.
   - Grid rendering with configurable cell dimensions, color, and opacity.
   - Toggleable snap-to-grid alignment.
@@ -86,7 +102,7 @@ The built-in level editor provides a real-time environment for constructing and 
   - Completely relative asset paths: Sprite textures and script files are saved relative to `assets/` for cross-platform and team portability.
 - **Auto-Save & Configuration:**
   - Configurable auto-save intervals with on-screen notification popups.
-  - Persistent JSON-based editor settings dialog covering general, editor, camera, and debug parameters.
+  - Persistent JSON-based editor settings dialog covering general, editor, camera, and debug parameters (including pan inversion, scroll sensitivity, log level, and title bar auto-save indicator).
 - **Debug Overlays:**
   - Real-time FPS monitoring with configurable framerate limits.
   - Collider outline rendering for rapid physics debugging.
@@ -94,22 +110,48 @@ The built-in level editor provides a real-time environment for constructing and 
 
 ---
 
+### UI Editor (`UIEditorScene`)
+
+A dedicated scene for visually designing the game's HUD and UI layouts:
+
+- **Fixed 1920×1080 canvas** — matches the runtime UI view for pixel-perfect WYSIWYG design.
+- **Element Palette** — create Text, Panel, and Button UI elements with a single click.
+- **Canvas Interaction** — select, drag, and resize elements using 8-point handles; middle-mouse pan across the canvas.
+- **Element Hierarchy** — scrollable panel listing all UI elements by auto-generated ID (`text_1`, `panel_1`, `btn_1`, …).
+- **Property Inspector** — live editing of 40+ fields including position, size, z-index, opacity, color (RGBA), text content, font size, letter/line spacing, text alignment (`Left` / `Center` / `Right`), text style bitmask (Bold, Italic, Underline, StrikeThrough), text outline, text offset, button normal/hover/pressed/disabled colors, and panel border/outline.
+- **Persistence** — UI layouts are saved to and loaded from `assets/ui.json` via the `UIManager`. The engine reloads this file on startup automatically.
+- **Menu Bar** — Save, Load, New UI, and Back to Editor actions.
+
+---
+
+### UI Manager (`UIManager`)
+
+The runtime UI system renders interactive elements on top of the game world in a fixed 1920×1080 screen-space view:
+
+- **Element types:** `Text`, `Panel`, `Button`
+- **Z-ordering:** Elements are sorted by `zIndex` for correct layering (ascending for render, descending for hit testing).
+- **Button interactivity:** Tracks hover, pressed, and released states per frame; supports disabled state with a distinct color.
+- **JSON persistence:** `UIManager::Save()` / `UIManager::Load()` serialise and restore all element properties.
+- **Lua integration:** All properties are controllable from Lua scripts at runtime (see [UI Library](#ui-library-ui) below).
+
+---
+
 ### Entity Component System (ECS)
 
-The custom ECS emphasizes data locality, cache friendliness, and clean decoupling:
+The custom ECS emphasizes data locality, cache friendliness, and clean decoupling. The registry supports up to **5 000 entities** (`MAX_ENTITIES = 5000`):
 
-- **`Registry`:** Manages entity lifecycles (`CreateEntity`, `DestroyEntity`, `Clear`) and hosts type-safe component pools.
-- **`Pool<T>`:** Contiguous memory pools storing component instances with sparse-to-dense mappings for fast iteration.
-- **`View<Components...>`:** Multi-component query views enabling `Registry::ForEach<T1, T2>(...)` iteration patterns.
+- **`Registry`:** Manages entity lifecycles (`CreateEntity`, `DestroyEntity`, `Clear`) and hosts type-safe component pools. Entity IDs start at `1`; `NULL_ENTITY = 0`.
+- **`Pool<T>`:** Contiguous memory pools storing component instances with sparse-to-dense mappings for fast iteration (swap-and-pop removal).
+- **`View<Components...>`:** Multi-component query views enabling `Registry::ForEach<T1, T2>(...)` iteration patterns via range-based for loop support.
 - **Available Components:**
   - `TagComponent`: Name and classification tag for entities (`std::string tag`).
   - `TransformComponent`: 2D spatial position (`float x`, `float y`), rotation angle in degrees (`float rotation`), and scaling (`float scaleX`, `float scaleY`).
   - `VelocityComponent`: Movement delta (`float dx`, `float dy`).
   - `RenderComponent`: Visual representation (`sf::Color`, `sf::Vector2f size`, and `ShapeType`: Rectangle, Circle, Triangle, Pentagon, Hexagon).
-  - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions.
+  - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions; auto-loads via `ResourceManager` and computes scale on construction.
   - `CameraComponent`: Marks an entity as the active camera focus (`bool active`).
-  - `CollisionComponent`: Configures collision filtering via an integer `channel`.
-  - `ScriptComponent`: Encapsulates a sol2 Lua state environment, filesystem modification timestamp tracking for live hot-reloading, and lifecycle hooks.
+  - `CollisionComponent`: Configures collision filtering via an integer `channel` and a `CollisionType` (`Static` or `Solid`).
+  - `ScriptComponent`: Encapsulates a sol2 Lua environment, filesystem modification timestamp tracking for live hot-reloading, and lifecycle hooks.
 
 ---
 
@@ -117,7 +159,10 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 
 - **AABB Collision Detection:** Broad-phase and narrow-phase bounding box collision checks executed in `GameScene::CheckCollisions()`.
 - **Channel Filtering:** Collisions only occur between entities sharing the same integer collision channel (`channel == 0` by default).
-- **Edge Detection:** Tracks collision state between frame steps to dispatch events precisely on initial overlap.
+- **Collision Types:**
+  - `CollisionType::Static` *(default)* — passthrough detection; fires `OnCollision` event only.
+  - `CollisionType::Solid` — physical push-apart resolution using minimum overlap axis; only moves entities that have a `VelocityComponent`.
+- **Edge Detection:** Tracks collision state between frame steps to dispatch events precisely on the initial overlap frame only.
 - **`EventManager`:** Centralized observer mechanism triggering callbacks in both native C++ systems and active entity Lua scripts (`OnCollision`).
 
 ---
@@ -125,7 +170,7 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 ### Audio System (`AudioManager`)
 
 - **Channel Pooling:** Dynamically managed pool supporting up to 32 simultaneous sound effect instances with automated cleanup upon completion.
-- **Music Streaming:** Continuous background music playback with support for looping, pause, resume, individual volume control, and global master volume.
+- **Music Streaming:** Continuous background music playback with support for looping, pause, resume, individual volume control, and global master volume (rescales all active sounds proportionally).
 - **Asset Integration:** Communicates directly with the `ResourceManager` to ensure sound buffers are loaded once and reused across instances.
 
 ---
@@ -140,7 +185,7 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 
 ### Asset Management (`ResourceManager`)
 
-- **Resource Cache:** Thread-safe singleton repository caching `sf::Texture`, `sf::Font`, and `sf::SoundBuffer` instances via `std::shared_ptr`.
+- **Resource Cache:** Singleton repository caching `sf::Texture`, `sf::Font`, and `sf::SoundBuffer` instances via `std::shared_ptr`. Textures are loaded with `setSmooth(false)` by default.
 - **Memory Optimization:** Manual cache flushing capabilities (`ClearTextures`, `ClearFonts`, `ClearSounds`, `ClearAll`).
 - **Telemetry:** In-engine telemetry tracking loaded resource counts and memory utilization.
 
@@ -148,8 +193,19 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 
 ### Scene Management & Serialization
 
-- **`SceneManager`:** Finite state machine managing transitions between scene states (`EditorScene` and `GameScene`).
-- **`SceneSerializer`:** JSON serialization format preserving entity hierarchies, geometric types, colors, transforms, velocities, sprite textures, collision channels, and attached Lua scripts.
+- **`SceneManager`:** Finite state machine managing transitions between scene states: `"editor"` (`EditorScene`), `"ui_editor"` (`UIEditorScene`), and `"game"` (`GameScene`). Calls `OnExit()` / `OnEnter()` on transitions; throws `std::runtime_error` for unknown scene names.
+- **`SceneSerializer`:** JSON serialization format preserving entity hierarchies, geometric types, colors, transforms, velocities, sprite textures, collision channels, collision types, and attached Lua scripts.
+
+---
+
+### Engine Versioning
+
+The `Rayne` namespace in `EngineVersion.h` provides compile-time constants and helpers:
+
+- `Rayne::VERSION_MAJOR / MINOR / PATCH` — current version (`0.1.0`)
+- `Rayne::VersionString()` — returns `"0.1.0"`
+- `Rayne::PlatformString()` — returns `"Windows"` / `"macOS"` / `"Linux"` / `"Unknown"` based on compile-time macros
+- `Rayne::DEFAULT_PROJECT_NAME` — default window title prefix used in Play Mode
 
 ---
 
@@ -183,6 +239,8 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 
 RayneEngine embeds Lua 5.4 using `sol2`. Every script attached to an entity receives its own isolated environment with the entity handle available through the global `self` variable. Scripts are automatically monitored and hot-reloaded at runtime upon file modification.
 
+An `api_stub.lua` file (`---@meta`) ships with the engine, providing full LSP type annotations for IDE autocomplete in editors like VS Code with the Lua Language Server extension.
+
 ### Lifecycle Hooks
 
 ```lua
@@ -207,16 +265,15 @@ end
 |---|---|---|
 | `CreateEntity` | `() -> Entity` | Instantiates a new entity and returns its integer ID |
 | `DestroyEntity` | `(e: Entity)` | Removes an entity and all its attached components |
-| `AddTag` | `(e: Entity, tag: string)` | Attaches or updates entity `TagComponent` |
+| `AddTag` | `(e: Entity, tag: string)` | Attaches a new `TagComponent` |
+| `SetTag` | `(e: Entity, tag: string)` | Attaches or updates an existing `TagComponent` |
 | `GetTag` | `(e: Entity) -> string` | Retrieves entity tag / name string |
 | `HasTag` | `(e: Entity) -> boolean` | Checks if entity has a `TagComponent` |
-| `FindEntityWithTag` | `(tag: string) -> Entity` | Searches and returns first entity with matching tag, or 0 |
+| `FindEntityWithTag` | `(tag: string) -> Entity` | Searches and returns first entity with matching tag, or `0` |
 | `AddTransform` | `(e: Entity, x: number, y: number)` | Attaches a `TransformComponent` |
 | `GetTransform` | `(e: Entity) -> Transform` | Returns a mutable reference to `{ x, y, rotation, scaleX, scaleY }` |
 | `SetPosition` | `(e: Entity, x: number, y: number)` | Sets spatial position directly |
-| `GetRotation` | `(e: Entity) -> number` | Gets spatial rotation angle in degrees |
 | `SetRotation` | `(e: Entity, angle: number)` | Sets spatial rotation angle in degrees |
-| `GetScale` | `(e: Entity) -> table` | Returns current scale `{ x, y }` |
 | `SetScale` | `(e: Entity, sx: number, sy: number)` | Sets spatial scale factors |
 | `HasTransform` | `(e: Entity) -> boolean` | Checks if entity has a transform |
 | `AddVelocity` | `(e: Entity, dx: number, dy: number)` | Attaches a `VelocityComponent` |
@@ -227,16 +284,20 @@ end
 | `SetSprite` | `(e: Entity, path: string)` | Updates or swaps the sprite texture |
 | `SetSpriteSize` | `(e: Entity, w: number, h: number)` | Updates rendered dimensions of sprite |
 | `HasSprite` | `(e: Entity) -> boolean` | Checks if entity has a sprite |
-| `SetColor` | `(e: Entity, r: number, g: number, b: number, [a]: number)` | Sets color of `RenderComponent` (0-255) |
+| `SetColor` | `(e: Entity, r: number, g: number, b: number, [a]: number)` | Sets color of `RenderComponent` (0–255) |
 | `AddCamera` | `(e: Entity)` | Attaches camera tracking component |
 | `RemoveCamera` | `(e: Entity)` | Removes camera component |
 | `HasCamera` | `(e: Entity) -> boolean` | Checks if entity has camera tracking |
-| `AddCollision` | `(e: Entity, [channel]: integer)` | Attaches a `CollisionComponent` (default channel 0) |
+| `AddCollision` | `(e: Entity, [channel]: integer)` | Attaches a `CollisionComponent` (default channel `0`, type `Static`) |
 | `RemoveCollision` | `(e: Entity)` | Removes collision component |
 | `HasCollision` | `(e: Entity) -> boolean` | Checks if entity has collision enabled |
 | `SetCollisionChannel` | `(e: Entity, channel: integer)` | Sets collision filter channel |
 | `GetCollisionChannel` | `(e: Entity) -> integer` | Reads collision filter channel |
+| `SetCollisionType` | `(e: Entity, type: string)` | Sets collision type: `"static"` or `"solid"` |
+| `GetCollisionType` | `(e: Entity) -> string` | Returns current collision type as string |
 | `LoadScene` | `(sceneName: string)` | Switches active scene to `assets/scenes/<sceneName>.json` |
+
+> **Tip:** `GetTransform(e)` returns a mutable table — you can read and write `t.x`, `t.y`, `t.rotation`, `t.scaleX`, `t.scaleY` directly on the returned reference.
 
 ---
 
@@ -251,9 +312,9 @@ end
 | `MathR.AbsF` | `(value: number) -> number` | Returns floating-point absolute value |
 | `MathR.Ceil` | `(value: number) -> number` | Smallest integer greater than or equal to argument |
 | `MathR.Floor` | `(value: number) -> number` | Largest integer less than or equal to argument |
-| `MathR.Lerp` | `(start: number, endVal: number, factor: number) -> number` | Linearly interpolates between two values |
+| `MathR.Lerp` | `(start: number, endVal: number, factor: number) -> number` | Linearly interpolates between two values (factor clamped to `[0, 1]`) |
 | `MathR.InverseLerp` | `(start: number, endVal: number, value: number) -> number` | Computes interpolation factor for value |
-| `MathR.Sin` | `(x: number) -> number` | Sine computation via Taylor series approximation |
+| `MathR.Sin` | `(x: number) -> number` | Sine via 10-term Taylor series approximation |
 | `MathR.Cos` | `(x: number) -> number` | Cosine computation |
 
 ---
@@ -272,11 +333,12 @@ end
 | `Input.MouseY` | `() -> number` | Mouse vertical position in screen space |
 | `Input.MouseScroll` | `() -> number` | Mouse wheel scroll delta for current frame |
 
-**Key Enums (`Key`):** `A` through `Z`, `Space`, `Enter`, `Escape`, `LShift`, `RShift`, `LCtrl`, `RCtrl`, `Left`, `Right`, `Up`, `Down`, `Tab`, `Delete`.  
-Key strings like `"w"`, `"s"`, `"Space"`, `"Left"` are also accepted.
+**Key Enums (`Key`):** `A` through `Z`, `Space`, `Enter`, `Escape`, `LShift`, `RShift`, `LCtrl`, `RCtrl`, `Left`, `Right`, `Up`, `Down`, `Tab`, `Delete`.
+
+**Key strings** (case-insensitive): single letters `"a"`–`"z"`, digits `"0"`–`"9"`, `"space"`, `"enter"` / `"return"`, `"escape"` / `"esc"`, `"shift"` / `"lshift"`, `"rshift"`, `"ctrl"` / `"lctrl"`, `"rctrl"`, `"alt"` / `"lalt"`, `"ralt"`, `"left"`, `"right"`, `"up"`, `"down"`, `"tab"`, `"delete"` / `"del"`, `"backspace"`.
 
 **Mouse Enums (`Mouse`):** `Left`, `Right`, `Middle`.  
-Strings `"Left"`, `"Right"`, `"Middle"` are also accepted.
+Strings `"left"` / `"0"`, `"right"` / `"1"`, `"middle"` / `"2"` are also accepted.
 
 ---
 
@@ -290,8 +352,8 @@ Strings `"Left"`, `"Right"`, `"Middle"` are also accepted.
 | `Audio.StopMusic` | `()` | Stops background music stream |
 | `Audio.PauseMusic` | `()` | Pauses background music stream |
 | `Audio.ResumeMusic` | `()` | Resumes paused music stream |
-| `Audio.SetMusicVolume` | `(volume: number)` | Adjusts music volume (0 - 100) |
-| `Audio.SetMasterVolume` | `(volume: number)` | Adjusts global engine volume (0 - 100) |
+| `Audio.SetMusicVolume` | `(volume: number)` | Adjusts music volume (0–100) |
+| `Audio.SetMasterVolume` | `(volume: number)` | Adjusts global engine volume (0–100), rescales all active sounds |
 
 ---
 
@@ -315,21 +377,16 @@ Strings `"Left"`, `"Right"`, `"Middle"` are also accepted.
 
 ### Timer Library (`Timer`)
 
-The `Timer` utility allows scheduling one-shot and recurring Lua callbacks without manual delta-time accumulators:
+The `Timer` utility allows scheduling one-shot Lua callbacks without manual delta-time accumulators:
 
 | Function | Signature | Description |
 |---|---|---|
 | `Timer.After` | `(delay: number, callback: function)` | Executes the callback function once after `delay` seconds |
-| `Timer.Every` | `(interval: number, callback: function)` | Periodically executes the callback every `interval` seconds |
 
 ```lua
--- Example: Spawn an effect after 1.5 seconds, and play a heart-beat sound every 2 seconds
+-- Example: Spawn an effect after 1.5 seconds
 Timer.After(1.5, function()
     print("One-shot timer fired!")
-end)
-
-Timer.Every(2.0, function()
-    Audio.PlaySound("assets/sounds/heartbeat.wav", 60)
 end)
 ```
 
@@ -341,17 +398,60 @@ The `Tween` utility provides smooth position interpolation for entities with eas
 
 | Function | Signature | Description |
 |---|---|---|
-| `Tween.Position` | `(entity: Entity, targetX: number, targetY: number, duration: number, [easing="linear"]: string)` | Interpolates entity position over `duration` seconds |
+| `Tween.Position` | `(entity: Entity, targetX: number, targetY: number, duration: number, [easing]: string)` | Interpolates entity position over `duration` seconds |
 
 **Supported Easing Modes:**
-- `"linear"`: Constant velocity interpolation
-- `"ease_in"`: Quadratic acceleration starting slowly
-- `"ease_out"`: Quadratic deceleration ending gently
-- `"ease_in_out"`: Smooth ease-in followed by ease-out
+- `"linear"` *(default)* — constant velocity interpolation
+- `"EaseInQuad"` — quadratic acceleration (starts slowly)
+- `"EaseOutQuad"` — quadratic deceleration (ends gently)
+- `"EaseInOutQuad"` — smooth ease-in followed by ease-out
 
 ```lua
--- Example: Move an entity smoothly to (500, 300) over 1.2 seconds with ease_out
-Tween.Position(self, 500, 300, 1.2, "ease_out")
+-- Example: Move an entity smoothly to (500, 300) over 1.2 seconds
+Tween.Position(self, 500, 300, 1.2, "EaseOutQuad")
+```
+
+---
+
+### UI Library (`UI`)
+
+All UI elements designed in the **UI Editor** can be queried and manipulated from Lua scripts at runtime.
+
+| Function | Signature | Description |
+|---|---|---|
+| `UI_SetText` | `(id: string, text: string)` | Sets the display text of a Text or Button element |
+| `UI_GetText` | `(id: string) -> string` | Gets the current text content |
+| `UI_SetPosition` | `(id: string, x: number, y: number)` | Moves the element on the screen |
+| `UI_SetSize` | `(id: string, w: number, h: number)` | Resizes the element |
+| `UI_SetColor` | `(id: string, r, g, b, a: number)` | Sets the background fill color (0–255) |
+| `UI_SetZIndex` | `(id: string, z: integer)` | Controls render/hit-test order |
+| `UI_GetZIndex` | `(id: string) -> integer` | Reads current z-index |
+| `UI_IsButtonClicked` | `(id: string) -> boolean` | True during the frame the button was clicked |
+| `UI_IsButtonHovered` | `(id: string) -> boolean` | True while cursor is over the button |
+| `UI_SetVisible` | `(id: string, visible: boolean)` | Shows or hides the element |
+| `UI_GetVisible` | `(id: string) -> boolean` | Returns current visibility |
+| `UI_SetOpacity` | `(id: string, opacity: number)` | Sets opacity (0–255) |
+| `UI_SetTextStyle` | `(id: string, style: integer)` | SFML style bitmask: 0=Regular, 1=Bold, 2=Italic, 4=Underline, 8=StrikeThrough |
+| `UI_SetTextAlign` | `(id: string, align: integer)` | Text alignment: 0=Left, 1=Center, 2=Right |
+| `UI_SetUpperCase` | `(id: string, upper: boolean)` | Converts text to uppercase |
+| `UI_SetFontSize` | `(id: string, size: integer)` | Sets character size in pixels |
+| `UI_SetLetterSpacing` | `(id: string, spacing: number)` | Sets letter spacing factor |
+| `UI_SetLineSpacing` | `(id: string, spacing: number)` | Sets line spacing factor |
+| `UI_SetTextOutline` | `(id: string, r, g, b, a, thickness: number)` | Sets text outline color and thickness |
+| `UI_SetTextOffset` | `(id: string, ox: number, oy: number)` | Offsets text within the element |
+| `UI_SetTextColor` | `(id: string, r, g, b, a: number)` | Sets the text color independently |
+| `UI_SetOutline` | `(id: string, r, g, b, a, thickness: number)` | Sets panel/button border color and thickness |
+| `UI_SetDisabled` | `(id: string, disabled: boolean)` | Disables button interaction and applies disabled color |
+
+```lua
+-- Example: Show score label and react to button click
+function OnUpdate(self, dt)
+    UI_SetText("score_label", "Score: " .. tostring(score))
+
+    if UI_IsButtonClicked("btn_start") then
+        LoadScene("level1")
+    end
+end
 ```
 
 ---
@@ -359,15 +459,15 @@ Tween.Position(self, 500, 300, 1.2, "ease_out")
 ### Complete Lua Script Example
 
 ```lua
--- Player controller demonstrating Input, Transform, Audio, and Collision
+-- Player controller demonstrating Input, Transform, Audio, Collision, and UI
 local speed = 250
 local bounceAmplitude = 20
 local timer = 0
-local initialY = nil
 
 function OnCreate(self)
     if not HasCollision(self) then
         AddCollision(self, 0)
+        SetCollisionType(self, "solid")
     end
     print("Entity " .. tostring(self) .. " spawned successfully.")
 end
@@ -375,10 +475,6 @@ end
 function OnUpdate(self, dt)
     local t = GetTransform(self)
     if not t then return end
-
-    if initialY == nil then
-        initialY = t.y
-    end
 
     local moveX = 0
     local moveY = 0
@@ -391,13 +487,13 @@ function OnUpdate(self, dt)
         moveY = moveY + 1
     end
     if Input.IsKeyDown("a") or Input.IsKeyDown(Key.Left) then
-        dx = dx - 1
+        moveX = moveX - 1
     end
     if Input.IsKeyDown("d") or Input.IsKeyDown(Key.Right) then
         moveX = moveX + 1
     end
 
-    -- Smooth movement calculation
+    -- Smooth movement
     t.x = t.x + moveX * speed * dt
     t.y = t.y + moveY * speed * dt
 
@@ -405,14 +501,19 @@ function OnUpdate(self, dt)
     timer = timer + dt
     local bounceOffset = MathR.Sin(timer * 4.0) * bounceAmplitude
 
-    -- Sound effect trigger on key press edge
+    -- Update HUD
+    UI_SetText("pos_label", string.format("X: %.0f  Y: %.0f", t.x, t.y))
+
+    -- Sound effect on key press edge
     if Input.IsKeyPressed(Key.Space) then
-        Audio.PlaySound("assets/sounds/test_sound.mp3", 80, 1.0)
+        Audio.PlaySound("assets/sounds/jump.wav", 80, 1.0)
+        Tween.Position(self, t.x, t.y - 100, 0.3, "EaseOutQuad")
     end
 end
 
 function OnCollision(self, other)
-    print("Entity " .. tostring(self) .. " collided with Entity " .. tostring(other))
+    local tag = HasTag(other) and GetTag(other) or "unknown"
+    print("Collided with: " .. tag)
 end
 ```
 
@@ -423,8 +524,9 @@ end
 - **Language:** C++20
 - **Graphics, Windowing & Audio:** [SFML 2.6+](https://www.sfml-dev.org/)
 - **Scripting Engine:** [Lua 5.4](https://www.lua.org/) & [sol2](https://github.com/ThePhD/sol2)
-- **JSON Parser & Serializer:** [nlohmann_json](https://github.com/nlohmann/json)
+- **JSON Parser & Serializer:** [nlohmann_json 3.11.3](https://github.com/nlohmann/json)
 - **Build System:** CMake 3.16+ (automated dependency management via `FetchContent`)
+- **Platform:** Windows (primary), Linux
 
 ---
 
@@ -463,7 +565,6 @@ Run the binary from the root project directory so that the relative `assets/` pa
 # Windows
 .\build\Release\RayneEngine.exe
 
-# Linux / macOS
+# Linux
 ./build/RayneEngine
 ```
-
