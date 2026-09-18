@@ -31,5 +31,6 @@ function OnUpdate(self, dt)
 
     if UI_IsButtonClicked("Button_1") then
         UI_SetText("Text", "Clicked")
+        LoadScene("newScene")
     end
 end

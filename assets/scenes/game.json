@@ -2,25 +2,6 @@
     "name": "game",
     "objects": [
         {
-            "camera": true,
-            "collision": {
-                "channel": 0,
-                "type": "static"
-            },
-            "color": [
-                100,
-                149,
-                237
-            ],
-            "height": 40.0,
-            "id": "obj_0",
-            "script": "C:/Users/eijaw/Documents/Projects/RayneEngine/assets/player.lua",
-            "type": "rectangle",
-            "width": 40.0,
-            "x": 720.0,
-            "y": 680.0
-        },
-        {
             "collision": {
                 "channel": 0,
                 "type": "solid"
@@ -32,7 +13,11 @@
             ],
             "height": 40.0,
             "id": "obj_3",
-            "script": "C:/Users/eijaw/Documents/Projects/RayneEngine/assets/enemy.lua",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "script": "enemy.lua",
+            "tag": "",
             "type": "triangle",
             "width": 40.0,
             "x": 1080.0,
@@ -45,39 +30,15 @@
                 255
             ],
             "height": 80.0,
-            "id": "obj_0",
-            "sprite": "C:\\Users\\eijaw\\Documents\\Projects\\RayneEngine\\assets\\window\\rayne_icon.png",
-            "type": "sprite",
-            "width": 80.0,
-            "x": 2040.0,
-            "y": 560.0
-        },
-        {
-            "color": [
-                255,
-                255,
-                255
-            ],
-            "height": 80.0,
             "id": "obj_1",
-            "sprite": "C:\\Users\\eijaw\\Documents\\Projects\\RayneEngine\\assets\\window\\rayne_icon.png",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "sprite": "window/rayne_icon.png",
+            "tag": "",
             "type": "sprite",
             "width": 80.0,
             "x": 2040.0,
-            "y": 400.0
-        },
-        {
-            "color": [
-                255,
-                255,
-                255
-            ],
-            "height": 80.0,
-            "id": "obj_2",
-            "sprite": "C:\\Users\\eijaw\\Documents\\Projects\\RayneEngine\\assets\\window\\rayne_icon.png",
-            "type": "sprite",
-            "width": 80.0,
-            "x": 1760.0,
             "y": 400.0
         },
         {
@@ -88,7 +49,11 @@
             ],
             "height": 80.0,
             "id": "obj_3",
-            "sprite": "C:\\Users\\eijaw\\Documents\\Projects\\RayneEngine\\assets\\window\\rayne_icon.png",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "sprite": "window/rayne_icon.png",
+            "tag": "",
             "type": "sprite",
             "width": 80.0,
             "x": 2840.0,
@@ -102,7 +67,11 @@
             ],
             "height": 80.0,
             "id": "obj_4",
-            "sprite": "C:\\Users\\eijaw\\Documents\\Projects\\RayneEngine\\assets\\window\\rayne_icon.png",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "sprite": "window/rayne_icon.png",
+            "tag": "",
             "type": "sprite",
             "width": 80.0,
             "x": 1840.0,
@@ -116,6 +85,10 @@
             ],
             "height": 40.0,
             "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
             "type": "rectangle",
             "width": 40.0,
             "x": 1080.0,
@@ -129,10 +102,66 @@
             ],
             "height": 40.0,
             "id": "obj_1",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
             "type": "rectangle",
             "width": 40.0,
             "x": 1080.0,
             "y": 640.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "script": "player.lua",
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 400.0,
+            "y": 480.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 560.0,
+            "y": 480.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_2",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 1840.0,
+            "y": 0.0
         }
     ]
 }
