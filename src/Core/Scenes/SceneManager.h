@@ -27,6 +27,8 @@ public:
 
     void Render(sf::RenderWindow &window);
 
+    void Shutdown();
+
     [[nodiscard]] bool HasScene(const std::string &name) const;
 
     [[nodiscard]] const std::string &CurrentName() const;

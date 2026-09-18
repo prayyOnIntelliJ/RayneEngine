@@ -110,6 +110,7 @@ public:
     void OnEnter() override;
 
     void OnExit() override;
+    void OnShutdown() override;
 
 private:
     sf::RenderWindow &m_Window;
@@ -142,6 +143,8 @@ private:
 
     bool m_SnapToGrid = true;
     float m_GridSize = 40.f;
+
+    float m_SaveFeedbackTimer = 0.f;
 
     std::shared_ptr<sf::Font> m_Font;
     sf::Text m_StatusText;
@@ -322,6 +325,12 @@ private:
     void SaveSettings();
 
     void LoadSettings();
+
+    // Play-mode snapshot: stores editor state before entering play mode
+    nlohmann::json m_PlayModeSnapshot;
+    Entity m_SnapshotEntityCounter = 1;
+    void SnapshotState();
+    void RestoreSnapshot();
 
     sf::Vector2f SnapToGrid(sf::Vector2f pos) const;
 

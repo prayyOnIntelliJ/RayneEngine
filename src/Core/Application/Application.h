@@ -12,6 +12,7 @@ public:
     void Run();
 
     Registry m_Registry;
+    SceneManager& GetSceneManager() { return m_SceneManager; }
 
 private:
     void CreateEngineWindow();

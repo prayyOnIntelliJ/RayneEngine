@@ -45,6 +45,15 @@ void SceneManager::Render(sf::RenderWindow &window)
         m_current->Render(window);
 }
 
+void SceneManager::Shutdown()
+{
+    std::cout << "[INFO] [SceneManager] Shutting down scenes...\n";
+    for (auto& [name, scene] : m_scenes)
+    {
+        scene->OnShutdown();
+    }
+}
+
 bool SceneManager::HasScene(const std::string &name) const { return m_scenes.contains(name); }
 
 const std::string &SceneManager::CurrentName() const { return m_currentName; }

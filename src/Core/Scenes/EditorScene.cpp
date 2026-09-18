@@ -77,12 +77,15 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         this->LoadFromJson(path);
-        std::string relPath = path;
-        std::string assetPathStr = ASSET_PATH;
-        if (relPath.find(assetPathStr) == 0) { relPath = relPath.substr(assetPathStr.length()); }
+        std::error_code ec;
+        std::filesystem::path p(path);
+        std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+        std::string relPath = std::filesystem::proximate(p, root, ec).generic_string();
+        if (ec) relPath = p.filename().string(); // Fallback
+        
         this->m_SceneSavePath = relPath;
         this->SaveSettings();
-        std::cout << "[INFO] [EditorScene] Loaded scene from browser: " << path << "\n";
+        std::cout << "[INFO] [EditorScene] Loaded scene from browser. Set active path to: " << relPath << "\n";
     };
 
     m_camera = window.getDefaultView();
@@ -184,12 +187,35 @@ void EditorScene::InitMenus()
 
 void EditorScene::OnEnter()
 {
+    // Restore editor state from play-mode snapshot if one exists
+    if (!m_PlayModeSnapshot.empty())
+    {
+        RestoreSnapshot();
+        m_PlayModeSnapshot = json{};
+    }
+
     std::cout << "[INFO] [EditorScene] Activated Editor Layout\n";
     UpdateBounds();
     UpdateStatusText();
 }
 
 void EditorScene::OnExit() { SyncToRegistry(); }
+
+void EditorScene::OnShutdown()
+{
+    std::cout << "[INFO] [EditorScene] Shutting down, saving scene state...\n";
+    // If we are closing while in play-mode, restore the snapshot first
+    // so we don't save the temporary play-mode state to disk!
+    if (!m_PlayModeSnapshot.empty())
+    {
+        RestoreSnapshot();
+        m_PlayModeSnapshot = json{};
+    }
+
+    // Force save the current state and settings
+    SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+    SaveSettings();
+}
 
 void EditorScene::UpdateBounds()
 {
@@ -215,8 +241,10 @@ void EditorScene::HandleMenuAction(const std::string &action)
         m_SettingsInputText.clear();
     } else if (action == "save")
     {
+        SyncToRegistry();
         SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
         std::cout << "[INFO] [EditorScene] Scene saved successfully to " << m_SceneSavePath << "\n";
+        m_SaveFeedbackTimer = 2.0f;
     } else if (action == "load")
     {
         LoadFromJson(std::string(ASSET_PATH) + m_SceneSavePath);
@@ -238,6 +266,7 @@ void EditorScene::HandleMenuAction(const std::string &action)
     } else if (action == "center_camera") { m_camera.setCenter(0.f, 0.f); } else if (action == "run")
     {
         SyncToRegistry();
+        SnapshotState();
         m_manager.SwitchSceneTo("game");
     } else if (action == "reset_scene")
     {
@@ -1108,6 +1137,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (event.key.code == sf::Keyboard::F5)
         {
             SyncToRegistry();
+            SnapshotState();
             m_manager.SwitchSceneTo("game");
         }
     }
@@ -1115,6 +1145,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
 void EditorScene::Update(float deltaTime)
 {
+    if (m_SaveFeedbackTimer > 0.f)
+        m_SaveFeedbackTimer -= deltaTime;
+
     m_FrameCount++;
     float elapsed = m_FPSClock.getElapsedTime().asSeconds();
     if (elapsed >= 0.5f)
@@ -1346,6 +1379,45 @@ void EditorScene::Render(sf::RenderWindow &window)
 
         window.draw(asBg);
         window.draw(warningBar);
+        window.draw(asText);
+    }
+
+    if (m_SaveFeedbackTimer > 0.f)
+    {
+        sf::Text asText;
+        asText.setFont(*m_Font);
+        asText.setCharacterSize(14);
+        asText.setFillColor(C_TEXT_PRIMARY);
+        asText.setString("Scene Saved successfully!");
+
+        float tw = asText.getLocalBounds().width;
+        float th = asText.getLocalBounds().height;
+        float pW = tw + 40.f;
+        float pH = 40.f;
+        float pX = (m_Window.getSize().x - pW) / 2.f;
+        float pY = m_Window.getSize().y - 100.f;
+
+        sf::RectangleShape asBg({pW, pH});
+        asBg.setFillColor(C_BG_ELEVATED);
+        asBg.setOutlineColor(C_BORDER_LIGHT);
+        asBg.setOutlineThickness(1.f);
+        asBg.setPosition(pX, pY);
+
+        sf::RectangleShape successBar({4.f, pH});
+        successBar.setFillColor(C_SUCCESS);
+        successBar.setPosition(pX, pY);
+
+        asText.setPosition(pX + 20.f, pY + (pH - th) / 2.f - 4.f);
+
+        // Optional fade out
+        float alpha = std::clamp(m_SaveFeedbackTimer / 0.5f, 0.f, 1.f) * 255.f;
+        asBg.setFillColor(sf::Color(C_BG_ELEVATED.r, C_BG_ELEVATED.g, C_BG_ELEVATED.b, alpha));
+        asBg.setOutlineColor(sf::Color(C_BORDER_LIGHT.r, C_BORDER_LIGHT.g, C_BORDER_LIGHT.b, alpha));
+        successBar.setFillColor(sf::Color(C_SUCCESS.r, C_SUCCESS.g, C_SUCCESS.b, alpha));
+        asText.setFillColor(sf::Color(C_TEXT_PRIMARY.r, C_TEXT_PRIMARY.g, C_TEXT_PRIMARY.b, alpha));
+
+        window.draw(asBg);
+        window.draw(successBar);
         window.draw(asText);
     }
 
@@ -2828,6 +2900,11 @@ void EditorScene::SaveToJson(const std::string &path)
     }
 
     std::ofstream file(path);
+    if (!file.is_open())
+    {
+        std::cerr << "[ERROR] [EditorScene] Failed to open file for saving: " << path << "\n";
+        return;
+    }
     file << data.dump(4);
     UpdateStatusText();
 }
@@ -2973,6 +3050,181 @@ void EditorScene::SyncToRegistry()
             } else { m_Registry.AddComponent(obj.entity, SpriteComponent(obj.spritePath, obj.shape.getSize())); }
         }
     }
+}
+
+void EditorScene::SnapshotState()
+{
+    m_PlayModeSnapshot = json{};
+    m_PlayModeSnapshot["name"] = "snapshot";
+    m_PlayModeSnapshot["objects"] = json::array();
+
+    for (auto &obj : m_Objects)
+    {
+        json j;
+        j["id"] = obj.id;
+        j["tag"] = obj.tag;
+        std::string typeStr = "rectangle";
+        if (obj.objectType == ObjectType::Circle) typeStr = "circle";
+        else if (obj.objectType == ObjectType::Triangle) typeStr = "triangle";
+        else if (obj.objectType == ObjectType::Pentagon) typeStr = "pentagon";
+        else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
+        else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
+        j["type"] = typeStr;
+        j["x"] = obj.shape.getPosition().x;
+        j["y"] = obj.shape.getPosition().y;
+        j["rotation"] = obj.rotation;
+        j["scaleX"] = obj.scaleX;
+        j["scaleY"] = obj.scaleY;
+        j["width"] = obj.shape.getSize().x;
+        j["height"] = obj.shape.getSize().y;
+        j["color"] = {obj.color.r, obj.color.g, obj.color.b};
+
+        if (!obj.spritePath.empty())
+        {
+            std::error_code ec;
+            std::filesystem::path p(obj.spritePath);
+            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
+            j["sprite"] = ec ? obj.spritePath : rel;
+        }
+
+        if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity))
+        {
+            auto &vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
+            j["velocity"] = {{"dx", vel.dx}, {"dy", vel.dy}};
+        }
+
+        if (!obj.scriptPath.empty())
+        {
+            std::error_code ec;
+            std::filesystem::path p(obj.scriptPath);
+            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
+            j["script"] = ec ? obj.scriptPath : rel;
+        }
+
+        if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity))
+            j["camera"] = true;
+
+        if (obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity))
+        {
+            auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
+            j["collision"] = {
+                {"channel", col.channel},
+                {"type", col.type == CollisionType::Solid ? "solid" : "static"}
+            };
+        }
+
+        m_PlayModeSnapshot["objects"].push_back(j);
+    }
+
+    m_SnapshotEntityCounter = m_Registry.GetEntityCounter();
+    std::cout << "[INFO] [EditorScene] Play-mode snapshot created (" << m_Objects.size() << " objects).\n";
+}
+
+void EditorScene::RestoreSnapshot()
+{
+    std::cout << "[INFO] [EditorScene] Restoring play-mode snapshot...\n";
+
+    // Destroy all current entities in the registry
+    for (auto &obj : m_Objects)
+        if (obj.entity != 0)
+            m_Registry.DestroyEntity(obj.entity);
+    m_Registry.Clear();
+
+    m_Objects.clear();
+    ClearSelection();
+
+    // Restore entity counter so new entities get the same IDs
+    m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
+
+    // Rebuild m_Objects and Registry from snapshot (same logic as LoadFromJson)
+    for (auto &j : m_PlayModeSnapshot["objects"])
+    {
+        EditorObject obj;
+        obj.id = j["id"];
+        if (j.contains("tag")) obj.tag = j["tag"];
+        obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
+        obj.shape.setSize({j["width"], j["height"]});
+        obj.shape.setPosition(j["x"], j["y"]);
+        if (j.contains("rotation")) obj.rotation = j["rotation"];
+        if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
+        if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
+        obj.shape.setRotation(obj.rotation);
+        obj.shape.setScale(obj.scaleX, obj.scaleY);
+        obj.shape.setFillColor(obj.color);
+
+        const std::string typeStr = j.value("type", "rectangle");
+        if (typeStr == "circle") obj.objectType = ObjectType::Circle;
+        else if (typeStr == "triangle") obj.objectType = ObjectType::Triangle;
+        else if (typeStr == "pentagon") obj.objectType = ObjectType::Pentagon;
+        else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
+        else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
+        else obj.objectType = ObjectType::Rectangle;
+
+        if (IsPolygonType(obj.objectType))
+        {
+            obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
+            obj.circleShape.setRadius(obj.shape.getSize().x / 2.f);
+            obj.circleShape.setPosition(obj.shape.getPosition());
+            obj.circleShape.setRotation(obj.rotation);
+            obj.circleShape.setScale(obj.scaleX, obj.scaleY);
+            obj.circleShape.setFillColor(obj.color);
+        }
+
+        obj.entity = m_Registry.CreateEntity();
+
+        TransformComponent t;
+        t.x = j["x"];
+        t.y = j["y"];
+        t.rotation = obj.rotation;
+        t.scaleX = obj.scaleX;
+        t.scaleY = obj.scaleY;
+        m_Registry.AddComponent(obj.entity, t);
+        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize()});
+        if (!obj.tag.empty())
+            m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
+
+        if (j.contains("sprite"))
+        {
+            std::string sp = j["sprite"].get<std::string>();
+            std::filesystem::path p(sp);
+            if (!p.is_absolute())
+                sp = (std::filesystem::path(ASSET_PATH) / p).string();
+            ApplySpriteToObject(obj, sp);
+        }
+
+        if (j.contains("velocity"))
+            m_Registry.AddComponent(obj.entity, VelocityComponent{
+                j["velocity"]["dx"], j["velocity"]["dy"]
+            });
+
+        if (j.contains("script"))
+        {
+            std::string sp = j["script"].get<std::string>();
+            std::filesystem::path p(sp);
+            if (!p.is_absolute())
+                sp = (std::filesystem::path(ASSET_PATH) / p).string();
+            auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
+            sc.SetEntity(obj.entity);
+            obj.scriptPath = sp;
+        }
+
+        if (j.contains("camera"))
+            m_Registry.AddComponent(obj.entity, CameraComponent{true});
+
+        if (j.contains("collision"))
+        {
+            CollisionType cType = CollisionType::Static;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
+                cType = CollisionType::Solid;
+            m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
+        }
+
+        m_Objects.push_back(std::move(obj));
+    }
+
+    std::cout << "[INFO] [EditorScene] Play-mode snapshot restored (" << m_Objects.size() << " objects).\n";
 }
 
 sf::Vector2f EditorScene::SnapToGrid(sf::Vector2f pos) const

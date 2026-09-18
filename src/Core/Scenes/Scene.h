@@ -18,10 +18,11 @@ public:
 
     virtual void Render(sf::RenderWindow &window) = 0;
 
-    virtual void OnEnter() {};
+    virtual void OnEnter() {}
     virtual void OnExit() {}
     virtual void OnPause() {}
     virtual void OnResume() {}
+    virtual void OnShutdown() {}
 
 protected:
     SceneManager &m_manager;
