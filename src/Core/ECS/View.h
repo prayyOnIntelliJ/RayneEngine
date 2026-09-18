@@ -36,7 +36,7 @@ public:
             return *this;
         }
 
-        bool operator!=(const Iterator &other) const { return index != other.index; }
+        bool operator!=(const Iterator &other) const { return index < entities.size(); }
     };
 
     Iterator begin() { return Iterator(m_FirstPoolEntities, 0, m_Pools); }

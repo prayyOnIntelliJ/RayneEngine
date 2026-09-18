@@ -17,6 +17,9 @@ private:
 public:
     Entity CreateEntity();
 
+    Entity GetEntityCounter() const { return m_EntityCounter; }
+    void SetEntityCounter(Entity counter) { m_EntityCounter = counter; }
+
     void DestroyEntity(Entity entity) { for (auto const &[type, pool]: m_ComponentPools) { pool->Remove(entity); } }
 
     void Clear() { for (auto const &[type, pool]: m_ComponentPools) { pool->Clear(); } }
