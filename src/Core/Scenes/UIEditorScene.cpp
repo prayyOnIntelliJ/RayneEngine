@@ -518,6 +518,8 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 void UIEditorScene::Update(float deltaTime)
 {
     m_InspectorScrollOffset += (m_InspectorTargetScroll - m_InspectorScrollOffset) * 15.f * deltaTime;
+    if (m_SaveFeedbackTimer > 0.f)
+        m_SaveFeedbackTimer -= deltaTime;
 }
 
 void UIEditorScene::Render(sf::RenderWindow &window)
@@ -535,6 +537,44 @@ void UIEditorScene::Render(sf::RenderWindow &window)
     DrawInspector(window);
     DrawHierarchy(window);
     DrawMenuBar(window);
+
+    if (m_SaveFeedbackTimer > 0.f)
+    {
+        sf::Text asText;
+        asText.setFont(*m_Font);
+        asText.setCharacterSize(14);
+        asText.setFillColor(C_TEXT_PRIMARY);
+        asText.setString("UI Saved successfully!");
+
+        float tw = asText.getLocalBounds().width;
+        float th = asText.getLocalBounds().height;
+        float pW = tw + 40.f;
+        float pH = 40.f;
+        float pX = (m_Window.getSize().x - pW) / 2.f;
+        float pY = m_Window.getSize().y - 100.f;
+
+        sf::RectangleShape asBg({pW, pH});
+        asBg.setFillColor(C_BG_ELEVATED);
+        asBg.setOutlineColor(C_BORDER_LIGHT);
+        asBg.setOutlineThickness(1.f);
+        asBg.setPosition(pX, pY);
+
+        sf::RectangleShape successBar({4.f, pH});
+        successBar.setFillColor(C_SUCCESS);
+        successBar.setPosition(pX, pY);
+
+        asText.setPosition(pX + 20.f, pY + (pH - th) / 2.f - 4.f);
+
+        float alpha = std::clamp(m_SaveFeedbackTimer / 0.5f, 0.f, 1.f) * 255.f;
+        asBg.setFillColor(sf::Color(C_BG_ELEVATED.r, C_BG_ELEVATED.g, C_BG_ELEVATED.b, alpha));
+        asBg.setOutlineColor(sf::Color(C_BORDER_LIGHT.r, C_BORDER_LIGHT.g, C_BORDER_LIGHT.b, alpha));
+        successBar.setFillColor(sf::Color(C_SUCCESS.r, C_SUCCESS.g, C_SUCCESS.b, alpha));
+        asText.setFillColor(sf::Color(C_TEXT_PRIMARY.r, C_TEXT_PRIMARY.g, C_TEXT_PRIMARY.b, alpha));
+
+        window.draw(asBg);
+        window.draw(successBar);
+        window.draw(asText);
+    }
 }
 
 void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
@@ -1105,8 +1145,11 @@ void UIEditorScene::HandleAction(const std::string &action)
 {
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
-        UIManager::Get().Save(std::string(ASSET_PATH) + "ui.json");
-        std::cout << "[INFO] [UIEditorScene] UI Saved.\n";
+        std::string path = UIManager::Get().GetCurrentUIPath();
+        if (path.empty()) path = std::string(ASSET_PATH) + "ui.json";
+        UIManager::Get().Save(path);
+        std::cout << "[INFO] [UIEditorScene] UI Saved to " << path << "\n";
+        m_SaveFeedbackTimer = 2.0f;
     } else if (action == "add_panel")
     {
         int maxZ = 0;

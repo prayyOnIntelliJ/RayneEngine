@@ -2835,6 +2835,10 @@ void EditorScene::DeleteSelected()
 
 void EditorScene::SaveToJson(const std::string &path)
 {
+    std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
+    UIManager::Get().SetCurrentUIPath(uiPath);
+    // Note: We don't save the UI here, it's saved in UIEditorScene, but we ensure the path is set.
+
     json data;
     data["name"] = "game";
     data["objects"] = json::array();
@@ -2911,6 +2915,10 @@ void EditorScene::SaveToJson(const std::string &path)
 
 void EditorScene::LoadFromJson(const std::string &path)
 {
+    std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
+    UIManager::Get().SetCurrentUIPath(uiPath);
+    UIManager::Get().Load(uiPath);
+
     std::ifstream file(path);
     if (!file.is_open())
     {
@@ -3134,6 +3142,12 @@ void EditorScene::RestoreSnapshot()
 
     m_Objects.clear();
     ClearSelection();
+
+    // Reload the UI to discard any play-mode mutations
+    std::string currentUI = UIManager::Get().GetCurrentUIPath();
+    if (!currentUI.empty()) {
+        UIManager::Get().Load(currentUI);
+    }
 
     // Restore entity counter so new entities get the same IDs
     m_Registry.SetEntityCounter(m_SnapshotEntityCounter);

@@ -154,6 +154,8 @@ private:
     float m_InspectorClipTop    = 0.f;
     float m_InspectorClipBottom = 99999.f;
 
+    float m_SaveFeedbackTimer = 0.f;
+
     void UpdateBounds();
 
     void DrawToolbar(sf::RenderWindow &window);

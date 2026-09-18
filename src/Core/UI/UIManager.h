@@ -103,6 +103,9 @@ public:
 
     void ClearClickedButton() { m_LastClickedButton.clear(); }
 
+    void SetCurrentUIPath(const std::string& path) { m_CurrentUIPath = path; }
+    const std::string& GetCurrentUIPath() const { return m_CurrentUIPath; }
+
     // --- New methods ---
     void SetVisible(const std::string &id, bool visible);
     bool GetVisible(const std::string &id);
@@ -137,6 +140,7 @@ private:
     std::vector<UIElement> m_Elements;
     std::shared_ptr<sf::Font> m_DefaultFont;
     std::string m_LastClickedButton;
+    std::string m_CurrentUIPath;
 };
 
 #endif

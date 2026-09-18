@@ -45,6 +45,7 @@ Application::Application()
     std::cout << "[INFO] [Application] Initializing UIManager...\n";
     auto font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     UIManager::Get().Init(font);
+    UIManager::Get().SetCurrentUIPath(std::string(ASSET_PATH) + "ui.json");
     UIManager::Get().Load(std::string(ASSET_PATH) + "ui.json");
 
     std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
@@ -71,6 +72,9 @@ Application::Application()
             });
 
             SceneSerializer::LoadIntoRegistry(m_Registry, "assets/scenes/" + sceneName + ".json");
+            std::string uiPath = "assets/scenes/" + sceneName + "_ui.json";
+            UIManager::Get().SetCurrentUIPath(uiPath);
+            UIManager::Get().Load(uiPath);
             m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
         }
     });
