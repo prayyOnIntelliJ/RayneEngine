@@ -23,7 +23,15 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     for (auto &j: data["objects"])
     {
         Entity entity = registry.CreateEntity();
-        registry.AddComponent(entity, TransformComponent{j["x"], j["y"]});
+        
+        TransformComponent t;
+        t.x = j["x"];
+        t.y = j["y"];
+        if (j.contains("rotation")) t.rotation = j["rotation"];
+        if (j.contains("scaleX")) t.scaleX = j["scaleX"];
+        if (j.contains("scaleY")) t.scaleY = j["scaleY"];
+        
+        registry.AddComponent(entity, t);
 
         sf::Color color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
         sf::Vector2f size = {j["width"], j["height"]};
@@ -39,7 +47,12 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
 
         if (j.contains("sprite"))
         {
-            registry.AddComponent(entity, SpriteComponent(j["sprite"].get<std::string>(), size));
+            std::string sp = j["sprite"].get<std::string>();
+            std::filesystem::path p(sp);
+            if (!p.is_absolute()) {
+                sp = (std::filesystem::path(ASSET_PATH) / p).string();
+            }
+            registry.AddComponent(entity, SpriteComponent(sp, size));
         }
 
         if (j.contains("tag"))
@@ -56,7 +69,11 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
 
         if (j.contains("script"))
         {
-            const std::string sp = j["script"];
+            std::string sp = j["script"].get<std::string>();
+            std::filesystem::path p(sp);
+            if (!p.is_absolute()) {
+                sp = (std::filesystem::path(ASSET_PATH) / p).string();
+            }
             auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(entity);
         }

@@ -21,15 +21,20 @@ public:
     }
     
     void Update(float dt) {
-        for (auto it = m_Tasks.begin(); it != m_Tasks.end(); ) {
-            it->timeLeft -= dt;
-            if (it->timeLeft <= 0.f) {
-                if (it->callback.valid()) {
-                    it->callback();
+        for (size_t i = 0; i < m_Tasks.size(); ) {
+            m_Tasks[i].timeLeft -= dt;
+            if (m_Tasks[i].timeLeft <= 0.f) {
+                if (m_Tasks[i].callback.valid()) {
+                    m_Tasks[i].callback();
                 }
-                it = m_Tasks.erase(it);
+                // Check if tasks were cleared during callback
+                if (m_Tasks.empty()) break;
+                // Since we don't know if tasks were added/removed arbitrarily, just erase safely
+                if (i < m_Tasks.size() && m_Tasks[i].timeLeft <= 0.f) {
+                    m_Tasks.erase(m_Tasks.begin() + i);
+                }
             } else {
-                ++it;
+                ++i;
             }
         }
     }

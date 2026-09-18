@@ -54,6 +54,7 @@ void GameScene::OnExit()
     m_LastCollisions.clear();
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();
+    EventManager::Get().Clear();
     std::cout << "[INFO] [GameScene] Stopping simulation, clearing collision state.\n";
 }
 
@@ -121,6 +122,9 @@ void GameScene::CheckCollisions()
 
                 if (overlapX > 0 && overlapY > 0)
                 {
+                    if (!m_Registry.HasComponent<TransformComponent>(a.id) || !m_Registry.HasComponent<TransformComponent>(b.id))
+                        continue; // Entities might have been destroyed by OnCollision scripts
+
                     bool aMovable = m_Registry.HasComponent<VelocityComponent>(a.id);
                     bool bMovable = m_Registry.HasComponent<VelocityComponent>(b.id);
                     

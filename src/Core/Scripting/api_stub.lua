@@ -98,6 +98,10 @@ function OnCollision(self, other) end
 ---@return Entity
 function CreateEntity() end
 
+---Loads a different scene from the assets/scenes folder
+---@param sceneName string The name of the scene (without the .json extension)
+function LoadScene(sceneName) end
+
 ---Sets the Position of an Entity
 ---@param e Entity
 ---@param x number
