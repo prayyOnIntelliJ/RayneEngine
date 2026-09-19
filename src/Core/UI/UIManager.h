@@ -23,7 +23,6 @@ struct UIElement
     unsigned int characterSize = 16;
     sf::Color textColor = sf::Color::White;
 
-    // --- Text / Button shared ---
     sf::Text::Style textStyle = sf::Text::Regular;
     TextAlign textAlign = TextAlign::Left;
     bool textUpperCase = false;
@@ -33,14 +32,12 @@ struct UIElement
     float textOutlineThickness = 0.f;
     sf::Vector2f textOffset = {0.f, 0.f};
 
-    // --- Panel properties ---
     sf::Color outlineColor = sf::Color::Transparent;
     float outlineThickness = 0.f;
     float cornerRadius = 0.f;
     float opacity = 255.f;
     bool visible = true;
 
-    // --- Button properties ---
     sf::Color normalColor = sf::Color(100, 100, 100);
     sf::Color hoverColor = sf::Color(150, 150, 150);
     sf::Color pressedColor = sf::Color(80, 80, 80);
@@ -106,7 +103,6 @@ public:
     void SetCurrentUIPath(const std::string& path) { m_CurrentUIPath = path; }
     const std::string& GetCurrentUIPath() const { return m_CurrentUIPath; }
 
-    // --- New methods ---
     void SetVisible(const std::string &id, bool visible);
     bool GetVisible(const std::string &id);
 

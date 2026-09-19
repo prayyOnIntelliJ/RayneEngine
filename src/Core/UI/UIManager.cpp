@@ -48,7 +48,6 @@ void UIElement::UpdateDrawables()
     {
         if (font) drawableText.setFont(*font);
 
-        // Apply uppercase if requested
         std::string displayText = text;
         if (textUpperCase)
             std::transform(displayText.begin(), displayText.end(), displayText.begin(), ::toupper);
@@ -68,12 +67,10 @@ void UIElement::UpdateDrawables()
 
         if (type == UIElementType::Button)
         {
-            // Buttons are always center-aligned unless overridden
             textX = position.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
         }
         else
         {
-            // Text element respects textAlign
             switch (textAlign)
             {
                 case TextAlign::Left:
