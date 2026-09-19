@@ -80,4 +80,4 @@ private:
     static bool s_Initialized;
 };
 
-#endif // CONSOLEPANEL_H
+#endif

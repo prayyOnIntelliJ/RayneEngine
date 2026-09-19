@@ -38,7 +38,6 @@ std::streambuf::int_type ConsoleRedirector::overflow(int_type v)
         m_Buffer += static_cast<char>(v);
     }
     
-    // Also output to original buffer
     if (m_OldBuf && v != std::char_traits<char>::eof()) {
         m_OldBuf->sputc(v);
     }
@@ -61,7 +60,6 @@ std::streamsize ConsoleRedirector::xsputn(const char* p, std::streamsize n)
         }
     }
     
-    // Also output to original buffer
     if (m_OldBuf) {
         m_OldBuf->sputn(p, n);
     }
@@ -104,7 +102,6 @@ void ConsolePanel::AddLogGlobal(const std::string& message, bool isError)
 ConsolePanel::ConsolePanel(const sf::Font& font)
     : m_Font(font)
 {
-    // Auto-scroll to bottom on open
     m_ScrollOffset = 999999.f; 
 }
 
@@ -118,7 +115,6 @@ void ConsolePanel::ExecuteCommand(const std::string& command)
     
     AddLogGlobal("> " + command, false);
     
-    // TODO: Actually execute command later
     if (command == "clear") {
         std::lock_guard<std::mutex> lock(s_Mutex);
         s_Messages.clear();
@@ -154,10 +150,7 @@ void ConsolePanel::HandleEvent(const sf::Event& event, sf::Vector2f mouseScreenP
     if (event.type == sf::Event::MouseMoved && m_ScrollbarDragging)
     {
         float dy = mouseScreenPos.y - m_DragStartY;
-        // Scrollbar logic:
-        // logAreaHeight is height - inputHeight
-        // Track area is logAreaHeight
-        float logAreaHeight = m_Bounds.height - 30.f; // inputHeight is 30
+        float logAreaHeight = m_Bounds.height - 30.f;
         float handleHeight = std::max(20.f, (logAreaHeight / (m_MaxScroll + logAreaHeight)) * logAreaHeight);
         float trackHeight = logAreaHeight - handleHeight;
         
@@ -180,16 +173,16 @@ void ConsolePanel::HandleEvent(const sf::Event& event, sf::Vector2f mouseScreenP
     {
         if (event.type == sf::Event::TextEntered)
         {
-            if (event.text.unicode == 8) // Backspace
+            if (event.text.unicode == 8)
             {
                 if (!m_InputBuffer.empty())
                     m_InputBuffer.pop_back();
             }
-            else if (event.text.unicode == 22) // Ctrl+V
+            else if (event.text.unicode == 22)
             {
                 m_InputBuffer += sf::Clipboard::getString().toAnsiString();
             }
-            else if (event.text.unicode == 13) // Enter
+            else if (event.text.unicode == 13)
             {
                 ExecuteCommand(m_InputBuffer);
                 m_InputBuffer.clear();
@@ -216,7 +209,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
     topBorder.setFillColor(C_BORDER);
     window.draw(topBorder);
 
-    // Input area at the bottom
     float inputHeight = 30.f;
     m_InputBounds = {x, y + height - inputHeight, width, inputHeight};
     
@@ -238,7 +230,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
     std::string dispText = "> " + m_InputBuffer;
     if (m_InputActive)
     {
-        // Simple cursor blink
         if (static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count() / 500) % 2 == 0)
         {
@@ -255,19 +246,17 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
     inputText.setPosition(x + 10.f, y + height - inputHeight + 8.f);
     window.draw(inputText);
 
-    // Draw logs
     float logAreaHeight = height - inputHeight;
     
     std::lock_guard<std::mutex> lock(s_Mutex);
     
-    float lh = 18.f; // Approximate line height
+    float lh = 18.f;
     float contentHeight = 5.f + s_Messages.size() * lh;
     m_MaxScroll = std::max(0.f, contentHeight - logAreaHeight + 10.f);
     
     if (m_AutoScroll) {
         m_ScrollOffset = m_MaxScroll;
     }
-    // clamp scroll
     m_ScrollOffset = std::max(0.f, std::min(m_ScrollOffset, m_MaxScroll));
     m_LastMessageCount = s_Messages.size();
 
@@ -301,7 +290,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
     
     window.setView(oldView);
 
-    // Draw Scrollbar
     if (m_MaxScroll > 0.f)
     {
         float sbWidth = 10.f;
@@ -309,15 +297,13 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
         float sbY = y + 2.f;
         float sbH = logAreaHeight - 4.f;
         
-        m_ScrollbarBounds = {sbX - 5.f, sbY, sbWidth + 10.f, sbH}; // Wider hit box for easy clicking
+        m_ScrollbarBounds = {sbX - 5.f, sbY, sbWidth + 10.f, sbH};
 
-        // Track
         sf::RectangleShape track({sbWidth, sbH});
         track.setPosition(sbX, sbY);
         track.setFillColor(C_BG_INPUT);
         window.draw(track);
         
-        // Handle
         float handleHeight = std::max(20.f, (logAreaHeight / (m_MaxScroll + logAreaHeight)) * sbH);
         float trackHeight = sbH - handleHeight;
         float handleY = sbY + (m_ScrollOffset / m_MaxScroll) * trackHeight;
