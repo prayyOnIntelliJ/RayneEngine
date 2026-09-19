@@ -3,6 +3,11 @@
 #include "../ECS/Registry.h"
 #include "../Scenes/SceneManager.h"
 #include "SFML/Graphics/RenderWindow.hpp"
+#include "SFML/Graphics/Font.hpp"
+#include "SFML/Graphics/Texture.hpp"
+#include <string>
+
+extern class Application* g_App;
 
 class Application
 {
@@ -13,10 +18,9 @@ public:
 
     Registry m_Registry;
     SceneManager& GetSceneManager() { return m_SceneManager; }
+    const std::string& GetProjectName() const { return m_ProjectName; }
 
 private:
-    void CreateEngineWindow();
-
     void SetIcon();
 
     void Update(float deltaTime);
@@ -25,6 +29,10 @@ private:
 
     void SetEvents();
 
+    void RunSplashSequence();
+
+    std::string m_ProjectName = "RayneEngine";
+    std::string m_StartScene = "scenes/game.json";
     sf::RenderWindow m_RenderWindow;
     SceneManager m_SceneManager;
     sf::Clock m_DeltaTimeClock;

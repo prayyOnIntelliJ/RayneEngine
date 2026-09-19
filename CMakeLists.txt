@@ -60,6 +60,7 @@ endif()
 add_executable(RayneEngine
         src/main.cpp
         src/Core/Application/Application.cpp
+        src/Core/Application/SplashScreen.cpp
         src/Core/Scenes/SceneManager.cpp
         src/Core/Primitives/Primitive.h
         src/Core/Primitives/RectanglePrimitive.h
@@ -145,4 +146,65 @@ set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-target_compile_definitions(RayneEngine PRIVATE ASSET_PATH="${CMAKE_SOURCE_DIR}/assets/")
+target_compile_definitions(RayneEngine PRIVATE "ASSET_PATH=\"${CMAKE_SOURCE_DIR}/assets\"")
+
+add_executable(RayneGame
+        src/main.cpp
+        src/Core/Application/Application.cpp
+        src/Core/Application/SplashScreen.cpp
+        src/Core/Scenes/SceneManager.cpp
+        src/Core/Primitives/Primitive.h
+        src/Core/Primitives/RectanglePrimitive.h
+        src/Core/Primitives/CirclePrimitive.h
+        src/Core/Primitives/TrianglePrimitive.h
+        src/Core/Primitives/PrimitiveManager.h
+        src/Core/Math/MathR.h
+        src/Core/Math/Vector.h
+        src/Core/Scripting/ScriptComponent.cpp
+        src/Core/Scripting/ScriptComponent.h
+        src/Core/Scripting/LuaState.cpp
+        src/Core/Scripting/LuaState.h
+        src/Core/Math/MathR.cpp
+        src/Core/ECS/Entity.h
+        src/Core/ECS/Pool.h
+        src/Core/ECS/Registry.h
+        src/Core/ECS/Components.h
+        src/Core/ECS/View.h
+        src/Core/Scenes/EditorScene.cpp
+        src/Core/Scenes/UIEditorScene.cpp
+        src/Core/Scenes/EditorScene.h
+        src/Core/Scenes/GameScene.cpp
+        src/Core/Scenes/GameScene.h
+        src/Core/Input/InputManager.cpp
+        src/Core/Input/InputManager.h
+        src/Core/Scripting/EventManager.cpp
+        src/Core/Scripting/EventManager.h
+        src/Core/Scenes/ContentBrowser.cpp
+        src/Core/Scenes/ContentBrowser.h
+        src/Core/Scenes/ConsolePanel.cpp
+        src/Core/Scenes/ConsolePanel.h
+        src/Core/Resources/ResourceManager.cpp
+        src/Core/Resources/ResourceManager.h
+        src/Core/Audio/AudioManager.cpp
+        src/Core/Audio/AudioManager.h
+        src/Core/Scenes/SceneSerializer.cpp
+        src/Core/Scenes/SceneSerializer.h
+        src/Core/UI/UIManager.cpp
+        src/Core/UI/UIManager.h
+)
+
+target_link_libraries(RayneGame PRIVATE
+        sfml-graphics
+        sfml-window
+        sfml-system
+        sfml-audio
+        nlohmann_json::nlohmann_json
+        sol2::sol2
+        lua_lib
+)
+
+set_target_properties(RayneGame PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:RayneGame>"
+)
+
+target_compile_definitions(RayneGame PRIVATE RAYNE_STANDALONE "ASSET_PATH=\"assets\"")

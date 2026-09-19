@@ -2,6 +2,7 @@
 #define EDITORSCENE_H
 
 #include <vector>
+#include <mutex>
 #include <list>
 #include <string>
 #include <map>
@@ -228,6 +229,13 @@ private:
     float m_AutoSavePopupTimer = 0.f;
     bool m_ShowAutoSavePopup = false;
 
+    bool m_ShowBuildPopup = false;
+    bool m_BuildFinished = false;
+    std::string m_BuildStatusText = "";
+    float m_BuildProgress = 0.0f;
+    bool m_CancelBuildRequested = false;
+    std::mutex m_BuildMutex;
+
     bool m_ShowSettings = false;
     int m_SettingsTab = 0;
 
@@ -281,13 +289,43 @@ private:
 
     std::vector<SettingsButton> m_SettingsButtons;
 
+    bool m_ShowProjectSettings = false;
+    int m_ProjectSettingsTab = 0;
+    
+    std::string m_ProjectName = "RayneGame";
+    int m_ProjectWindowWidth = 1280;
+    int m_ProjectWindowHeight = 720;
+    bool m_ProjectVSync = true;
+    std::string m_ProjectStartScene = "scenes/game.json";
+
+    enum class ProjectSettingsField {
+        None,
+        ProjectName,
+        WindowWidth,
+        WindowHeight,
+        StartScene
+    };
+
+    ProjectSettingsField m_ActiveProjectSettingsField = ProjectSettingsField::None;
+    std::string m_ProjectSettingsInputText;
+    sf::FloatRect m_ProjectSettingsInputBounds;
+
+    struct ProjectSettingsButton
+    {
+        sf::FloatRect bounds;
+        std::string action;
+    };
+    std::vector<ProjectSettingsButton> m_ProjectSettingsButtons;
+
     sf::Clock m_FPSClock;
     float m_FPS = 0.f;
     int m_FrameCount = 0;
 
     void InitMenus();
+    void DrawBuildPopup(sf::RenderWindow &window);
 
     void HandleMenuAction(const std::string &action);
+    void ExportStandaloneGame();
 
     void AddObject(sf::Vector2f pos, ObjectType type = ObjectType::Rectangle);
 
@@ -326,7 +364,6 @@ private:
 
     void LoadSettings();
 
-    // Play-mode snapshot: stores editor state before entering play mode
     nlohmann::json m_PlayModeSnapshot;
     Entity m_SnapshotEntityCounter = 1;
     void SnapshotState();
@@ -404,6 +441,14 @@ private:
                                const std::vector<std::string> &options, int &currentIdx,
                                const std::string &action,
                                float x, float y, float winW);
+
+    void DrawProjectSettingsWindow(sf::RenderWindow &window);
+    void HandleProjectSettingsClick(sf::Vector2f pos);
+    void SaveProjectSettings();
+    void LoadProjectSettings();
+    float DrawProjectSettingsInputField(sf::RenderWindow &window, const std::string &label,
+                                 const std::string &currentVal, ProjectSettingsField field,
+                                 float x, float y, float winW);
 };
 
 #endif

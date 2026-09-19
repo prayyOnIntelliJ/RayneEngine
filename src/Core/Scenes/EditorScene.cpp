@@ -1,9 +1,9 @@
 #include "EditorScene.h"
 #include "../Scenes/SceneManager.h"
+#include "../Application/Application.h"
 #include <iostream>
 #include <algorithm>
 #include <fstream>
-#include <filesystem>
 #include <map>
 #include <chrono>
 #include <ctime>
@@ -72,7 +72,7 @@ static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
@@ -81,7 +81,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
         std::filesystem::path p(path);
         std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
         std::string relPath = std::filesystem::proximate(p, root, ec).generic_string();
-        if (ec) relPath = p.filename().string(); // Fallback
+        if (ec) relPath = p.filename().string();
         
         this->m_SceneSavePath = relPath;
         this->SaveSettings();
@@ -126,8 +126,8 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
 
     LoadSettings();
 
-    const std::string scenesDir = ASSET_PATH "scenes";
-    const std::string defaultScenePath = std::string(ASSET_PATH) + m_SceneSavePath;
+    const std::string scenesDir = ASSET_PATH "/scenes";
+    const std::string defaultScenePath = std::string(ASSET_PATH) + "/" + m_SceneSavePath;
 
     if (!std::filesystem::exists(scenesDir)) { std::filesystem::create_directories(scenesDir); }
 
@@ -151,7 +151,14 @@ void EditorScene::InitMenus()
         {"Save", "save", false, "Ctrl+S"},
         {"Load", "load", false, "Ctrl+L"},
         {"", "", true, ""},
+        {"Project Settings", "project_settings", false, ""},
         {"Quit", "quit", false, ""}
+    };
+
+    MenuEntry buildMenu;
+    buildMenu.label = "Build";
+    buildMenu.items = {
+        {"Build Game (Standalone)", "build_game", false, ""}
     };
 
     MenuEntry edit;
@@ -182,12 +189,11 @@ void EditorScene::InitMenus()
         {"Save", "save", false, "Ctrl+S"}
     };
 
-    m_Menus = {datei, edit, ansicht, tools};
+    m_Menus = {datei, buildMenu, edit, ansicht, tools};
 }
 
 void EditorScene::OnEnter()
 {
-    // Restore editor state from play-mode snapshot if one exists
     if (!m_PlayModeSnapshot.empty())
     {
         RestoreSnapshot();
@@ -204,16 +210,13 @@ void EditorScene::OnExit() { SyncToRegistry(); }
 void EditorScene::OnShutdown()
 {
     std::cout << "[INFO] [EditorScene] Shutting down, saving scene state...\n";
-    // If we are closing while in play-mode, restore the snapshot first
-    // so we don't save the temporary play-mode state to disk!
     if (!m_PlayModeSnapshot.empty())
     {
         RestoreSnapshot();
         m_PlayModeSnapshot = json{};
     }
 
-    // Force save the current state and settings
-    SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+    SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
     SaveSettings();
 }
 
@@ -225,7 +228,6 @@ void EditorScene::UpdateBounds()
     m_HierarchyBounds = {0.f, TopBarHeight, HierarchyWidth, h - TopBarHeight};
     m_BrowserBounds = {HierarchyWidth, h - BrowserHeight, w - InspectorWidth - HierarchyWidth, BrowserHeight};
     
-    // Tab bounds
     m_TabBrowserBounds = {HierarchyWidth, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
     m_TabConsoleBounds = {HierarchyWidth + 100.f, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
     
@@ -242,13 +244,21 @@ void EditorScene::HandleMenuAction(const std::string &action)
     } else if (action == "save")
     {
         SyncToRegistry();
-        SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+        SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
         std::cout << "[INFO] [EditorScene] Scene saved successfully to " << m_SceneSavePath << "\n";
         m_SaveFeedbackTimer = 2.0f;
     } else if (action == "load")
     {
-        LoadFromJson(std::string(ASSET_PATH) + m_SceneSavePath);
+        LoadFromJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
         std::cout << "[INFO] [EditorScene] Scene loaded successfully from " << m_SceneSavePath << "\n";
+    } else if (action == "build_game")
+    {
+        ExportStandaloneGame();
+    } else if (action == "project_settings")
+    {
+        m_ShowProjectSettings = !m_ShowProjectSettings;
+        m_ActiveProjectSettingsField = ProjectSettingsField::None;
+        m_ProjectSettingsInputText.clear();
     } else if (action == "quit") { m_Window.close(); } else if (action == "delete")
     {
         DeleteSelected();
@@ -290,6 +300,99 @@ void EditorScene::HandleMenuAction(const std::string &action)
 void EditorScene::HandleEvent(const sf::Event &event)
 {
     UpdateBounds();
+
+    if (m_ShowBuildPopup)
+    {
+        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
+        {
+            if (m_BuildFinished || !m_CancelBuildRequested) {
+                m_ShowBuildPopup = false;
+            }
+            return;
+        }
+
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            float pW = 500.f;
+            float pH = 180.f;
+            float pX = (m_Window.getSize().x - pW) / 2.f;
+            float pY = (m_Window.getSize().y - pH) / 2.f;
+            
+            float btnW = 100.f;
+            float btnH = 30.f;
+            float btnX = pX + pW / 2.f - btnW / 2.f;
+            float btnY = pY + pH - 20.f - btnH;
+            
+            sf::FloatRect btnBounds(btnX, btnY, btnW, btnH);
+            if (btnBounds.contains((float)event.mouseButton.x, (float)event.mouseButton.y)) {
+                if (m_BuildFinished) {
+                    m_ShowBuildPopup = false;
+                } else {
+                    std::lock_guard<std::mutex> lock(m_BuildMutex);
+                    m_CancelBuildRequested = true;
+                }
+            }
+            return;
+        }
+        
+        if (event.type == sf::Event::MouseMoved ||
+            event.type == sf::Event::MouseButtonPressed ||
+            event.type == sf::Event::MouseButtonReleased ||
+            event.type == sf::Event::MouseWheelScrolled ||
+            event.type == sf::Event::KeyPressed ||
+            event.type == sf::Event::KeyReleased)
+        {
+            return;
+        }
+    }
+
+    if (m_ShowProjectSettings)
+    {
+        if (event.type == sf::Event::TextEntered && m_ActiveProjectSettingsField != ProjectSettingsField::None)
+        {
+            if (event.text.unicode == '\b') {
+                if (!m_ProjectSettingsInputText.empty()) m_ProjectSettingsInputText.pop_back();
+            } else if (event.text.unicode == '\r' || event.text.unicode == '\n') {
+                if (m_ActiveProjectSettingsField == ProjectSettingsField::ProjectName) {
+                    m_ProjectName = m_ProjectSettingsInputText;
+                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::StartScene) {
+                    m_ProjectStartScene = m_ProjectSettingsInputText;
+                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowWidth) {
+                    try { m_ProjectWindowWidth = std::stoi(m_ProjectSettingsInputText); } catch(...) {}
+                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowHeight) {
+                    try { m_ProjectWindowHeight = std::stoi(m_ProjectSettingsInputText); } catch(...) {}
+                }
+                
+                m_ActiveProjectSettingsField = ProjectSettingsField::None;
+                m_ProjectSettingsInputText.clear();
+                SaveProjectSettings();
+            } else if (event.text.unicode == 27) {
+                m_ActiveProjectSettingsField = ProjectSettingsField::None;
+                m_ProjectSettingsInputText.clear();
+            } else if (event.text.unicode < 128) {
+                m_ProjectSettingsInputText += static_cast<char>(event.text.unicode);
+            }
+            return;
+        }
+
+        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
+        {
+            if (m_ActiveProjectSettingsField != ProjectSettingsField::None)
+            {
+                m_ActiveProjectSettingsField = ProjectSettingsField::None;
+                m_ProjectSettingsInputText.clear();
+            } else { m_ShowProjectSettings = false; SaveProjectSettings(); }
+            return;
+        }
+
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            HandleProjectSettingsClick({(float) event.mouseButton.x, (float) event.mouseButton.y});
+            return;
+        }
+
+        return;
+    }
 
     if (m_ShowSettings)
     {
@@ -593,7 +696,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     UpdateStatusText();
                 } else if (m_ActiveField == EditField::Script)
                 {
-                    std::string fullPath = std::string(ASSET_PATH) + m_ActiveInputText + ".lua";
+                    std::string fullPath = std::string(ASSET_PATH) + "/" + m_ActiveInputText + ".lua";
                     std::ifstream check(fullPath);
                     if (!check.is_open())
                     {
@@ -811,10 +914,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
             sf::Vector2f pos = MouseWorldPos();
             sf::Vector2f diff = pos - m_BoxSelectStart;
             if (std::abs(diff.x) < 2.f && std::abs(diff.y) < 2.f) {
-                // Click in empty space
                 AddObject(pos, m_PlacementType);
             } else {
-                // Perform box selection
                 sf::FloatRect selectRect(
                     std::min(m_BoxSelectStart.x, pos.x),
                     std::min(m_BoxSelectStart.y, pos.y),
@@ -828,7 +929,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 
                 for (auto& obj : m_Objects) {
                     if (obj.shape.getGlobalBounds().intersects(selectRect)) {
-                        SelectObject(&obj, true); // this will push to m_SelectedObjects if not present
+                        SelectObject(&obj, true);
                     }
                 }
             }
@@ -1074,19 +1175,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
             m_DragOffset = pos - hit->shape.getPosition();
             
-            // Wait, dragging multiple objects means they all move by the same delta!
-            // But right now, we track m_DragOffset from the primary hit.
-            // When updating their positions in MouseMoved, we apply delta instead of setting absolute pos.
         } else
         {
             SelectObject(nullptr, false);
-            // Box selection start
             if (!ctrl && !shift) {
-                // If we don't want to add object immediately on click, maybe we start box selection?
-                // But AddObject(pos) is how they place objects. 
-                // Let's check placement type. Oh wait, if m_PlacementType != None?
-                // The engine uses AddObject on click in empty space!
-                // To support Box Select, we must differentiate between just clicking and dragging.
                 m_BoxSelecting = true;
                 m_BoxSelectStart = pos;
             }
@@ -1163,7 +1255,7 @@ void EditorScene::Update(float deltaTime)
         if (dot != std::string::npos) sceneName = sceneName.substr(0, dot);
 
         std::string title =
-                std::string(Rayne::DEFAULT_PROJECT_NAME)
+                (g_App ? g_App->GetProjectName() : std::string(Rayne::DEFAULT_PROJECT_NAME))
                 + ": " + sceneName
                 + " (" + Rayne::PlatformString() + ")"
                 + " - RayneEngine " + Rayne::VersionString();
@@ -1182,7 +1274,7 @@ void EditorScene::Update(float deltaTime)
             m_AutoSavePopupTimer -= deltaTime;
             if (m_AutoSavePopupTimer <= 0.f)
             {
-                SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+                SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
                 std::cout << "[INFO] [EditorScene] AutoSaved scene\n";
                 m_ShowAutoSavePopup = false;
             }
@@ -1197,7 +1289,7 @@ void EditorScene::Update(float deltaTime)
                     m_AutoSavePopupTimer = m_AutoSavePopupDuration;
                 } else
                 {
-                    SaveToJson(std::string(ASSET_PATH) + m_SceneSavePath);
+                    SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
                     std::cout << "[INFO] [EditorScene] AutoSaved scene (silent)\n";
                 }
                 m_AutoSaveTimer = 0.f;
@@ -1291,7 +1383,6 @@ void EditorScene::Render(sf::RenderWindow &window)
     window.setView(uiView);
     UpdateBounds();
 
-    // Draw Tabs
     auto drawTab = [&](const std::string& label, const sf::FloatRect& bounds, bool active) {
         sf::RectangleShape tabRect({bounds.width, bounds.height});
         tabRect.setPosition(bounds.left, bounds.top);
@@ -1409,7 +1500,6 @@ void EditorScene::Render(sf::RenderWindow &window)
 
         asText.setPosition(pX + 20.f, pY + (pH - th) / 2.f - 4.f);
 
-        // Optional fade out
         float alpha = std::clamp(m_SaveFeedbackTimer / 0.5f, 0.f, 1.f) * 255.f;
         asBg.setFillColor(sf::Color(C_BG_ELEVATED.r, C_BG_ELEVATED.g, C_BG_ELEVATED.b, alpha));
         asBg.setOutlineColor(sf::Color(C_BORDER_LIGHT.r, C_BORDER_LIGHT.g, C_BORDER_LIGHT.b, alpha));
@@ -1424,6 +1514,8 @@ void EditorScene::Render(sf::RenderWindow &window)
     if (m_AddDropdownOpen) DrawAddDropdown(window);
 
     if (m_ShowSettings) DrawSettingsWindow(window);
+    if (m_ShowProjectSettings) DrawProjectSettingsWindow(window);
+    if (m_ShowBuildPopup) DrawBuildPopup(window);
 
     if (m_ContentBrowser->HasDraggedAsset() &&
         m_ContentBrowser->GetDraggedAsset().type == AssetType::Image)
@@ -2837,7 +2929,6 @@ void EditorScene::SaveToJson(const std::string &path)
 {
     std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
-    // Note: We don't save the UI here, it's saved in UIEditorScene, but we ensure the path is set.
 
     json data;
     data["name"] = "game";
@@ -3134,7 +3225,6 @@ void EditorScene::RestoreSnapshot()
 {
     std::cout << "[INFO] [EditorScene] Restoring play-mode snapshot...\n";
 
-    // Destroy all current entities in the registry
     for (auto &obj : m_Objects)
         if (obj.entity != 0)
             m_Registry.DestroyEntity(obj.entity);
@@ -3143,16 +3233,13 @@ void EditorScene::RestoreSnapshot()
     m_Objects.clear();
     ClearSelection();
 
-    // Reload the UI to discard any play-mode mutations
     std::string currentUI = UIManager::Get().GetCurrentUIPath();
     if (!currentUI.empty()) {
         UIManager::Get().Load(currentUI);
     }
 
-    // Restore entity counter so new entities get the same IDs
     m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
 
-    // Rebuild m_Objects and Registry from snapshot (same logic as LoadFromJson)
     for (auto &j : m_PlayModeSnapshot["objects"])
     {
         EditorObject obj;
@@ -4202,7 +4289,7 @@ void EditorScene::SaveSettings()
     data["debug"]["logLevel"] = m_LogLevel;
     data["debug"]["showAutoSaveInTitle"] = m_ShowAutoSaveInTitle;
 
-    std::string editorDir = ASSET_PATH "editor";
+    std::string editorDir = ASSET_PATH "/editor";
     if (!std::filesystem::exists(editorDir)) { std::filesystem::create_directories(editorDir); }
 
     std::ofstream file(editorDir + "/editor_settings.json");
@@ -4212,7 +4299,7 @@ void EditorScene::SaveSettings()
 
 void EditorScene::LoadSettings()
 {
-    std::string editorDir = ASSET_PATH "editor";
+    std::string editorDir = ASSET_PATH "/editor";
     std::ifstream file(editorDir + "/editor_settings.json");
     if (!file.is_open()) return;
 
@@ -4508,11 +4595,449 @@ void EditorScene::SelectObject(EditorObject* obj, bool multi) {
             obj->selected = true;
         }
         m_Selected = m_SelectedObjects.size() == 1 ? m_SelectedObjects.back() : nullptr; 
-        // wait, if multiple, Inspector gets disabled by m_Selected = nullptr
     }
 }
 bool EditorScene::IsSelected(const EditorObject* obj) const {
     return std::find(m_SelectedObjects.begin(), m_SelectedObjects.end(), obj) != m_SelectedObjects.end();
 }
 
+static std::filesystem::path FindProjectRoot()
+{
+    std::filesystem::path search = std::filesystem::current_path();
+    for (int i = 0; i < 5; ++i) {
+        if (std::filesystem::exists(search / "CMakeLists.txt")) {
+            return std::filesystem::absolute(search);
+        }
+        if (search.has_parent_path() && search != search.parent_path()) {
+            search = search.parent_path();
+        } else {
+            break;
+        }
+    }
+    return std::filesystem::current_path();
+}
 
+static std::string ResolveCMakeExecutable()
+{
+#ifdef _WIN32
+    std::vector<std::string> candidates = {
+        "cmake",
+        "\"C:\\Program Files\\JetBrains\\CLion 2025.1\\bin\\cmake\\win\\x64\\bin\\cmake.exe\"",
+        "\"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\"",
+        "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\""
+    };
+    for (const auto& c : candidates) {
+        std::string test = c + " --version >nul 2>&1";
+        if (system(test.c_str()) == 0) {
+            return c;
+        }
+    }
+#endif
+    return "cmake";
+}
+
+void EditorScene::ExportStandaloneGame()
+{
+    ConsolePanel::AddLogGlobal("Starting standalone game build...", false);
+    
+    m_ShowBuildPopup = true;
+    m_BuildFinished = false;
+    m_BuildProgress = 0.0f;
+    m_CancelBuildRequested = false;
+    m_BuildStatusText = "Locating project root & tools...";
+    
+    std::thread([this]() {
+        auto updateStatus = [this](const std::string& text, float progress) {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildStatusText = text;
+            if (progress >= 0.0f) m_BuildProgress = progress;
+        };
+        
+        auto checkCancel = [this]() -> bool {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            return m_CancelBuildRequested;
+        };
+
+        std::filesystem::path rootDir = FindProjectRoot();
+        std::string cmakeBin = ResolveCMakeExecutable();
+        
+        std::filesystem::path buildDir;
+        if (std::filesystem::exists(rootDir / "cmake-build-debug" / "CMakeCache.txt")) {
+            buildDir = rootDir / "cmake-build-debug";
+        } else if (std::filesystem::exists(rootDir / "build" / "CMakeCache.txt")) {
+            buildDir = rootDir / "build";
+        } else {
+            buildDir = rootDir / "build_standalone";
+            std::filesystem::create_directories(buildDir);
+        }
+
+        if (!std::filesystem::exists(buildDir / "CMakeCache.txt")) {
+            std::filesystem::create_directories(buildDir);
+            updateStatus("Configuring CMake project in " + buildDir.filename().string() + "...", 10.0f);
+            ConsolePanel::AddLogGlobal("Configuring CMake in: " + buildDir.string(), false);
+            
+            std::string cmdConfig = cmakeBin + " -S \"" + rootDir.string() + "\" -B \"" + buildDir.string() + "\" 2>&1";
+            FILE* pipe =
+#ifdef _WIN32
+                _popen(cmdConfig.c_str(), "r");
+#else
+                popen(cmdConfig.c_str(), "r");
+#endif
+            if (pipe) {
+                char buffer[256];
+                while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                    if (checkCancel()) break;
+                    std::string line = buffer;
+                    if (!line.empty() && line.back() == '\n') line.pop_back();
+                    ConsolePanel::AddLogGlobal(line, false);
+                    updateStatus(line, -1.f);
+                }
+#ifdef _WIN32
+                _pclose(pipe);
+#else
+                pclose(pipe);
+#endif
+            }
+        }
+
+        if (checkCancel()) {
+            updateStatus("Build cancelled.", 0.0f);
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildFinished = true;
+            return;
+        }
+
+        updateStatus("Building RayneGame target...", 30.0f);
+        ConsolePanel::AddLogGlobal("Building RayneGame in: " + buildDir.string(), false);
+        std::string cmdBuild = cmakeBin + " --build \"" + buildDir.string() + "\" --target RayneGame 2>&1";
+        FILE* pipe =
+#ifdef _WIN32
+            _popen(cmdBuild.c_str(), "r");
+#else
+            popen(cmdBuild.c_str(), "r");
+#endif
+        if (pipe) {
+            char buffer[256];
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+                if (checkCancel()) break;
+                
+                std::string line = buffer;
+                if (!line.empty() && line.back() == '\n') line.pop_back();
+                ConsolePanel::AddLogGlobal(line, false);
+                
+                float newProgress = -1.f;
+                if (line.find("[") != std::string::npos && line.find("%]") != std::string::npos) {
+                    size_t start = line.find("[") + 1;
+                    size_t end = line.find("%]");
+                    std::string percentStr = line.substr(start, end - start);
+                    percentStr.erase(0, percentStr.find_first_not_of(" "));
+                    try {
+                        float p = std::stof(percentStr);
+                        newProgress = 30.0f + (p * 0.60f);
+                    } catch(...) {}
+                }
+                
+                updateStatus(line, newProgress);
+            }
+#ifdef _WIN32
+            _pclose(pipe);
+#else
+            pclose(pipe);
+#endif
+        }
+
+        if (checkCancel()) {
+            updateStatus("Build cancelled.", 0.0f);
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildFinished = true;
+            return;
+        }
+
+        std::filesystem::path exePath;
+        std::vector<std::filesystem::path> possibleExePaths = {
+            buildDir / "RayneGame.exe",
+            buildDir / "Release" / "RayneGame.exe",
+            buildDir / "Debug" / "RayneGame.exe"
+        };
+        for (const auto& p : possibleExePaths) {
+            if (std::filesystem::exists(p)) {
+                exePath = p;
+                break;
+            }
+        }
+
+        if (!exePath.empty()) {
+            updateStatus("Packaging game into Export/...", 95.0f);
+            try {
+                std::filesystem::path exportDir = rootDir / "Export";
+                std::filesystem::create_directories(exportDir);
+                std::filesystem::create_directories(exportDir / "assets");
+
+                std::filesystem::copy_file(exePath, exportDir / "RayneGame.exe", std::filesystem::copy_options::overwrite_existing);
+
+                if (std::filesystem::exists(rootDir / "assets")) {
+                    std::filesystem::copy(rootDir / "assets", exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+
+                std::filesystem::path searchDir = exePath.parent_path();
+                for (const auto& entry : std::filesystem::directory_iterator(searchDir)) {
+                    if (entry.path().extension() == ".dll") {
+                        std::filesystem::copy_file(entry.path(), exportDir / entry.path().filename(), std::filesystem::copy_options::overwrite_existing);
+                    }
+                }
+
+                updateStatus("Build finished! Exported to Export/ folder.", 100.0f);
+                ConsolePanel::AddLogGlobal("Standalone game exported successfully to: " + exportDir.string(), false);
+
+#ifdef _WIN32
+                ShellExecuteA(NULL, "explore", exportDir.string().c_str(), NULL, NULL, SW_SHOWNORMAL);
+#endif
+            } catch (const std::exception& e) {
+                updateStatus(std::string("Packaging error: ") + e.what(), 100.0f);
+                ConsolePanel::AddLogGlobal(std::string("Export error: ") + e.what(), true);
+            }
+        } else {
+            updateStatus("Build failed: RayneGame.exe not found. See Console.", 0.0f);
+            ConsolePanel::AddLogGlobal("Build failed! Check Console Panel output above.", true);
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildFinished = true;
+        }
+    }).detach();
+}
+
+
+
+void EditorScene::DrawBuildPopup(sf::RenderWindow& window) {
+    if (!m_ShowBuildPopup) return;
+    
+    sf::RectangleShape bg(sf::Vector2f(window.getSize().x, window.getSize().y));
+    bg.setFillColor(sf::Color(0, 0, 0, 150));
+    window.draw(bg);
+    
+    float pW = 500.f;
+    float pH = 180.f;
+    float pX = (window.getSize().x - pW) / 2.f;
+    float pY = (window.getSize().y - pH) / 2.f;
+    
+    sf::RectangleShape panel(sf::Vector2f(pW, pH));
+    panel.setPosition(pX, pY);
+    panel.setFillColor(C_BG_PANEL);
+    panel.setOutlineColor(C_BORDER);
+    panel.setOutlineThickness(1.f);
+    window.draw(panel);
+    
+    sf::Text header("Building Standalone Game", *m_Font, 16);
+    header.setPosition(pX + 20.f, pY + 20.f);
+    header.setFillColor(C_TEXT_PRIMARY);
+    window.draw(header);
+    
+    std::string statusText;
+    float progress = 0.0f;
+    bool finished = false;
+    {
+        std::lock_guard<std::mutex> lock(m_BuildMutex);
+        statusText = m_BuildStatusText;
+        progress = m_BuildProgress;
+        finished = m_BuildFinished;
+    }
+    
+    sf::Text status(statusText, *m_Font, 12);
+    status.setPosition(pX + 20.f, pY + 60.f);
+    status.setFillColor(C_TEXT_SECONDARY);
+    window.draw(status);
+    
+    float barW = pW - 40.f;
+    float barH = 20.f;
+    sf::RectangleShape barBg(sf::Vector2f(barW, barH));
+    barBg.setPosition(pX + 20.f, pY + 90.f);
+    barBg.setFillColor(C_BG_INPUT);
+    barBg.setOutlineColor(C_BORDER);
+    barBg.setOutlineThickness(1.f);
+    window.draw(barBg);
+    
+    if (progress > 0.0f) {
+        sf::RectangleShape barFill(sf::Vector2f(barW * (progress / 100.f), barH));
+        barFill.setPosition(pX + 20.f, pY + 90.f);
+        barFill.setFillColor(C_ACCENT);
+        window.draw(barFill);
+    }
+    
+    float btnW = 100.f;
+    float btnH = 30.f;
+    float btnX = pX + pW / 2.f - btnW / 2.f;
+    float btnY = pY + pH - 20.f - btnH;
+    
+    sf::RectangleShape btn(sf::Vector2f(btnW, btnH));
+    btn.setPosition(btnX, btnY);
+    
+    sf::Vector2f mPos = MouseWorldPos();
+    mPos = {(float)sf::Mouse::getPosition(window).x, (float)sf::Mouse::getPosition(window).y};
+    bool hoverBtn = btn.getGlobalBounds().contains(mPos);
+    
+    btn.setFillColor(hoverBtn ? C_ACCENT_HOV : C_ACCENT);
+    window.draw(btn);
+    
+    sf::Text btnText(finished ? "Close" : "Cancel", *m_Font, 12);
+    btnText.setFillColor(sf::Color::White);
+    btnText.setPosition(
+        btnX + btnW / 2.f - btnText.getGlobalBounds().width / 2.f,
+        btnY + btnH / 2.f - btnText.getGlobalBounds().height / 2.f - 4.f
+    );
+    window.draw(btnText);
+}
+
+void EditorScene::LoadProjectSettings() {
+    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    if (std::filesystem::exists(path)) {
+        try {
+            std::ifstream f(path);
+            json j;
+            f >> j;
+            m_ProjectName = j.value("ProjectName", "RayneGame");
+            m_ProjectWindowWidth = j.value("WindowWidth", 1280);
+            m_ProjectWindowHeight = j.value("WindowHeight", 720);
+            m_ProjectStartScene = j.value("StartScene", "scenes/game.json");
+            m_ProjectVSync = j.value("VSync", true);
+        } catch (...) {
+            std::cout << "[ERROR] Failed to load project settings\n";
+        }
+    }
+}
+
+void EditorScene::SaveProjectSettings() {
+    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    try {
+        json j;
+        j["ProjectName"] = m_ProjectName;
+        j["WindowWidth"] = m_ProjectWindowWidth;
+        j["WindowHeight"] = m_ProjectWindowHeight;
+        j["StartScene"] = m_ProjectStartScene;
+        j["VSync"] = m_ProjectVSync;
+        std::ofstream f(path);
+        f << j.dump(4);
+    } catch (...) {
+        std::cout << "[ERROR] Failed to save project settings\n";
+    }
+}
+
+float EditorScene::DrawProjectSettingsInputField(sf::RenderWindow &window, const std::string &label,
+                                                 const std::string &currentVal, ProjectSettingsField field,
+                                                 float x, float y, float winW)
+{
+    sf::Text tLabel(label, *m_Font, 11);
+    tLabel.setPosition(x, y + 4.f);
+    tLabel.setFillColor(C_TEXT_SECONDARY);
+    window.draw(tLabel);
+
+    float inX = x + 150.f;
+    float inW = winW - inX - 20.f;
+
+    sf::RectangleShape box(sf::Vector2f(inW, 22.f));
+    box.setPosition(inX, y);
+    box.setFillColor(C_BG_INPUT);
+    box.setOutlineThickness(1.f);
+
+    bool active = (m_ActiveProjectSettingsField == field);
+    box.setOutlineColor(active ? C_ACCENT : C_BORDER);
+
+    window.draw(box);
+
+    std::string display = active ? m_ProjectSettingsInputText : currentVal;
+    if (active && (int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0) display += "|";
+
+    sf::Text tVal(display, *m_Font, 11);
+    tVal.setPosition(inX + 5.f, y + 4.f);
+    tVal.setFillColor(C_TEXT_PRIMARY);
+    window.draw(tVal);
+
+    m_ProjectSettingsButtons.push_back({{inX, y, inW, 22.f}, "edit_proj_" + std::to_string((int)field)});
+    return 30.f;
+}
+
+void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
+    if (!m_ShowProjectSettings) return;
+
+    const float w = 450.f;
+    const float h = 350.f;
+    const float x = (window.getSize().x - w) / 2.f;
+    const float y = (window.getSize().y - h) / 2.f;
+
+    sf::RectangleShape panel(sf::Vector2f(w, h));
+    panel.setPosition(x, y);
+    panel.setFillColor(C_BG_ELEVATED);
+    panel.setOutlineColor(C_BORDER_LIGHT);
+    panel.setOutlineThickness(1.f);
+    window.draw(panel);
+
+    m_ProjectSettingsButtons.clear();
+
+    sf::Text title("Project Settings", *m_Font, 16);
+    title.setPosition(x + 20.f, y + 20.f);
+    title.setFillColor(C_TEXT_PRIMARY);
+    window.draw(title);
+
+    sf::RectangleShape closeBtn(sf::Vector2f(20.f, 20.f));
+    closeBtn.setPosition(x + w - 30.f, y + 20.f);
+    closeBtn.setFillColor(C_BG_INPUT);
+    window.draw(closeBtn);
+    
+    sf::Text closeTxt("X", *m_Font, 12);
+    closeTxt.setPosition(x + w - 24.f, y + 22.f);
+    closeTxt.setFillColor(C_TEXT_MUTED);
+    window.draw(closeTxt);
+    m_ProjectSettingsButtons.push_back({closeBtn.getGlobalBounds(), "close_proj_settings"});
+
+    float currY = y + 60.f;
+
+    currY += DrawProjectSettingsInputField(window, "Project Name", m_ProjectName, ProjectSettingsField::ProjectName, x + 20.f, currY, x + w);
+    currY += DrawProjectSettingsInputField(window, "Start Scene", m_ProjectStartScene, ProjectSettingsField::StartScene, x + 20.f, currY, x + w);
+    currY += DrawProjectSettingsInputField(window, "Window Width", std::to_string(m_ProjectWindowWidth), ProjectSettingsField::WindowWidth, x + 20.f, currY, x + w);
+    currY += DrawProjectSettingsInputField(window, "Window Height", std::to_string(m_ProjectWindowHeight), ProjectSettingsField::WindowHeight, x + 20.f, currY, x + w);
+    
+    sf::Text vsyncText("VSync", *m_Font, 11);
+    vsyncText.setPosition(x + 20.f, currY + 4.f);
+    vsyncText.setFillColor(C_TEXT_SECONDARY);
+    window.draw(vsyncText);
+    
+    sf::RectangleShape togBtn(sf::Vector2f(40.f, 20.f));
+    togBtn.setPosition(x + 170.f, currY);
+    togBtn.setFillColor(m_ProjectVSync ? C_ACCENT : C_BG_INPUT);
+    togBtn.setOutlineColor(C_BORDER);
+    togBtn.setOutlineThickness(1.f);
+    window.draw(togBtn);
+    
+    m_ProjectSettingsButtons.push_back({togBtn.getGlobalBounds(), "toggle_vsync"});
+    currY += 30.f;
+}
+
+void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos) {
+    for (const auto& btn : m_ProjectSettingsButtons) {
+        if (btn.bounds.contains(pos)) {
+            if (btn.action == "close_proj_settings") {
+                m_ShowProjectSettings = false;
+                SaveProjectSettings();
+            } else if (btn.action == "toggle_vsync") {
+                m_ProjectVSync = !m_ProjectVSync;
+                SaveProjectSettings();
+            } else if (btn.action.find("edit_proj_") == 0) {
+                int fieldIdx = std::stoi(btn.action.substr(10));
+                m_ActiveProjectSettingsField = static_cast<ProjectSettingsField>(fieldIdx);
+                
+                if (m_ActiveProjectSettingsField == ProjectSettingsField::ProjectName)
+                    m_ProjectSettingsInputText = m_ProjectName;
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::StartScene)
+                    m_ProjectSettingsInputText = m_ProjectStartScene;
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowWidth)
+                    m_ProjectSettingsInputText = std::to_string(m_ProjectWindowWidth);
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowHeight)
+                    m_ProjectSettingsInputText = std::to_string(m_ProjectWindowHeight);
+            }
+            return;
+        }
+    }
+    m_ActiveProjectSettingsField = ProjectSettingsField::None;
+    SaveProjectSettings();
+}

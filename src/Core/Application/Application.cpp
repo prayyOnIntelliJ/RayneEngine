@@ -1,15 +1,18 @@
-
 #include "Application.h"
+#include "SplashScreen.h"
 
 #include <iostream>
+#include <fstream>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 #include "../ECS/Components.h"
 #include "../Input/InputManager.h"
+
 #include "../Scenes/EditorScene.h"
 #include "../Scenes/UIEditorScene.h"
+
 #include "../Scenes/GameScene.h"
 #include "../Scenes/SceneSerializer.h"
 #include "../Scripting/LuaState.h"
@@ -19,6 +22,12 @@
 #include "SFML/Window/Event.hpp"
 #include "../UI/UIManager.h"
 #include "../Resources/ResourceManager.h"
+#include "SFML/Graphics/Texture.hpp"
+#include "SFML/Graphics/Sprite.hpp"
+#include "SFML/Graphics/Text.hpp"
+#include "SFML/Graphics/RectangleShape.hpp"
+#include "SFML/System/Sleep.hpp"
+#include "SFML/System/Time.hpp"
 
 Application* g_App = nullptr;
 
@@ -28,7 +37,7 @@ BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType)
     {
         std::cout << "[INFO] [Application] Intercepted console stop signal (" << dwCtrlType << "). Forcing save...\n";
         if (g_App) g_App->GetSceneManager().Shutdown();
-        return FALSE; // Let default handler terminate process
+        return FALSE;
     }
     return FALSE;
 }
@@ -39,14 +48,99 @@ Application::Application()
     SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
 
     std::cout << "[INFO] [Application] Booting RayneEngine...\n";
-    CreateEngineWindow();
+    std::string projName = "RayneEngine";
+    int winW = 1280;
+    int winH = 720;
+    bool vsync = true;
+    std::string initialScene = "game";
+    
+    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    if (std::filesystem::exists(path)) {
+        try {
+            std::ifstream f(path);
+            nlohmann::json j;
+            f >> j;
+            projName = j.value("ProjectName", projName);
+            winW = j.value("WindowWidth", winW);
+            winH = j.value("WindowHeight", winH);
+            vsync = j.value("VSync", vsync);
+            initialScene = j.value("StartScene", initialScene);
+            if (initialScene.find("scenes/") == 0) {
+                initialScene = initialScene.substr(7);
+            }
+            if (initialScene.find(".json") != std::string::npos) {
+                initialScene = initialScene.substr(0, initialScene.length() - 5);
+            }
+        } catch(...) {}
+    }
+
+    m_StartScene = initialScene;
+    m_ProjectName = projName;
+    
+    SetProcessDPIAware();
+
+#ifdef RAYNE_STANDALONE
+    m_RenderWindow.create(sf::VideoMode(winW, winH), projName, sf::Style::Default);
+    m_RenderWindow.setVerticalSyncEnabled(vsync);
+#else
+    sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
+    m_RenderWindow.create(desktop, projName + " - RayneEngine", sf::Style::Default);
+    m_RenderWindow.setVerticalSyncEnabled(vsync);
+
+#ifdef _WIN32
+    HWND hwnd = m_RenderWindow.getSystemHandle();
+    ShowWindow(hwnd, SW_MAXIMIZE);
+
+    sf::Event e;
+    while (m_RenderWindow.pollEvent(e)) {}
+#endif
+#endif
     SetIcon();
 
+    RunSplashSequence();
+
+    std::cout << "[INFO] [Application] Engine Initialization Complete!\n";
+}
+
+void Application::RunSplashSequence()
+{
+    SplashScreen splash(m_RenderWindow);
+    splash.Init(
+        std::string(ASSET_PATH) + "/window/splash.jpg",
+        std::string(ASSET_PATH) + "/fonts/Merriweather.ttf",
+        m_ProjectName,
+#ifdef RAYNE_STANDALONE
+        "Standalone Build"
+#else
+        "Editor Build"
+#endif
+    );
+
+    auto AnimateFrames = [&](int frames) {
+        for (int i = 0; i < frames; ++i)
+            splash.RenderFrame();
+    };
+
+    splash.SetProgress(0.05f, "Loading fonts...");
+    AnimateFrames(30);
+
+    auto font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
+
+    splash.SetProgress(0.15f, "Initializing UI Manager...");
+    AnimateFrames(20);
+
     std::cout << "[INFO] [Application] Initializing UIManager...\n";
-    auto font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
     UIManager::Get().Init(font);
-    UIManager::Get().SetCurrentUIPath(std::string(ASSET_PATH) + "ui.json");
-    UIManager::Get().Load(std::string(ASSET_PATH) + "ui.json");
+    UIManager::Get().SetCurrentUIPath(std::string(ASSET_PATH) + "/ui.json");
+
+    splash.SetProgress(0.25f, "Loading UI layout...");
+    AnimateFrames(15);
+
+    UIManager::Get().Load(std::string(ASSET_PATH) + "/ui.json");
+
+    // ---- Phase 3: Initialize Scripting ----
+    splash.SetProgress(0.35f, "Initializing Lua Scripting Engine...");
+    AnimateFrames(20);
 
     std::cout << "[INFO] [Application] Initializing Lua Subsystem...\n";
     LuaState::Init(m_Registry, [this](const std::string &sceneName) {
@@ -55,14 +149,8 @@ Application::Application()
             m_Registry.Clear();
             TimerManager::Get().Clear();
             TweenManager::Get().Clear();
-            // We shouldn't clear EventManager here if we are INSIDE an event callback (like OnCollision).
-            // Actually, clearing it is safe because FireCollision copies the list or iterates it by index? 
-            // Wait, FireCollision uses a range-based for loop. Clearing it will empty the vector while iterating!
-            // Let's NOT clear EventManager here, GameScene handles it on Exit. But wait, we want to clear old collision events.
-            // Actually, EventManager only holds SubscribeCollision from GameScene::OnEnter. We SHOULD clear it and re-subscribe!
             EventManager::Get().Clear();
             
-            // Re-subscribe default game scene collision handler
             EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
                 if (m_Registry.HasComponent<ScriptComponent>(e.a))
                     m_Registry.GetComponent<ScriptComponent>(e.a).OnCollision(e.b);
@@ -71,44 +159,58 @@ Application::Application()
                     m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
             });
 
-            SceneSerializer::LoadIntoRegistry(m_Registry, "assets/scenes/" + sceneName + ".json");
-            std::string uiPath = "assets/scenes/" + sceneName + "_ui.json";
+            SceneSerializer::LoadIntoRegistry(m_Registry, std::string(ASSET_PATH) + "/scenes/" + sceneName + ".json");
+            std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + sceneName + "_ui.json";
             UIManager::Get().SetCurrentUIPath(uiPath);
             UIManager::Get().Load(uiPath);
             m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
         }
     });
 
-    std::cout << "[INFO] [Application] Registering Scenes...\n";
-    m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);
-    m_SceneManager.RegisterScene<UIEditorScene>("ui_editor", m_RenderWindow);
-    m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
+    splash.SetProgress(0.50f, "Scripting engine ready");
+    AnimateFrames(15);
 
+    splash.SetProgress(0.60f, "Registering scenes...");
+    AnimateFrames(15);
+
+    std::cout << "[INFO] [Application] Registering Scenes...\n";
+#ifndef RAYNE_STANDALONE
+    m_SceneManager.RegisterScene<EditorScene>("editor", m_RenderWindow, m_Registry);
+    splash.SetProgress(0.70f, "Registered: Editor Scene");
+    AnimateFrames(10);
+
+    m_SceneManager.RegisterScene<UIEditorScene>("ui_editor", m_RenderWindow);
+    splash.SetProgress(0.78f, "Registered: UI Editor Scene");
+    AnimateFrames(10);
+#endif
+
+    m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
+    splash.SetProgress(0.85f, "Registered: Game Scene");
+    AnimateFrames(10);
+
+    splash.SetProgress(0.90f, "Loading project...");
+    AnimateFrames(15);
+
+#ifdef RAYNE_STANDALONE
+    std::cout << "[INFO] [Application] Switching to Game Scene (Standalone)...\n";
+    m_SceneManager.SwitchSceneTo("game");
+    
+    SceneSerializer::LoadIntoRegistry(m_Registry, std::string(ASSET_PATH) + "/scenes/" + m_StartScene + ".json");
+    std::string uiPath = std::string(ASSET_PATH) + "/ui.json";
+    UIManager::Get().SetCurrentUIPath(uiPath);
+    UIManager::Get().Load(uiPath);
+#else
     std::cout << "[INFO] [Application] Switching to Editor Scene...\n";
     m_SceneManager.SwitchSceneTo("editor");
+#endif
 
-    std::cout << "[INFO] [Application] Engine Initialization Complete!\n";
+    splash.SetProgress(1.0f, "Ready!");
+    AnimateFrames(40);
+
+    splash.BeginFadeOut();
+    while (splash.RenderFrame()) {}
 }
 
-void Application::CreateEngineWindow()
-{
-    std::cout << "[INFO] [Window] Creating main window...\n";
-
-    SetProcessDPIAware();
-
-    sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
-    m_RenderWindow.create(desktop, "RayneEngine");
-
-    std::cout << "[INFO] [Window] Created window with resolution " << desktop.width << "x" << desktop.height << "\n";
-
-    HWND hwnd = m_RenderWindow.getSystemHandle();
-    ShowWindow(hwnd, SW_MAXIMIZE);
-
-    sf::Event e;
-    while (m_RenderWindow.pollEvent(e)) {}
-
-    std::cout << "[INFO] [Window] Window maximized successfully.\n";
-}
 
 void Application::Run()
 {
@@ -134,7 +236,7 @@ void Application::SetIcon()
 {
     sf::Image icon;
 
-    if (const std::string &filePath = "assets/window/rayne_icon.png"; icon.loadFromFile(filePath))
+    if (const std::string &filePath = std::string(ASSET_PATH) + "/window/rayne_icon.png"; icon.loadFromFile(filePath))
     {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
         std::cout << "[INFO] [Window] Loaded window icon from " << filePath << "\n";

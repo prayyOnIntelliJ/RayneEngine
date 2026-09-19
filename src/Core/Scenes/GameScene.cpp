@@ -1,6 +1,7 @@
 #include "GameScene.h"
 #include "../Scenes/SceneManager.h"
 #include <iostream>
+#include "../Application/Application.h"
 
 #include "../ECS/Components.h"
 #include "../Scripting/EventManager.h"
@@ -16,7 +17,7 @@
 GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
 
     m_DebugText.setFont(*m_Font);
     m_DebugText.setCharacterSize(12);
@@ -28,11 +29,13 @@ void GameScene::OnEnter()
 {
     std::cout << "[INFO] [GameScene] Starting simulation...\n";
 
+#ifndef RAYNE_STANDALONE
     m_Window.setTitle(
-        std::string(Rayne::DEFAULT_PROJECT_NAME)
+        (g_App ? g_App->GetProjectName() : std::string(Rayne::DEFAULT_PROJECT_NAME))
         + ": Play Mode"
         + " (" + Rayne::PlatformString() + ")"
         + " - RayneEngine " + Rayne::VersionString());
+#endif
 
     m_Camera = m_Window.getDefaultView();
     m_LastCollisions.clear();
@@ -170,8 +173,13 @@ void GameScene::CheckCollisions()
 
 void GameScene::HandleEvent(const sf::Event &event)
 {
+#ifndef RAYNE_STANDALONE
     if (event.type == sf::Event::KeyPressed &&
         event.key.code == sf::Keyboard::Escape) { m_manager.SwitchSceneTo("editor"); }
+#else
+    if (event.type == sf::Event::KeyPressed &&
+        event.key.code == sf::Keyboard::Escape) { m_Window.close(); }
+#endif
 }
 
 void GameScene::Update(float deltaTime)
@@ -182,12 +190,14 @@ void GameScene::Update(float deltaTime)
             t.y += v.dy * deltaTime;
         });
 
+#ifndef RAYNE_STANDALONE
     m_HotReloadTimer += deltaTime;
     if (m_HotReloadTimer >= 0.5f)
     {
         m_HotReloadTimer = 0.f;
         m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.ReloadIfNeeded(); });
     }
+#endif
 
     m_Registry.ForEach<ScriptComponent>([deltaTime](Entity, ScriptComponent &sc) { sc.OnUpdate(deltaTime); });
 
@@ -282,6 +292,8 @@ void GameScene::Render(sf::RenderWindow &window)
     UIManager::Get().Render(window);
 
     window.setView(window.getDefaultView());
+#ifndef RAYNE_STANDALONE
     m_DebugText.setString("GAME  |  Esc: back to editor");
     window.draw(m_DebugText);
+#endif
 }
