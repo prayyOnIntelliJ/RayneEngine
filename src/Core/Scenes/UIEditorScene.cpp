@@ -28,7 +28,7 @@ static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
     : Scene(manager), m_Window(window)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
     m_CanvasView = window.getDefaultView();
     InitMenus();
     UpdateBounds();
@@ -687,7 +687,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 {
     m_InspectorHitboxes.clear();
 
-    // Background and border drawn at real screen coords
     sf::RectangleShape panel({InspectorWidth, m_InspectorBounds.height});
     panel.setFillColor(C_BG_PANEL);
     panel.setPosition(m_InspectorBounds.left, m_InspectorBounds.top);
@@ -700,22 +699,17 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (!m_SelectedElement)
     {
-        // Still reset clip in case it was left active from a previous frame
         m_InspectorClipTop    = 0.f;
         m_InspectorClipBottom = 99999.f;
         return;
     }
 
-    // Clip bounds
     const float clipTop    = m_InspectorBounds.top;
     const float clipBottom = m_InspectorBounds.top + m_InspectorBounds.height;
 
-    // Expose clip bounds to draw helpers so they can skip out-of-bounds rows
     m_InspectorClipTop    = clipTop;
     m_InspectorClipBottom = clipBottom;
 
-    // y starts shifted by -scrollOffset so helpers draw at real screen positions naturally.
-    // All hitboxes stored by helpers are thus already in real screen space.
     float scrollOff = m_InspectorScrollOffset;
     float y = m_InspectorBounds.top + 10.f - scrollOff;
     float px = m_InspectorBounds.left;
@@ -794,7 +788,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                       : std::to_string(m_SelectedElement->color.a));
     y = DrawEditableRow(window, "A", aDisplay, "edit_a", px, y);
 
-    // Visible toggle
     y += 4.f;
     bool isVisible = m_SelectedElement->visible;
     DrawActionButton(window, isVisible ? "[Visible]" : "[Hidden]", "visible_toggle",
@@ -803,7 +796,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                      isVisible ? C_SUCCESS : C_BORDER_LIGHT);
     y += 30.f;
 
-    // Opacity
     std::string opacityDisplay = (m_ActiveField == EditField::Opacity && !m_ActiveInputText.empty())
                                      ? m_ActiveInputText + "|"
                                      : (m_ActiveField == EditField::Opacity
@@ -811,7 +803,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                             : std::to_string((int)m_SelectedElement->opacity));
     y = DrawEditableRow(window, "Opacity", opacityDisplay, "edit_opacity", px, y);
 
-    // Outline color/thickness (panel/button border)
     std::string outRDisplay = (m_ActiveField == EditField::OutlineR && !m_ActiveInputText.empty())
                                   ? m_ActiveInputText + "|"
                                   : (m_ActiveField == EditField::OutlineR ? "|" : std::to_string(m_SelectedElement->outlineColor.r));
@@ -839,13 +830,11 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                      : (m_ActiveField == EditField::UIText ? "|" : m_SelectedElement->text);
         y = DrawEditableRow(window, "Text", txtDisplay, "edit_text", px, y);
 
-        // Font Size
         std::string fsDisplay = (m_ActiveField == EditField::CharacterSize && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::CharacterSize ? "|" : std::to_string(m_SelectedElement->characterSize));
         y = DrawEditableRow(window, "Font Size", fsDisplay, "edit_fontsize", px, y);
 
-        // Text Align toggles
         y += 4.f;
         bool isLeft   = m_SelectedElement->textAlign == TextAlign::Left;
         bool isCenter = m_SelectedElement->textAlign == TextAlign::Center;
@@ -855,7 +844,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         DrawActionButton(window, "Right",  "align_right",  px + 150.f, y, isRight  ? C_ACCENT_DIM : C_BG_ELEVATED, isRight  ? C_ACCENT : C_BORDER_LIGHT);
         y += 30.f;
 
-        // Style toggles
         bool isBold      = (m_SelectedElement->textStyle & sf::Text::Bold) != 0;
         bool isItalic    = (m_SelectedElement->textStyle & sf::Text::Italic) != 0;
         bool isUnderline = (m_SelectedElement->textStyle & sf::Text::Underlined) != 0;
@@ -867,7 +855,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         DrawActionButton(window, "UpperCase", "uppercase_toggle", px + 10.f, y, isUpperCase ? C_ACCENT_DIM : C_BG_ELEVATED, isUpperCase ? C_ACCENT : C_BORDER_LIGHT);
         y += 30.f;
 
-        // Letter/Line spacing
         std::string lsDisplay = (m_ActiveField == EditField::LetterSpacing && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::LetterSpacing ? "|" : std::to_string(m_SelectedElement->letterSpacing).substr(0,4));
@@ -877,7 +864,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                       : (m_ActiveField == EditField::LineSpacing ? "|" : std::to_string(m_SelectedElement->lineSpacing).substr(0,4));
         y = DrawEditableRow(window, "Line Spacing", lineDisplay, "edit_linespacing", px, y);
 
-        // Text Outline
         std::string toRDisplay = (m_ActiveField == EditField::TextOutlineR && !m_ActiveInputText.empty())
                                      ? m_ActiveInputText + "|"
                                      : (m_ActiveField == EditField::TextOutlineR ? "|" : std::to_string(m_SelectedElement->textOutlineColor.r));
@@ -895,7 +881,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                        : (m_ActiveField == EditField::TextOutlineThickness ? "|" : std::to_string((int)m_SelectedElement->textOutlineThickness));
         y = DrawEditableRow(window, "TxtOut Thk", toThkDisplay, "edit_textoutline_thickness", px, y);
 
-        // Text Offset
         std::string txDisplay = (m_ActiveField == EditField::TextOffsetX && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::TextOffsetX ? "|" : std::to_string((int)m_SelectedElement->textOffset.x));
@@ -905,7 +890,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                     : (m_ActiveField == EditField::TextOffsetY ? "|" : std::to_string((int)m_SelectedElement->textOffset.y));
         y = DrawEditableRow(window, "Offset Y", tyDisplay, "edit_textoffset_y", px, y);
 
-        // Text Color
         std::string tcRDisplay = (m_ActiveField == EditField::TextColorR && !m_ActiveInputText.empty())
                                      ? m_ActiveInputText + "|"
                                      : (m_ActiveField == EditField::TextColorR ? "|" : std::to_string(m_SelectedElement->textColor.r));
@@ -925,7 +909,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 10.f;
         y = DrawSectionHeader(window, "BUTTON", sf::Color(100, 220, 255), px, y);
 
-        // Normal Color
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
@@ -939,7 +922,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                     : (m_ActiveField == EditField::NormalB ? "|" : std::to_string(m_SelectedElement->normalColor.b));
         y = DrawEditableRow(window, "Normal B", nbDisplay, "edit_normalb", px, y);
 
-        // Hover Color
         std::string hrDisplay = (m_ActiveField == EditField::HoverR && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::HoverR ? "|" : std::to_string(m_SelectedElement->hoverColor.r));
@@ -953,7 +935,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                     : (m_ActiveField == EditField::HoverB ? "|" : std::to_string(m_SelectedElement->hoverColor.b));
         y = DrawEditableRow(window, "Hover B", hbDisplay, "edit_hoverb", px, y);
 
-        // Pressed Color
         std::string prDisplay = (m_ActiveField == EditField::PressedR && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::PressedR ? "|" : std::to_string(m_SelectedElement->pressedColor.r));
@@ -967,7 +948,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                     : (m_ActiveField == EditField::PressedB ? "|" : std::to_string(m_SelectedElement->pressedColor.b));
         y = DrawEditableRow(window, "Pressed B", pbDisplay, "edit_pressedb", px, y);
 
-        // Border Color/Thickness
         std::string brDisplay = (m_ActiveField == EditField::BorderR && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
                                     : (m_ActiveField == EditField::BorderR ? "|" : std::to_string(m_SelectedElement->borderColor.r));
@@ -985,7 +965,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                       : (m_ActiveField == EditField::BorderThickness ? "|" : std::to_string((int)m_SelectedElement->borderThickness));
         y = DrawEditableRow(window, "Border Thk", bThkDisplay, "edit_borderthickness", px, y);
 
-        // Disabled toggle
         y += 4.f;
         bool isDisabled = m_SelectedElement->disabled;
         DrawActionButton(window, isDisabled ? "[Disabled]" : "[Enabled]", "disabled_toggle",
@@ -995,18 +974,14 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 30.f;
     }
 
-    // Update max scroll based on total content height
-    // y is screen-space, so add scrollOff to recover the logical bottom
     float totalContentBottom = y + scrollOff;
     m_InspectorMaxScroll = std::max(0.f, totalContentBottom - m_InspectorBounds.top - m_InspectorBounds.height + 20.f);
 
-    // Redraw left border so it's always crisp on top of content
     sf::RectangleShape borderFront({1.f, m_InspectorBounds.height});
     borderFront.setFillColor(C_BORDER);
     borderFront.setPosition(m_InspectorBounds.left, m_InspectorBounds.top);
     window.draw(borderFront);
 
-    // Scrollbar (thin accent bar on the right edge of the inspector)
     if (m_InspectorMaxScroll > 0.f)
     {
         float ratio     = m_InspectorBounds.height / (m_InspectorBounds.height + m_InspectorMaxScroll);
@@ -1018,7 +993,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         window.draw(scrollBar);
     }
 
-    // Reset clip so helpers draw normally for other panels (Hierarchy, Palette, Toolbar)
     m_InspectorClipTop    = 0.f;
     m_InspectorClipBottom = 99999.f;
 }
@@ -1146,7 +1120,7 @@ void UIEditorScene::HandleAction(const std::string &action)
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
-        if (path.empty()) path = std::string(ASSET_PATH) + "ui.json";
+        if (path.empty()) path = std::string(ASSET_PATH) + "/ui.json";
         UIManager::Get().Save(path);
         std::cout << "[INFO] [UIEditorScene] UI Saved to " << path << "\n";
         m_SaveFeedbackTimer = 2.0f;
@@ -1262,7 +1236,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::LineSpacing;
         m_ActiveInputText = std::to_string(m_SelectedElement->lineSpacing);
     }
-    // Align toggles
     else if (action == "align_left")
     {
         if (m_SelectedElement) { m_SelectedElement->textAlign = TextAlign::Left; m_SelectedElement->UpdateDrawables(); }
@@ -1275,7 +1248,6 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         if (m_SelectedElement) { m_SelectedElement->textAlign = TextAlign::Right; m_SelectedElement->UpdateDrawables(); }
     }
-    // Style toggles
     else if (action == "style_bold_toggle")
     {
         if (m_SelectedElement)
@@ -1304,7 +1276,6 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         if (m_SelectedElement) { m_SelectedElement->textUpperCase = !m_SelectedElement->textUpperCase; m_SelectedElement->UpdateDrawables(); }
     }
-    // Visible / disabled toggles
     else if (action == "visible_toggle")
     {
         if (m_SelectedElement) { m_SelectedElement->visible = !m_SelectedElement->visible; m_SelectedElement->UpdateDrawables(); }
@@ -1313,7 +1284,6 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         if (m_SelectedElement) { m_SelectedElement->disabled = !m_SelectedElement->disabled; m_SelectedElement->UpdateDrawables(); }
     }
-    // Text outline edits
     else if (action == "edit_textoutline_r")
     {
         m_ActiveField = EditField::TextOutlineR;
@@ -1334,7 +1304,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::TextOutlineThickness;
         m_ActiveInputText = std::to_string(m_SelectedElement->textOutlineThickness);
     }
-    // Text offset edits
     else if (action == "edit_textoffset_x")
     {
         m_ActiveField = EditField::TextOffsetX;
@@ -1345,7 +1314,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::TextOffsetY;
         m_ActiveInputText = std::to_string((int)m_SelectedElement->textOffset.y);
     }
-    // Panel outline edits
     else if (action == "edit_outline_r")
     {
         m_ActiveField = EditField::OutlineR;
@@ -1366,7 +1334,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::OutlineThickness;
         m_ActiveInputText = std::to_string(m_SelectedElement->outlineThickness);
     }
-    // Button border edits
     else if (action == "edit_borderr")
     {
         m_ActiveField = EditField::BorderR;
@@ -1387,7 +1354,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::BorderThickness;
         m_ActiveInputText = std::to_string(m_SelectedElement->borderThickness);
     }
-    // Button hover edits
     else if (action == "edit_hoverr")
     {
         m_ActiveField = EditField::HoverR;
@@ -1403,7 +1369,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::HoverB;
         m_ActiveInputText = std::to_string(m_SelectedElement->hoverColor.b);
     }
-    // Button pressed edits
     else if (action == "edit_pressedr")
     {
         m_ActiveField = EditField::PressedR;
@@ -1419,7 +1384,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::PressedB;
         m_ActiveInputText = std::to_string(m_SelectedElement->pressedColor.b);
     }
-    // Button normal color edits
     else if (action == "edit_normalr")
     {
         m_ActiveField = EditField::NormalR;
@@ -1435,7 +1399,6 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::NormalB;
         m_ActiveInputText = std::to_string(m_SelectedElement->normalColor.b);
     }
-    // Text color edits
     else if (action == "edit_textcolor_r")
     {
         m_ActiveField = EditField::TextColorR;
@@ -1540,7 +1503,6 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
                                      const std::string &action, float x, float y)
 {
     const float rowH = 20.f;
-    // Skip drawing and hitbox if completely outside the visible inspector area
     if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + rowH;
 
@@ -1582,7 +1544,6 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
 float UIEditorScene::DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action,
                                       float x, float y, sf::Color fillColor, sf::Color borderColor)
 {
-    // Skip if completely outside the visible inspector area
     if (y + 30.f <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + 30.f;
 

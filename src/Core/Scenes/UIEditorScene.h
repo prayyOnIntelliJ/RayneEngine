@@ -150,7 +150,6 @@ private:
     float m_InspectorMaxScroll = 0.f;
     sf::View m_InspectorView;
 
-    // Active clip region for inspector helpers (set each frame in DrawInspector)
     float m_InspectorClipTop    = 0.f;
     float m_InspectorClipBottom = 99999.f;
 
