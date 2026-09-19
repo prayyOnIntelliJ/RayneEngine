@@ -1,0 +1,7 @@
+{
+    "ProjectName": "Flappy Bird",
+    "StartScene": "scenes/game.json",
+    "VSync": true,
+    "WindowHeight": 720,
+    "WindowWidth": 1280
+}
