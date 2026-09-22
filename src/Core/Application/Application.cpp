@@ -138,7 +138,6 @@ void Application::RunSplashSequence()
 
     UIManager::Get().Load(std::string(ASSET_PATH) + "/ui.json");
 
-    // ---- Phase 3: Initialize Scripting ----
     splash.SetProgress(0.35f, "Initializing Lua Scripting Engine...");
     AnimateFrames(20);
 

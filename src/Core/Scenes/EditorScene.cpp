@@ -125,6 +125,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     UpdateStatusText();
 
     LoadSettings();
+    LoadProjectSettings();
 
     const std::string scenesDir = ASSET_PATH "/scenes";
     const std::string defaultScenePath = std::string(ASSET_PATH) + "/" + m_SceneSavePath;
@@ -4773,7 +4774,8 @@ void EditorScene::ExportStandaloneGame()
                 std::filesystem::create_directories(exportDir);
                 std::filesystem::create_directories(exportDir / "assets");
 
-                std::filesystem::copy_file(exePath, exportDir / "RayneGame.exe", std::filesystem::copy_options::overwrite_existing);
+                std::string outExeName = m_ProjectName.empty() ? "RayneGame.exe" : m_ProjectName + ".exe";
+                std::filesystem::copy_file(exePath, exportDir / outExeName, std::filesystem::copy_options::overwrite_existing);
 
                 if (std::filesystem::exists(rootDir / "assets")) {
                     std::filesystem::copy(rootDir / "assets", exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
