@@ -159,7 +159,7 @@ set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-target_compile_definitions(RayneEngine PRIVATE "ASSET_PATH=\"${CMAKE_SOURCE_DIR}/assets\"" "ENGINE_ASSET_PATH=\"${CMAKE_SOURCE_DIR}/engine_content\"")
+target_compile_definitions(RayneEngine PRIVATE "ASSET_PATH=\"assets\"" "ENGINE_ASSET_PATH=\"engine_content\"")
 
 add_executable(RayneGame
         src/main.cpp
