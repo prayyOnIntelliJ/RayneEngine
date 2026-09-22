@@ -26,7 +26,7 @@
         "selectionOutlineThickness": 2.0
     },
     "general": {
-        "autoSaveEnabled": false,
+        "autoSaveEnabled": true,
         "autoSaveIntervalSeconds": 180.0,
         "autoSavePopupDuration": 10.0,
         "autoSavePopupEnabled": false

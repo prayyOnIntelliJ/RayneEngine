@@ -43,3 +43,7 @@ private:
 #ifndef ASSET_PATH
 #define ASSET_PATH "assets/"
 #endif
+
+#ifndef ENGINE_ASSET_PATH
+#define ENGINE_ASSET_PATH "engine_content"
+#endif

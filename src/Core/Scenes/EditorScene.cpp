@@ -72,7 +72,7 @@ static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
@@ -4290,7 +4290,7 @@ void EditorScene::SaveSettings()
     data["debug"]["logLevel"] = m_LogLevel;
     data["debug"]["showAutoSaveInTitle"] = m_ShowAutoSaveInTitle;
 
-    std::string editorDir = ASSET_PATH "/editor";
+    std::string editorDir = ENGINE_ASSET_PATH "/editor";
     if (!std::filesystem::exists(editorDir)) { std::filesystem::create_directories(editorDir); }
 
     std::ofstream file(editorDir + "/editor_settings.json");
@@ -4300,7 +4300,7 @@ void EditorScene::SaveSettings()
 
 void EditorScene::LoadSettings()
 {
-    std::string editorDir = ASSET_PATH "/editor";
+    std::string editorDir = ENGINE_ASSET_PATH "/editor";
     std::ifstream file(editorDir + "/editor_settings.json");
     if (!file.is_open()) return;
 
@@ -4892,7 +4892,7 @@ void EditorScene::DrawBuildPopup(sf::RenderWindow& window) {
 }
 
 void EditorScene::LoadProjectSettings() {
-    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
     if (std::filesystem::exists(path)) {
         try {
             std::ifstream f(path);
@@ -4910,7 +4910,7 @@ void EditorScene::LoadProjectSettings() {
 }
 
 void EditorScene::SaveProjectSettings() {
-    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
     try {
         json j;
         j["ProjectName"] = m_ProjectName;

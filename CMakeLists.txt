@@ -120,6 +120,12 @@ add_custom_command(TARGET RayneEngine POST_BUILD
 )
 
 add_custom_command(TARGET RayneEngine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/engine_content
+        $<TARGET_FILE_DIR:RayneEngine>/engine_content
+)
+
+add_custom_command(TARGET RayneEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:sfml-system>
         $<TARGET_FILE:sfml-window>
@@ -146,7 +152,7 @@ set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
 
-target_compile_definitions(RayneEngine PRIVATE "ASSET_PATH=\"${CMAKE_SOURCE_DIR}/assets\"")
+target_compile_definitions(RayneEngine PRIVATE "ASSET_PATH=\"${CMAKE_SOURCE_DIR}/assets\"" "ENGINE_ASSET_PATH=\"${CMAKE_SOURCE_DIR}/engine_content\"")
 
 add_executable(RayneGame
         src/main.cpp
@@ -207,4 +213,4 @@ set_target_properties(RayneGame PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:RayneGame>"
 )
 
-target_compile_definitions(RayneGame PRIVATE RAYNE_STANDALONE "ASSET_PATH=\"assets\"")
+target_compile_definitions(RayneGame PRIVATE RAYNE_STANDALONE "ASSET_PATH=\"assets\"" "ENGINE_ASSET_PATH=\"engine_content\"")

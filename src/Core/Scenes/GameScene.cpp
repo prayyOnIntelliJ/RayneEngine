@@ -17,7 +17,7 @@
 GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
 
     m_DebugText.setFont(*m_Font);
     m_DebugText.setCharacterSize(12);

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include "../Resources/ResourceManager.h"
+#include "../Application/Application.h"
 #include <SFML/Window/Event.hpp>
 
 static const sf::Color C_BG_CANVAS = sf::Color(18, 20, 23);
@@ -28,7 +29,7 @@ static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
     : Scene(manager), m_Window(window)
 {
-    m_Font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
+    m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
     m_CanvasView = window.getDefaultView();
     InitMenus();
     UpdateBounds();

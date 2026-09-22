@@ -54,7 +54,7 @@ Application::Application()
     bool vsync = true;
     std::string initialScene = "game";
     
-    std::string path = std::string(ASSET_PATH) + "/project_settings.json";
+    std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
     if (std::filesystem::exists(path)) {
         try {
             std::ifstream f(path);
@@ -106,8 +106,8 @@ void Application::RunSplashSequence()
 {
     SplashScreen splash(m_RenderWindow);
     splash.Init(
-        std::string(ASSET_PATH) + "/window/splash.jpg",
-        std::string(ASSET_PATH) + "/fonts/Merriweather.ttf",
+        std::string(ENGINE_ASSET_PATH) + "/window/splash.jpg",
+        std::string(ENGINE_ASSET_PATH) + "/fonts/Merriweather.ttf",
         m_ProjectName,
 #ifdef RAYNE_STANDALONE
         "Standalone Build"
@@ -124,7 +124,7 @@ void Application::RunSplashSequence()
     splash.SetProgress(0.05f, "Loading fonts...");
     AnimateFrames(30);
 
-    auto font = ResourceManager::Get().GetFont(ASSET_PATH "/fonts/Merriweather.ttf");
+    auto font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
 
     splash.SetProgress(0.15f, "Initializing UI Manager...");
     AnimateFrames(20);
@@ -235,7 +235,7 @@ void Application::SetIcon()
 {
     sf::Image icon;
 
-    if (const std::string &filePath = std::string(ASSET_PATH) + "/window/rayne_icon.png"; icon.loadFromFile(filePath))
+    if (const std::string &filePath = std::string(ENGINE_ASSET_PATH) + "/window/rayne_icon.png"; icon.loadFromFile(filePath))
     {
         m_RenderWindow.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
         std::cout << "[INFO] [Window] Loaded window icon from " << filePath << "\n";
