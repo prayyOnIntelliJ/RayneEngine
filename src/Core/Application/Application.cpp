@@ -22,6 +22,7 @@
 #include "SFML/Window/Event.hpp"
 #include "../UI/UIManager.h"
 #include "../Resources/ResourceManager.h"
+#include "../Audio/AudioManager.h"
 #include "SFML/Graphics/Texture.hpp"
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Text.hpp"
@@ -49,9 +50,16 @@ Application::Application()
 
     std::cout << "[INFO] [Application] Booting RayneEngine...\n";
     std::string projName = "RayneEngine";
+    std::string projVersion = "1.0.0";
+    std::string projAuthor = "";
     int winW = 1280;
     int winH = 720;
     bool vsync = true;
+    int targetFPS = 60;
+    bool fullscreen = false;
+    sf::Color clearColor = sf::Color(18, 20, 23);
+    float masterVol = 100.f;
+    float musicVol = 100.f;
     std::string initialScene = "game";
     
     std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
@@ -61,9 +69,22 @@ Application::Application()
             nlohmann::json j;
             f >> j;
             projName = j.value("ProjectName", projName);
+            projVersion = j.value("Version", projVersion);
+            projAuthor = j.value("Author", projAuthor);
             winW = j.value("WindowWidth", winW);
             winH = j.value("WindowHeight", winH);
             vsync = j.value("VSync", vsync);
+            targetFPS = j.value("TargetFPS", targetFPS);
+            fullscreen = j.value("Fullscreen", fullscreen);
+            if (j.contains("ClearColor")) {
+                std::string hex = j["ClearColor"].get<std::string>();
+                if (hex.size() >= 7 && hex[0] == '#') {
+                    unsigned int val = std::stoul(hex.substr(1), nullptr, 16);
+                    clearColor = sf::Color((val >> 16) & 0xFF, (val >> 8) & 0xFF, val & 0xFF);
+                }
+            }
+            masterVol = j.value("MasterVolume", masterVol);
+            musicVol = j.value("MusicVolume", musicVol);
             initialScene = j.value("StartScene", initialScene);
             if (initialScene.find("scenes/") == 0) {
                 initialScene = initialScene.substr(7);
@@ -76,16 +97,35 @@ Application::Application()
 
     m_StartScene = initialScene;
     m_ProjectName = projName;
+    m_ProjectVersion = projVersion;
+    m_ProjectAuthor = projAuthor;
+    m_WindowWidth = winW;
+    m_WindowHeight = winH;
+    m_ProjectVSync = vsync;
+    m_ProjectTargetFPS = targetFPS;
+    m_ProjectFullscreen = fullscreen;
+    m_ClearColor = clearColor;
+    m_MasterVolume = masterVol;
+    m_MusicVolume = musicVol;
+
+    AudioManager::Get().SetMasterVolume(masterVol);
+    AudioManager::Get().SetMusicVolume(musicVol);
     
     SetProcessDPIAware();
 
 #ifdef RAYNE_STANDALONE
-    m_RenderWindow.create(sf::VideoMode(winW, winH), projName, sf::Style::Default);
+    if (fullscreen) {
+        m_RenderWindow.create(sf::VideoMode(winW, winH), projName, sf::Style::Fullscreen);
+    } else {
+        m_RenderWindow.create(sf::VideoMode(winW, winH), projName, sf::Style::Default);
+    }
     m_RenderWindow.setVerticalSyncEnabled(vsync);
+    if (targetFPS > 0) m_RenderWindow.setFramerateLimit(targetFPS);
 #else
     sf::VideoMode desktop = sf::VideoMode::getDesktopMode();
     m_RenderWindow.create(desktop, projName + " - RayneEngine", sf::Style::Default);
     m_RenderWindow.setVerticalSyncEnabled(vsync);
+    if (targetFPS > 0) m_RenderWindow.setFramerateLimit(targetFPS);
 
 #ifdef _WIN32
     HWND hwnd = m_RenderWindow.getSystemHandle();
@@ -249,7 +289,7 @@ void Application::Update(float deltaTime)
 
 void Application::Render()
 {
-    m_RenderWindow.clear(sf::Color(18, 20, 23));
+    m_RenderWindow.clear(m_ClearColor);
     m_SceneManager.Render(m_RenderWindow);
     m_RenderWindow.display();
 }
@@ -269,4 +309,16 @@ void Application::SetEvents()
         m_SceneManager.HandleEvent(event);
         InputManager::Get().HandleEvent(event);
     }
+}
+
+void Application::SetMasterVolume(float vol)
+{
+    m_MasterVolume = vol;
+    AudioManager::Get().SetMasterVolume(vol);
+}
+
+void Application::SetMusicVolume(float vol)
+{
+    m_MusicVolume = vol;
+    AudioManager::Get().SetMusicVolume(vol);
 }

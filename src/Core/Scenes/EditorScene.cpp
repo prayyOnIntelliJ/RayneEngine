@@ -372,19 +372,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             if (event.text.unicode == '\b') {
                 if (!m_ProjectSettingsInputText.empty()) m_ProjectSettingsInputText.pop_back();
             } else if (event.text.unicode == '\r' || event.text.unicode == '\n') {
-                if (m_ActiveProjectSettingsField == ProjectSettingsField::ProjectName) {
-                    m_ProjectName = m_ProjectSettingsInputText;
-                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::StartScene) {
-                    m_ProjectStartScene = m_ProjectSettingsInputText;
-                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowWidth) {
-                    try { m_ProjectWindowWidth = std::stoi(m_ProjectSettingsInputText); } catch(...) {}
-                } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowHeight) {
-                    try { m_ProjectWindowHeight = std::stoi(m_ProjectSettingsInputText); } catch(...) {}
-                }
-                
-                m_ActiveProjectSettingsField = ProjectSettingsField::None;
-                m_ProjectSettingsInputText.clear();
-                SaveProjectSettings();
+                CommitActiveProjectSettingsField();
             } else if (event.text.unicode == 27) {
                 m_ActiveProjectSettingsField = ProjectSettingsField::None;
                 m_ProjectSettingsInputText.clear();
@@ -400,7 +388,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 m_ActiveProjectSettingsField = ProjectSettingsField::None;
                 m_ProjectSettingsInputText.clear();
-            } else { m_ShowProjectSettings = false; SaveProjectSettings(); }
+            } else {
+                CommitActiveProjectSettingsField();
+                m_ShowProjectSettings = false;
+            }
             return;
         }
 
@@ -4628,36 +4619,40 @@ bool EditorScene::IsSelected(const EditorObject* obj) const {
     return std::find(m_SelectedObjects.begin(), m_SelectedObjects.end(), obj) != m_SelectedObjects.end();
 }
 
+static std::filesystem::path GetAppDir()
+{
+#ifdef _WIN32
+    char pathBuf[MAX_PATH];
+    if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
+        return std::filesystem::path(pathBuf).parent_path();
+    }
+#endif
+    return std::filesystem::current_path();
+}
+
 static std::filesystem::path FindProjectRoot()
 {
-    std::filesystem::path search = std::filesystem::current_path();
-    for (int i = 0; i < 5; ++i) {
-        if (std::filesystem::exists(search / "CMakeLists.txt")) {
-            return std::filesystem::absolute(search);
-        }
-        if (search.has_parent_path() && search != search.parent_path()) {
-            search = search.parent_path();
-        } else {
-            break;
-        }
-    }
-
     std::error_code ec;
-    std::filesystem::path ap = std::filesystem::absolute(ASSET_PATH, ec);
-    if (!ec && std::filesystem::exists(ap)) {
-        if (ap.filename() == "assets") {
-            return ap.parent_path();
-        }
+    std::filesystem::path cur = std::filesystem::current_path(ec);
+    if (!ec && std::filesystem::exists(cur / "assets")) {
+        return cur;
     }
 
-    return std::filesystem::current_path();
+    std::filesystem::path appDir = GetAppDir();
+    if (std::filesystem::exists(appDir / "assets")) {
+        return appDir;
+    }
+
+    return cur;
 }
 
 static std::string ResolveCMakeExecutable()
 {
+    if (system("cmake --version >nul 2>&1") == 0) {
+        return "cmake";
+    }
 #ifdef _WIN32
     std::vector<std::string> candidates = {
-        "cmake",
         "\"C:\\Program Files\\JetBrains\\CLion 2025.1\\bin\\cmake\\win\\x64\\bin\\cmake.exe\"",
         "\"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\"",
         "\"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe\""
@@ -4704,18 +4699,21 @@ void EditorScene::ExportStandaloneGame()
         };
 
         std::filesystem::path rootDir = FindProjectRoot();
+        std::filesystem::path appDir = GetAppDir();
         std::string cmakeBin = ResolveCMakeExecutable();
         
         std::filesystem::path buildDir;
-        if (std::filesystem::exists(rootDir / "cmake-build-debug" / "CMakeCache.txt")) {
-            buildDir = rootDir / "cmake-build-debug";
-        } else if (std::filesystem::exists(rootDir / "cmake-build-release" / "CMakeCache.txt")) {
-            buildDir = rootDir / "cmake-build-release";
-        } else if (std::filesystem::exists(rootDir / "build" / "CMakeCache.txt")) {
-            buildDir = rootDir / "build";
+        if (std::filesystem::exists(rootDir / "CMakeLists.txt")) {
+            if (std::filesystem::exists(rootDir / "cmake-build-debug" / "CMakeCache.txt")) {
+                buildDir = rootDir / "cmake-build-debug";
+            } else if (std::filesystem::exists(rootDir / "cmake-build-release" / "CMakeCache.txt")) {
+                buildDir = rootDir / "cmake-build-release";
+            } else if (std::filesystem::exists(rootDir / "build" / "CMakeCache.txt")) {
+                buildDir = rootDir / "build";
+            }
         }
 
-        // 2. If CMake is available and configured, compile RayneGame to ensure all C++ changes are applied!
+        // 2. If in a C++ development environment and CMake is available, compile RayneGame
         if (!cmakeBin.empty() && !buildDir.empty()) {
             updateStatus("Building RayneGame target with CMake...", 20.0f);
             ConsolePanel::AddLogGlobal("Building RayneGame in: " + buildDir.string(), false);
@@ -4751,26 +4749,19 @@ void EditorScene::ExportStandaloneGame()
             return;
         }
 
-        // 3. Locate the built RayneGame executable
+        // 3. Locate the template RayneGame executable
         std::filesystem::path exePath;
         std::vector<std::filesystem::path> possibleExePaths = {
-            buildDir / "RayneGame.exe",
-            buildDir / "Release" / "RayneGame.exe",
-            buildDir / "Debug" / "RayneGame.exe",
+            appDir / "templates" / "RayneGame.exe",
             rootDir / "templates" / "RayneGame.exe",
-            rootDir / "cmake-build-debug" / "RayneGame.exe",
-            rootDir / "cmake-build-release" / "RayneGame.exe",
+            appDir / "RayneGame.exe",
             rootDir / "RayneGame.exe"
         };
-
-#ifdef _WIN32
-        char pathBuf[MAX_PATH];
-        if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
-            std::filesystem::path myExe(pathBuf);
-            possibleExePaths.insert(possibleExePaths.begin(), myExe.parent_path() / "RayneGame.exe");
-            possibleExePaths.insert(possibleExePaths.begin(), myExe.parent_path() / "templates" / "RayneGame.exe");
+        if (!buildDir.empty()) {
+            possibleExePaths.push_back(buildDir / "RayneGame.exe");
+            possibleExePaths.push_back(buildDir / "Release" / "RayneGame.exe");
+            possibleExePaths.push_back(buildDir / "Debug" / "RayneGame.exe");
         }
-#endif
         
         for (const auto& p : possibleExePaths) {
             if (!p.empty() && std::filesystem::exists(p)) {
@@ -4788,33 +4779,29 @@ void EditorScene::ExportStandaloneGame()
                 std::string outExeName = m_ProjectName.empty() ? "RayneGame.exe" : m_ProjectName + ".exe";
                 std::filesystem::copy_file(exePath, exportDir / outExeName, std::filesystem::copy_options::overwrite_existing);
 
-                // Copy assets from source ASSET_PATH
+                // Copy assets from local project
                 updateStatus("Copying assets...", 80.0f);
-                std::filesystem::path srcAssets = std::filesystem::exists(rootDir / "assets") ? (rootDir / "assets") : std::filesystem::path(ASSET_PATH);
+                std::filesystem::path srcAssets = std::filesystem::exists(rootDir / "assets") ? (rootDir / "assets") : (appDir / "assets");
                 if (std::filesystem::exists(srcAssets)) {
                     std::filesystem::copy(srcAssets, exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
                 
-                // Copy engine_content from source ENGINE_ASSET_PATH
+                // Copy engine_content from local project
                 updateStatus("Copying engine_content...", 90.0f);
-                std::filesystem::path srcEngine = std::filesystem::exists(rootDir / "engine_content") ? (rootDir / "engine_content") : std::filesystem::path(ENGINE_ASSET_PATH);
+                std::filesystem::path srcEngine = std::filesystem::exists(rootDir / "engine_content") ? (rootDir / "engine_content") : (appDir / "engine_content");
                 if (std::filesystem::exists(srcEngine)) {
                     std::filesystem::copy(srcEngine, exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
 
                 // Copy DLLs
                 std::vector<std::filesystem::path> dllSearchDirs = {
+                    appDir,
                     exePath.parent_path(),
-                    rootDir / "cmake-build-debug",
-                    rootDir / "cmake-build-release",
-                    rootDir / "build"
+                    rootDir
                 };
-#ifdef _WIN32
-                char currentExeBuf[MAX_PATH];
-                if (GetModuleFileNameA(NULL, currentExeBuf, MAX_PATH)) {
-                    dllSearchDirs.push_back(std::filesystem::path(currentExeBuf).parent_path());
+                if (!buildDir.empty()) {
+                    dllSearchDirs.push_back(buildDir);
                 }
-#endif
                 for (const auto& sDir : dllSearchDirs) {
                     if (std::filesystem::exists(sDir)) {
                         for (const auto& entry : std::filesystem::directory_iterator(sDir)) {
@@ -4826,9 +4813,18 @@ void EditorScene::ExportStandaloneGame()
                 }
 
                 // Also automatically create a ready-to-send ZIP archive of the exported game!
-                if (!cmakeBin.empty()) {
-                    std::string zipName = (m_ProjectName.empty() ? "RayneGame" : m_ProjectName) + "_Standalone.zip";
-                    std::filesystem::path zipTarget = rootDir / zipName;
+                std::string zipName = (m_ProjectName.empty() ? "RayneGame" : m_ProjectName) + "_Standalone.zip";
+                std::filesystem::path zipTarget = rootDir / zipName;
+                bool zipCreated = false;
+#ifdef _WIN32
+                std::string tarCmd = "cd /d \"" + exportDir.string() + "\" && tar.exe -a -cf \"" + zipTarget.string() + "\" *";
+                FILE* pZip = _popen(tarCmd.c_str(), "r");
+                if (pZip) {
+                    int ret = _pclose(pZip);
+                    if (ret == 0 && std::filesystem::exists(zipTarget)) zipCreated = true;
+                }
+#endif
+                if (!zipCreated && !cmakeBin.empty()) {
                     std::string zipCmd = cmakeBin + " -E tar cf \"" + zipTarget.string() + "\" --format=zip .";
 #ifdef _WIN32
                     FILE* pZip = _popen(("cd /d \"" + exportDir.string() + "\" && " + zipCmd).c_str(), "r");
@@ -4837,6 +4833,9 @@ void EditorScene::ExportStandaloneGame()
                     FILE* pZip = popen(("cd \"" + exportDir.string() + "\" && " + zipCmd).c_str(), "r");
                     if (pZip) pclose(pZip);
 #endif
+                    if (std::filesystem::exists(zipTarget)) zipCreated = true;
+                }
+                if (zipCreated) {
                     ConsolePanel::AddLogGlobal("Standalone game zip created: " + zipTarget.string(), false);
                 }
 
@@ -4851,8 +4850,8 @@ void EditorScene::ExportStandaloneGame()
                 ConsolePanel::AddLogGlobal(std::string("Export error: ") + e.what(), true);
             }
         } else {
-            updateStatus("Export failed: RayneGame.exe not found.", 0.0f);
-            ConsolePanel::AddLogGlobal("Export failed: RayneGame.exe not found. Please build target 'RayneGame' in your IDE.", true);
+            updateStatus("Export failed: templates/RayneGame.exe not found.", 0.0f);
+            ConsolePanel::AddLogGlobal("Export failed: templates/RayneGame.exe not found. Please ensure templates/RayneGame.exe is present.", true);
         }
 
         {
@@ -4892,61 +4891,61 @@ void EditorScene::PackageEngineZip()
         try {
             updateStatus("Locating project and engine files...", 10.0f);
             std::filesystem::path rootDir = FindProjectRoot();
+            std::filesystem::path appDir = GetAppDir();
             std::string cmakeBin = ResolveCMakeExecutable();
 
-            std::filesystem::path engineExeDir;
-#ifdef _WIN32
-            char pathBuf[MAX_PATH];
-            if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
-                engineExeDir = std::filesystem::path(pathBuf).parent_path();
-            }
-#endif
-            if (engineExeDir.empty() || !std::filesystem::exists(engineExeDir / "RayneEngine.exe")) {
-                if (std::filesystem::exists(rootDir / "cmake-build-release" / "RayneEngine.exe")) {
+            std::filesystem::path engineExeDir = appDir;
+            if (!std::filesystem::exists(engineExeDir / "RayneEngine.exe")) {
+                if (std::filesystem::exists(rootDir / "RayneEngine.exe")) {
+                    engineExeDir = rootDir;
+                } else if (std::filesystem::exists(rootDir / "cmake-build-release" / "RayneEngine.exe")) {
                     engineExeDir = rootDir / "cmake-build-release";
                 } else if (std::filesystem::exists(rootDir / "cmake-build-debug" / "RayneEngine.exe")) {
                     engineExeDir = rootDir / "cmake-build-debug";
-                } else {
-                    engineExeDir = rootDir;
                 }
             }
 
             updateStatus("Preparing package contents...", 30.0f);
             std::filesystem::path zipTarget = rootDir / "RayneEngine-Editor.zip";
 
-            if (cmakeBin.empty()) {
-                cmakeBin = "cmake";
-            }
-
             updateStatus("Packaging RayneEngine into " + zipTarget.filename().string() + "...", 50.0f);
             ConsolePanel::AddLogGlobal("Packaging RayneEngine Editor to: " + zipTarget.string(), false);
 
-            std::string cmd = cmakeBin + " -E tar cf \"" + zipTarget.string() + "\" --format=zip \"RayneEngine.exe\" \"assets\" \"engine_content\" \"templates\"";
+            bool packaged = false;
 #ifdef _WIN32
-            for (const auto& entry : std::filesystem::directory_iterator(engineExeDir)) {
-                if (entry.path().extension() == ".dll") {
-                    cmd += " \"" + entry.path().filename().string() + "\"";
+            std::string tarCmd = "cd /d \"" + engineExeDir.string() + "\" && tar.exe -a -cf \"" + zipTarget.string() + "\" RayneEngine.exe assets engine_content templates *.dll";
+            FILE* pPipe = _popen(tarCmd.c_str(), "r");
+            if (pPipe) {
+                int ret = _pclose(pPipe);
+                if (ret == 0 && std::filesystem::exists(zipTarget)) packaged = true;
+            }
+#endif
+            if (!packaged && !cmakeBin.empty()) {
+                std::string cmd = cmakeBin + " -E tar cf \"" + zipTarget.string() + "\" --format=zip \"RayneEngine.exe\" \"assets\" \"engine_content\" \"templates\"";
+#ifdef _WIN32
+                for (const auto& entry : std::filesystem::directory_iterator(engineExeDir)) {
+                    if (entry.path().extension() == ".dll") {
+                        cmd += " \"" + entry.path().filename().string() + "\"";
+                    }
                 }
-            }
-#endif
-
-#ifdef _WIN32
-            std::string fullCmd = "cd /d \"" + engineExeDir.string() + "\" && " + cmd;
-            FILE* pipe = _popen(fullCmd.c_str(), "r");
-            if (pipe) {
-                char buf[256];
-                while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
-                _pclose(pipe);
-            }
+                std::string fullCmd = "cd /d \"" + engineExeDir.string() + "\" && " + cmd;
+                FILE* pipe = _popen(fullCmd.c_str(), "r");
+                if (pipe) {
+                    char buf[256];
+                    while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
+                    _pclose(pipe);
+                }
 #else
-            std::string fullCmd = "cd \"" + engineExeDir.string() + "\" && " + cmd;
-            FILE* pipe = popen(fullCmd.c_str(), "r");
-            if (pipe) {
-                char buf[256];
-                while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
-                pclose(pipe);
-            }
+                std::string fullCmd = "cd \"" + engineExeDir.string() + "\" && " + cmd;
+                FILE* pipe = popen(fullCmd.c_str(), "r");
+                if (pipe) {
+                    char buf[256];
+                    while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
+                    pclose(pipe);
+                }
 #endif
+                if (std::filesystem::exists(zipTarget)) packaged = true;
+            }
 
             updateStatus("Engine packaged successfully!", 100.0f);
             ConsolePanel::AddLogGlobal("RayneEngine-Editor.zip created successfully in: " + rootDir.string(), false);
@@ -5050,6 +5049,25 @@ void EditorScene::DrawBuildPopup(sf::RenderWindow& window) {
     window.draw(btnText);
 }
 
+static std::string ColorToHex(sf::Color c) {
+    char buf[12];
+    snprintf(buf, sizeof(buf), "#%02X%02X%02X", c.r, c.g, c.b);
+    return std::string(buf);
+}
+
+static sf::Color HexToColor(const std::string& hex, sf::Color def = sf::Color(18, 20, 23)) {
+    if (hex.empty()) return def;
+    std::string s = hex;
+    if (s[0] == '#') s = s.substr(1);
+    if (s.size() != 6) return def;
+    try {
+        unsigned int val = std::stoul(s, nullptr, 16);
+        return sf::Color((val >> 16) & 0xFF, (val >> 8) & 0xFF, val & 0xFF);
+    } catch (...) {
+        return def;
+    }
+}
+
 void EditorScene::LoadProjectSettings() {
     std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
     if (std::filesystem::exists(path)) {
@@ -5058,13 +5076,33 @@ void EditorScene::LoadProjectSettings() {
             json j;
             f >> j;
             m_ProjectName = j.value("ProjectName", "RayneGame");
+            m_ProjectVersion = j.value("Version", "1.0.0");
+            m_ProjectAuthor = j.value("Author", "");
+            m_ProjectStartScene = j.value("StartScene", "scenes/game.json");
             m_ProjectWindowWidth = j.value("WindowWidth", 1280);
             m_ProjectWindowHeight = j.value("WindowHeight", 720);
-            m_ProjectStartScene = j.value("StartScene", "scenes/game.json");
             m_ProjectVSync = j.value("VSync", true);
+            m_ProjectTargetFPS = j.value("TargetFPS", 60);
+            m_ProjectFullscreen = j.value("Fullscreen", false);
+            if (j.contains("ClearColor")) {
+                m_ProjectClearColor = HexToColor(j["ClearColor"].get<std::string>(), sf::Color(18, 20, 23));
+            }
+            m_ProjectMasterVolume = j.value("MasterVolume", 100.f);
+            m_ProjectMusicVolume = j.value("MusicVolume", 100.f);
         } catch (...) {
             std::cout << "[ERROR] Failed to load project settings\n";
         }
+    }
+
+    if (g_App) {
+        g_App->SetProjectName(m_ProjectName);
+        g_App->SetProjectVersion(m_ProjectVersion);
+        g_App->SetProjectAuthor(m_ProjectAuthor);
+        g_App->SetVSync(m_ProjectVSync);
+        g_App->SetTargetFPS(m_ProjectTargetFPS);
+        g_App->SetClearColor(m_ProjectClearColor);
+        g_App->SetMasterVolume(m_ProjectMasterVolume);
+        g_App->SetMusicVolume(m_ProjectMusicVolume);
     }
 }
 
@@ -5073,15 +5111,101 @@ void EditorScene::SaveProjectSettings() {
     try {
         json j;
         j["ProjectName"] = m_ProjectName;
+        j["Version"] = m_ProjectVersion;
+        j["Author"] = m_ProjectAuthor;
+        j["StartScene"] = m_ProjectStartScene;
         j["WindowWidth"] = m_ProjectWindowWidth;
         j["WindowHeight"] = m_ProjectWindowHeight;
-        j["StartScene"] = m_ProjectStartScene;
         j["VSync"] = m_ProjectVSync;
+        j["TargetFPS"] = m_ProjectTargetFPS;
+        j["Fullscreen"] = m_ProjectFullscreen;
+        j["ClearColor"] = ColorToHex(m_ProjectClearColor);
+        j["MasterVolume"] = m_ProjectMasterVolume;
+        j["MusicVolume"] = m_ProjectMusicVolume;
+
         std::ofstream f(path);
         f << j.dump(4);
     } catch (...) {
         std::cout << "[ERROR] Failed to save project settings\n";
     }
+
+    if (g_App) {
+        g_App->SetProjectName(m_ProjectName);
+        g_App->SetProjectVersion(m_ProjectVersion);
+        g_App->SetProjectAuthor(m_ProjectAuthor);
+        g_App->SetVSync(m_ProjectVSync);
+        g_App->SetTargetFPS(m_ProjectTargetFPS);
+        g_App->SetClearColor(m_ProjectClearColor);
+        g_App->SetMasterVolume(m_ProjectMasterVolume);
+        g_App->SetMusicVolume(m_ProjectMusicVolume);
+    }
+}
+
+void EditorScene::CommitActiveProjectSettingsField() {
+    if (m_ActiveProjectSettingsField == ProjectSettingsField::None) return;
+
+    if (m_ActiveProjectSettingsField == ProjectSettingsField::ProjectName) {
+        if (!m_ProjectSettingsInputText.empty()) {
+            m_ProjectName = m_ProjectSettingsInputText;
+        }
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::Version) {
+        if (!m_ProjectSettingsInputText.empty()) {
+            m_ProjectVersion = m_ProjectSettingsInputText;
+        }
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::Author) {
+        m_ProjectAuthor = m_ProjectSettingsInputText;
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::StartScene) {
+        if (!m_ProjectSettingsInputText.empty()) {
+            m_ProjectStartScene = m_ProjectSettingsInputText;
+        }
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowWidth) {
+        try { int v = std::stoi(m_ProjectSettingsInputText); if (v > 100) m_ProjectWindowWidth = v; } catch(...) {}
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowHeight) {
+        try { int v = std::stoi(m_ProjectSettingsInputText); if (v > 100) m_ProjectWindowHeight = v; } catch(...) {}
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::TargetFPS) {
+        try { int v = std::stoi(m_ProjectSettingsInputText); if (v >= 0) m_ProjectTargetFPS = v; } catch(...) {}
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::ClearColorHex) {
+        m_ProjectClearColor = HexToColor(m_ProjectSettingsInputText, m_ProjectClearColor);
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::MasterVolume) {
+        try { float v = std::stof(m_ProjectSettingsInputText); m_ProjectMasterVolume = std::clamp(v, 0.f, 100.f); } catch(...) {}
+    } else if (m_ActiveProjectSettingsField == ProjectSettingsField::MusicVolume) {
+        try { float v = std::stof(m_ProjectSettingsInputText); m_ProjectMusicVolume = std::clamp(v, 0.f, 100.f); } catch(...) {}
+    }
+
+    m_ActiveProjectSettingsField = ProjectSettingsField::None;
+    m_ProjectSettingsInputText.clear();
+    SaveProjectSettings();
+}
+
+float EditorScene::DrawProjectSettingsToggle(sf::RenderWindow &window, const std::string &label,
+                                             bool value, const std::string &action,
+                                             float x, float y, float winW)
+{
+    sf::Text tLabel(label, *m_Font, 11);
+    tLabel.setPosition(x, y + 4.f);
+    tLabel.setFillColor(C_TEXT_SECONDARY);
+    window.draw(tLabel);
+
+    float inX = x + 160.f;
+    sf::RectangleShape togBtn(sf::Vector2f(44.f, 22.f));
+    togBtn.setPosition(inX, y);
+    togBtn.setFillColor(value ? C_ACCENT : C_BG_INPUT);
+    togBtn.setOutlineColor(C_BORDER);
+    togBtn.setOutlineThickness(1.f);
+    window.draw(togBtn);
+
+    sf::CircleShape knob(8.f);
+    knob.setFillColor(C_TEXT_PRIMARY);
+    knob.setPosition(value ? (inX + 24.f) : (inX + 4.f), y + 3.f);
+    window.draw(knob);
+
+    sf::Text statusText(value ? "ON" : "OFF", *m_Font, 10);
+    statusText.setPosition(inX + 52.f, y + 4.f);
+    statusText.setFillColor(value ? C_SUCCESS : C_TEXT_MUTED);
+    window.draw(statusText);
+
+    m_ProjectSettingsButtons.push_back({togBtn.getGlobalBounds(), action});
+    return 32.f;
 }
 
 float EditorScene::DrawProjectSettingsInputField(sf::RenderWindow &window, const std::string &label,
@@ -5093,7 +5217,7 @@ float EditorScene::DrawProjectSettingsInputField(sf::RenderWindow &window, const
     tLabel.setFillColor(C_TEXT_SECONDARY);
     window.draw(tLabel);
 
-    float inX = x + 150.f;
+    float inX = x + 160.f;
     float inW = winW - inX - 20.f;
 
     sf::RectangleShape box(sf::Vector2f(inW, 22.f));
@@ -5110,95 +5234,182 @@ float EditorScene::DrawProjectSettingsInputField(sf::RenderWindow &window, const
     if (active && (int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0) display += "|";
 
     sf::Text tVal(display, *m_Font, 11);
-    tVal.setPosition(inX + 5.f, y + 4.f);
+    tVal.setPosition(inX + 6.f, y + 4.f);
     tVal.setFillColor(C_TEXT_PRIMARY);
     window.draw(tVal);
 
+    if (field == ProjectSettingsField::ClearColorHex) {
+        sf::Color previewCol = HexToColor(active ? m_ProjectSettingsInputText : currentVal, m_ProjectClearColor);
+        sf::RectangleShape colorPreview(sf::Vector2f(16.f, 16.f));
+        colorPreview.setPosition(inX + inW - 20.f, y + 3.f);
+        colorPreview.setFillColor(previewCol);
+        colorPreview.setOutlineThickness(1.f);
+        colorPreview.setOutlineColor(C_BORDER_LIGHT);
+        window.draw(colorPreview);
+    }
+
     m_ProjectSettingsButtons.push_back({{inX, y, inW, 22.f}, "edit_proj_" + std::to_string((int)field)});
-    return 30.f;
+    return 32.f;
 }
 
 void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
     if (!m_ShowProjectSettings) return;
 
-    const float w = 450.f;
-    const float h = 350.f;
+    const float w = 540.f;
+    const float h = 420.f;
     const float x = (window.getSize().x - w) / 2.f;
     const float y = (window.getSize().y - h) / 2.f;
 
+    // Semi-transparent backdrop overlay
+    sf::RectangleShape backdrop(sf::Vector2f(window.getSize().x, window.getSize().y));
+    backdrop.setFillColor(sf::Color(0, 0, 0, 140));
+    window.draw(backdrop);
+
+    // Dialog panel
     sf::RectangleShape panel(sf::Vector2f(w, h));
     panel.setPosition(x, y);
-    panel.setFillColor(C_BG_ELEVATED);
+    panel.setFillColor(C_BG_PANEL);
     panel.setOutlineColor(C_BORDER_LIGHT);
     panel.setOutlineThickness(1.f);
     window.draw(panel);
 
     m_ProjectSettingsButtons.clear();
 
+    // Title
     sf::Text title("Project Settings", *m_Font, 16);
-    title.setPosition(x + 20.f, y + 20.f);
+    title.setPosition(x + 20.f, y + 16.f);
     title.setFillColor(C_TEXT_PRIMARY);
     window.draw(title);
 
-    sf::RectangleShape closeBtn(sf::Vector2f(20.f, 20.f));
-    closeBtn.setPosition(x + w - 30.f, y + 20.f);
+    // Close button
+    sf::RectangleShape closeBtn(sf::Vector2f(22.f, 22.f));
+    closeBtn.setPosition(x + w - 32.f, y + 16.f);
     closeBtn.setFillColor(C_BG_INPUT);
+    closeBtn.setOutlineColor(C_BORDER);
+    closeBtn.setOutlineThickness(1.f);
     window.draw(closeBtn);
     
-    sf::Text closeTxt("X", *m_Font, 12);
-    closeTxt.setPosition(x + w - 24.f, y + 22.f);
+    sf::Text closeTxt("X", *m_Font, 11);
+    closeTxt.setPosition(x + w - 26.f, y + 19.f);
     closeTxt.setFillColor(C_TEXT_MUTED);
     window.draw(closeTxt);
     m_ProjectSettingsButtons.push_back({closeBtn.getGlobalBounds(), "close_proj_settings"});
 
-    float currY = y + 60.f;
+    // Tabs
+    float tabY = y + 50.f;
+    std::vector<std::string> tabs = {"General", "Display & Graphics", "Audio"};
+    float tabX = x + 20.f;
+    for (int i = 0; i < (int)tabs.size(); ++i) {
+        sf::Text tabText(tabs[i], *m_Font, 11);
+        float tw = tabText.getLocalBounds().width + 24.f;
+        sf::RectangleShape tabBox(sf::Vector2f(tw, 26.f));
+        tabBox.setPosition(tabX, tabY);
+        bool isCurrentTab = (m_ProjectSettingsTab == i);
+        tabBox.setFillColor(isCurrentTab ? C_ACCENT : C_BG_ELEVATED);
+        tabBox.setOutlineColor(isCurrentTab ? C_ACCENT_BRIGHT : C_BORDER);
+        tabBox.setOutlineThickness(1.f);
+        window.draw(tabBox);
 
-    currY += DrawProjectSettingsInputField(window, "Project Name", m_ProjectName, ProjectSettingsField::ProjectName, x + 20.f, currY, x + w);
-    currY += DrawProjectSettingsInputField(window, "Start Scene", m_ProjectStartScene, ProjectSettingsField::StartScene, x + 20.f, currY, x + w);
-    currY += DrawProjectSettingsInputField(window, "Window Width", std::to_string(m_ProjectWindowWidth), ProjectSettingsField::WindowWidth, x + 20.f, currY, x + w);
-    currY += DrawProjectSettingsInputField(window, "Window Height", std::to_string(m_ProjectWindowHeight), ProjectSettingsField::WindowHeight, x + 20.f, currY, x + w);
-    
-    sf::Text vsyncText("VSync", *m_Font, 11);
-    vsyncText.setPosition(x + 20.f, currY + 4.f);
-    vsyncText.setFillColor(C_TEXT_SECONDARY);
-    window.draw(vsyncText);
-    
-    sf::RectangleShape togBtn(sf::Vector2f(40.f, 20.f));
-    togBtn.setPosition(x + 170.f, currY);
-    togBtn.setFillColor(m_ProjectVSync ? C_ACCENT : C_BG_INPUT);
-    togBtn.setOutlineColor(C_BORDER);
-    togBtn.setOutlineThickness(1.f);
-    window.draw(togBtn);
-    
-    m_ProjectSettingsButtons.push_back({togBtn.getGlobalBounds(), "toggle_vsync"});
-    currY += 30.f;
+        tabText.setPosition(tabX + 12.f, tabY + 6.f);
+        tabText.setFillColor(isCurrentTab ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        window.draw(tabText);
+
+        m_ProjectSettingsButtons.push_back({tabBox.getGlobalBounds(), "tab_proj_" + std::to_string(i)});
+        tabX += tw + 6.f;
+    }
+
+    // Divider line below tabs
+    sf::RectangleShape divLine(sf::Vector2f(w - 40.f, 1.f));
+    divLine.setPosition(x + 20.f, tabY + 34.f);
+    divLine.setFillColor(C_BORDER);
+    window.draw(divLine);
+
+    float currY = tabY + 44.f;
+
+    if (m_ProjectSettingsTab == 0) {
+        // General Tab
+        currY += DrawProjectSettingsInputField(window, "Project Name", m_ProjectName, ProjectSettingsField::ProjectName, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Version", m_ProjectVersion, ProjectSettingsField::Version, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Author / Studio", m_ProjectAuthor, ProjectSettingsField::Author, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Start Scene", m_ProjectStartScene, ProjectSettingsField::StartScene, x + 20.f, currY, x + w);
+    } else if (m_ProjectSettingsTab == 1) {
+        // Display & Graphics Tab
+        currY += DrawProjectSettingsInputField(window, "Window Width", std::to_string(m_ProjectWindowWidth), ProjectSettingsField::WindowWidth, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Window Height", std::to_string(m_ProjectWindowHeight), ProjectSettingsField::WindowHeight, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsToggle(window, "Vertical Sync (VSync)", m_ProjectVSync, "toggle_vsync", x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Target FPS (0 = Uncapped)", std::to_string(m_ProjectTargetFPS), ProjectSettingsField::TargetFPS, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsToggle(window, "Fullscreen (Standalone)", m_ProjectFullscreen, "toggle_fullscreen", x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Clear Color (Hex)", ColorToHex(m_ProjectClearColor), ProjectSettingsField::ClearColorHex, x + 20.f, currY, x + w);
+    } else if (m_ProjectSettingsTab == 2) {
+        // Audio Tab
+        currY += DrawProjectSettingsInputField(window, "Master Volume (0-100)", std::to_string((int)m_ProjectMasterVolume), ProjectSettingsField::MasterVolume, x + 20.f, currY, x + w);
+        currY += DrawProjectSettingsInputField(window, "Music Volume (0-100)", std::to_string((int)m_ProjectMusicVolume), ProjectSettingsField::MusicVolume, x + 20.f, currY, x + w);
+    }
+
+    // Save & Close Button
+    float btnW = 110.f;
+    float btnH = 28.f;
+    float btnX = x + w - btnW - 20.f;
+    float btnY = y + h - btnH - 16.f;
+    sf::RectangleShape saveBtn(sf::Vector2f(btnW, btnH));
+    saveBtn.setPosition(btnX, btnY);
+    saveBtn.setFillColor(C_ACCENT);
+    window.draw(saveBtn);
+
+    sf::Text saveTxt("Save & Close", *m_Font, 11);
+    saveTxt.setPosition(btnX + (btnW - saveTxt.getLocalBounds().width) / 2.f, btnY + 7.f);
+    saveTxt.setFillColor(C_TEXT_PRIMARY);
+    window.draw(saveTxt);
+    m_ProjectSettingsButtons.push_back({{btnX, btnY, btnW, btnH}, "close_proj_settings"});
 }
 
 void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos) {
     for (const auto& btn : m_ProjectSettingsButtons) {
         if (btn.bounds.contains(pos)) {
             if (btn.action == "close_proj_settings") {
+                CommitActiveProjectSettingsField();
                 m_ShowProjectSettings = false;
                 SaveProjectSettings();
             } else if (btn.action == "toggle_vsync") {
+                CommitActiveProjectSettingsField();
                 m_ProjectVSync = !m_ProjectVSync;
                 SaveProjectSettings();
+            } else if (btn.action == "toggle_fullscreen") {
+                CommitActiveProjectSettingsField();
+                m_ProjectFullscreen = !m_ProjectFullscreen;
+                SaveProjectSettings();
+            } else if (btn.action.find("tab_proj_") == 0) {
+                CommitActiveProjectSettingsField();
+                m_ProjectSettingsTab = std::stoi(btn.action.substr(9));
             } else if (btn.action.find("edit_proj_") == 0) {
+                CommitActiveProjectSettingsField();
                 int fieldIdx = std::stoi(btn.action.substr(10));
                 m_ActiveProjectSettingsField = static_cast<ProjectSettingsField>(fieldIdx);
                 
                 if (m_ActiveProjectSettingsField == ProjectSettingsField::ProjectName)
                     m_ProjectSettingsInputText = m_ProjectName;
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::Version)
+                    m_ProjectSettingsInputText = m_ProjectVersion;
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::Author)
+                    m_ProjectSettingsInputText = m_ProjectAuthor;
                 else if (m_ActiveProjectSettingsField == ProjectSettingsField::StartScene)
                     m_ProjectSettingsInputText = m_ProjectStartScene;
                 else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowWidth)
                     m_ProjectSettingsInputText = std::to_string(m_ProjectWindowWidth);
                 else if (m_ActiveProjectSettingsField == ProjectSettingsField::WindowHeight)
                     m_ProjectSettingsInputText = std::to_string(m_ProjectWindowHeight);
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::TargetFPS)
+                    m_ProjectSettingsInputText = std::to_string(m_ProjectTargetFPS);
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::ClearColorHex)
+                    m_ProjectSettingsInputText = ColorToHex(m_ProjectClearColor);
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::MasterVolume)
+                    m_ProjectSettingsInputText = std::to_string((int)m_ProjectMasterVolume);
+                else if (m_ActiveProjectSettingsField == ProjectSettingsField::MusicVolume)
+                    m_ProjectSettingsInputText = std::to_string((int)m_ProjectMusicVolume);
             }
             return;
         }
     }
-    m_ActiveProjectSettingsField = ProjectSettingsField::None;
-    SaveProjectSettings();
+    // Clicked outside any input box/button
+    CommitActiveProjectSettingsField();
 }

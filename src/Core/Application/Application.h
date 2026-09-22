@@ -19,6 +19,17 @@ public:
     Registry m_Registry;
     SceneManager& GetSceneManager() { return m_SceneManager; }
     const std::string& GetProjectName() const { return m_ProjectName; }
+    void SetProjectName(const std::string& name) { m_ProjectName = name; }
+    const std::string& GetProjectVersion() const { return m_ProjectVersion; }
+    void SetProjectVersion(const std::string& ver) { m_ProjectVersion = ver; }
+    const std::string& GetProjectAuthor() const { return m_ProjectAuthor; }
+    void SetProjectAuthor(const std::string& author) { m_ProjectAuthor = author; }
+    void SetVSync(bool vsync) { m_ProjectVSync = vsync; m_RenderWindow.setVerticalSyncEnabled(vsync); }
+    void SetTargetFPS(unsigned int fps) { m_ProjectTargetFPS = fps; m_RenderWindow.setFramerateLimit(fps); }
+    void SetClearColor(sf::Color color) { m_ClearColor = color; }
+    sf::Color GetClearColor() const { return m_ClearColor; }
+    void SetMasterVolume(float vol);
+    void SetMusicVolume(float vol);
 
 private:
     void SetIcon();
@@ -32,7 +43,18 @@ private:
     void RunSplashSequence();
 
     std::string m_ProjectName = "RayneEngine";
+    std::string m_ProjectVersion = "1.0.0";
+    std::string m_ProjectAuthor = "";
     std::string m_StartScene = "scenes/game.json";
+    int m_WindowWidth = 1280;
+    int m_WindowHeight = 720;
+    bool m_ProjectVSync = true;
+    unsigned int m_ProjectTargetFPS = 60;
+    bool m_ProjectFullscreen = false;
+    sf::Color m_ClearColor = sf::Color(18, 20, 23);
+    float m_MasterVolume = 100.f;
+    float m_MusicVolume = 100.f;
+
     sf::RenderWindow m_RenderWindow;
     SceneManager m_SceneManager;
     sf::Clock m_DeltaTimeClock;
@@ -41,7 +63,7 @@ private:
 #endif
 
 #ifndef ASSET_PATH
-#define ASSET_PATH "assets/"
+#define ASSET_PATH "assets"
 #endif
 
 #ifndef ENGINE_ASSET_PATH

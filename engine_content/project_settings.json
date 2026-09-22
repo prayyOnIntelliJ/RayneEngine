@@ -1,5 +1,5 @@
 {
-    "ProjectName": "Flappy Bir",
+    "ProjectName": "RayneEngineGame",
     "StartScene": "scenes/game.json",
     "VSync": true,
     "WindowHeight": 720,

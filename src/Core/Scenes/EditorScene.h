@@ -293,17 +293,30 @@ private:
     int m_ProjectSettingsTab = 0;
     
     std::string m_ProjectName = "RayneGame";
+    std::string m_ProjectVersion = "1.0.0";
+    std::string m_ProjectAuthor = "";
+    std::string m_ProjectStartScene = "scenes/game.json";
     int m_ProjectWindowWidth = 1280;
     int m_ProjectWindowHeight = 720;
     bool m_ProjectVSync = true;
-    std::string m_ProjectStartScene = "scenes/game.json";
+    int m_ProjectTargetFPS = 60;
+    bool m_ProjectFullscreen = false;
+    sf::Color m_ProjectClearColor = sf::Color(18, 20, 23);
+    float m_ProjectMasterVolume = 100.f;
+    float m_ProjectMusicVolume = 100.f;
 
     enum class ProjectSettingsField {
         None,
         ProjectName,
+        Version,
+        Author,
+        StartScene,
         WindowWidth,
         WindowHeight,
-        StartScene
+        TargetFPS,
+        ClearColorHex,
+        MasterVolume,
+        MusicVolume
     };
 
     ProjectSettingsField m_ActiveProjectSettingsField = ProjectSettingsField::None;
@@ -445,11 +458,15 @@ private:
 
     void DrawProjectSettingsWindow(sf::RenderWindow &window);
     void HandleProjectSettingsClick(sf::Vector2f pos);
+    void CommitActiveProjectSettingsField();
     void SaveProjectSettings();
     void LoadProjectSettings();
     float DrawProjectSettingsInputField(sf::RenderWindow &window, const std::string &label,
                                  const std::string &currentVal, ProjectSettingsField field,
                                  float x, float y, float winW);
+    float DrawProjectSettingsToggle(sf::RenderWindow &window, const std::string &label,
+                                    bool value, const std::string &action,
+                                    float x, float y, float winW);
 };
 
 #endif
