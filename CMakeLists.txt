@@ -214,3 +214,13 @@ set_target_properties(RayneGame PROPERTIES
 )
 
 target_compile_definitions(RayneGame PRIVATE RAYNE_STANDALONE "ASSET_PATH=\"assets\"" "ENGINE_ASSET_PATH=\"engine_content\"")
+
+add_dependencies(RayneEngine RayneGame)
+
+add_custom_command(TARGET RayneGame POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/templates
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:RayneGame>
+        ${CMAKE_SOURCE_DIR}/templates/RayneGame.exe
+)
+

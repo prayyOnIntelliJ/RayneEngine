@@ -213,7 +213,7 @@ void UIManager::Save(const std::string &path)
 
     std::ofstream file(path);
     if (file.is_open())
-        file << data.dump(4);
+        file << data.dump(4, ' ', false, json::error_handler_t::replace);
 }
 
 

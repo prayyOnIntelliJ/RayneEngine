@@ -191,13 +191,13 @@ void Application::RunSplashSequence()
     AnimateFrames(15);
 
 #ifdef RAYNE_STANDALONE
-    std::cout << "[INFO] [Application] Switching to Game Scene (Standalone)...\n";
-    m_SceneManager.SwitchSceneTo("game");
-    
     SceneSerializer::LoadIntoRegistry(m_Registry, std::string(ASSET_PATH) + "/scenes/" + m_StartScene + ".json");
-    std::string uiPath = std::string(ASSET_PATH) + "/ui.json";
+    std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + m_StartScene + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
     UIManager::Get().Load(uiPath);
+
+    std::cout << "[INFO] [Application] Switching to Game Scene (Standalone)...\n";
+    m_SceneManager.SwitchSceneTo("game");
 #else
     std::cout << "[INFO] [Application] Switching to Editor Scene...\n";
     m_SceneManager.SwitchSceneTo("editor");

@@ -1,0 +1,90 @@
+{
+    "name": "game",
+    "objects": [
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 600.0,
+            "y": 440.0
+        },
+        {
+            "color": [
+                237,
+                149,
+                100
+            ],
+            "height": 40.0,
+            "id": "obj_1",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "circle",
+            "width": 40.0,
+            "x": 640.0,
+            "y": 440.0
+        },
+        {
+            "color": [
+                149,
+                237,
+                100
+            ],
+            "height": 40.0,
+            "id": "obj_2",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "triangle",
+            "width": 40.0,
+            "x": 680.0,
+            "y": 440.0
+        },
+        {
+            "color": [
+                237,
+                100,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_3",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "pentagon",
+            "width": 40.0,
+            "x": 720.0,
+            "y": 440.0
+        },
+        {
+            "color": [
+                237,
+                237,
+                100
+            ],
+            "height": 40.0,
+            "id": "obj_4",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "hexagon",
+            "width": 40.0,
+            "x": 760.0,
+            "y": 440.0
+        }
+    ]
+}

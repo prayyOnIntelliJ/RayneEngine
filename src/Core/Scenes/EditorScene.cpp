@@ -23,6 +23,20 @@
 #undef CreateWindow
 #endif
 
+static const sf::Color C_PANEL_BG = sf::Color(30, 32, 38);
+
+static ShapeType MapToShapeType(ObjectType type)
+{
+    switch (type)
+    {
+        case ObjectType::Circle: return ShapeType::Circle;
+        case ObjectType::Triangle: return ShapeType::Triangle;
+        case ObjectType::Pentagon: return ShapeType::Pentagon;
+        case ObjectType::Hexagon: return ShapeType::Hexagon;
+        default: return ShapeType::Rectangle;
+    }
+}
+
 static bool IsPolygonType(ObjectType type)
 {
     return type == ObjectType::Circle || type == ObjectType::Triangle ||
@@ -1010,7 +1024,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                                                         newObj.shape.getPosition().x, newObj.shape.getPosition().y
                                                     });
                             m_Registry.AddComponent(newObj.entity,
-                                                    RenderComponent{newObj.color, newObj.shape.getSize()});
+                                                    RenderComponent{newObj.color, newObj.shape.getSize(), MapToShapeType(newObj.objectType)});
                             if (!newObj.spritePath.empty()) ApplySpriteToObject(newObj, newObj.spritePath);
                         }
                         m_Objects.push_back(std::move(newObj));
@@ -3070,7 +3084,7 @@ void EditorScene::LoadFromJson(const std::string &path)
         t.scaleX = obj.scaleX;
         t.scaleY = obj.scaleY;
         m_Registry.AddComponent(obj.entity, t);
-        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize()});
+        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
         if (!obj.tag.empty()) {
             m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
         }
@@ -3139,6 +3153,7 @@ void EditorScene::SyncToRegistry()
             auto &rc = m_Registry.GetComponent<RenderComponent>(obj.entity);
             rc.size = obj.shape.getSize();
             rc.color = obj.color;
+            rc.shapeType = MapToShapeType(obj.objectType);
         }
 
         if (obj.previewTexture && !obj.spritePath.empty())
@@ -3156,6 +3171,7 @@ void EditorScene::SnapshotState()
 {
     m_PlayModeSnapshot = json{};
     m_PlayModeSnapshot["name"] = "snapshot";
+    m_PlayModeSnapshot["uiPath"] = UIManager::Get().GetCurrentUIPath();
     m_PlayModeSnapshot["objects"] = json::array();
 
     for (auto &obj : m_Objects)
@@ -3234,9 +3250,15 @@ void EditorScene::RestoreSnapshot()
     m_Objects.clear();
     ClearSelection();
 
-    std::string currentUI = UIManager::Get().GetCurrentUIPath();
-    if (!currentUI.empty()) {
-        UIManager::Get().Load(currentUI);
+    if (m_PlayModeSnapshot.contains("uiPath")) {
+        std::string originalUI = m_PlayModeSnapshot["uiPath"];
+        UIManager::Get().SetCurrentUIPath(originalUI);
+        UIManager::Get().Load(originalUI);
+    } else {
+        std::string currentUI = UIManager::Get().GetCurrentUIPath();
+        if (!currentUI.empty()) {
+            UIManager::Get().Load(currentUI);
+        }
     }
 
     m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
@@ -3283,7 +3305,7 @@ void EditorScene::RestoreSnapshot()
         t.scaleX = obj.scaleX;
         t.scaleY = obj.scaleY;
         m_Registry.AddComponent(obj.entity, t);
-        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize()});
+        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
         if (!obj.tag.empty())
             m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
 
@@ -4481,7 +4503,7 @@ void EditorScene::DeserializeObject(const json& j) {
     t.scaleX = obj.scaleX;
     t.scaleY = obj.scaleY;
     m_Registry.AddComponent(obj.entity, t);
-    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize()});
+    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
     if (!obj.tag.empty()) {
         m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
     }
@@ -4615,6 +4637,15 @@ static std::filesystem::path FindProjectRoot()
             break;
         }
     }
+
+    std::error_code ec;
+    std::filesystem::path ap = std::filesystem::absolute(ASSET_PATH, ec);
+    if (!ec && std::filesystem::exists(ap)) {
+        if (ap.filename() == "assets") {
+            return ap.parent_path();
+        }
+    }
+
     return std::filesystem::current_path();
 }
 
@@ -4633,19 +4664,28 @@ static std::string ResolveCMakeExecutable()
             return c;
         }
     }
+#else
+    if (system("cmake --version >/dev/null 2>&1") == 0) {
+        return "cmake";
+    }
 #endif
-    return "cmake";
+    return "";
 }
 
 void EditorScene::ExportStandaloneGame()
 {
-    ConsolePanel::AddLogGlobal("Starting standalone game build...", false);
+    // 1. Auto-save current scene and project settings before exporting
+    SyncToRegistry();
+    SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
+    SaveProjectSettings();
+    ConsolePanel::AddLogGlobal("[INFO] Auto-saved scene and project settings before build.", false);
+    ConsolePanel::AddLogGlobal("Starting standalone game build and export...", false);
     
     m_ShowBuildPopup = true;
     m_BuildFinished = false;
     m_BuildProgress = 0.0f;
     m_CancelBuildRequested = false;
-    m_BuildStatusText = "Locating project root & tools...";
+    m_BuildStatusText = "Preparing build...";
     
     std::thread([this]() {
         auto updateStatus = [this](const std::string& text, float progress) {
@@ -4665,24 +4705,23 @@ void EditorScene::ExportStandaloneGame()
         std::filesystem::path buildDir;
         if (std::filesystem::exists(rootDir / "cmake-build-debug" / "CMakeCache.txt")) {
             buildDir = rootDir / "cmake-build-debug";
+        } else if (std::filesystem::exists(rootDir / "cmake-build-release" / "CMakeCache.txt")) {
+            buildDir = rootDir / "cmake-build-release";
         } else if (std::filesystem::exists(rootDir / "build" / "CMakeCache.txt")) {
             buildDir = rootDir / "build";
-        } else {
-            buildDir = rootDir / "build_standalone";
-            std::filesystem::create_directories(buildDir);
         }
 
-        if (!std::filesystem::exists(buildDir / "CMakeCache.txt")) {
-            std::filesystem::create_directories(buildDir);
-            updateStatus("Configuring CMake project in " + buildDir.filename().string() + "...", 10.0f);
-            ConsolePanel::AddLogGlobal("Configuring CMake in: " + buildDir.string(), false);
+        // 2. If CMake is available and configured, compile RayneGame to ensure all C++ changes are applied!
+        if (!cmakeBin.empty() && !buildDir.empty()) {
+            updateStatus("Building RayneGame target with CMake...", 20.0f);
+            ConsolePanel::AddLogGlobal("Building RayneGame in: " + buildDir.string(), false);
             
-            std::string cmdConfig = cmakeBin + " -S \"" + rootDir.string() + "\" -B \"" + buildDir.string() + "\" 2>&1";
+            std::string cmdBuild = cmakeBin + " --build \"" + buildDir.string() + "\" --target RayneGame 2>&1";
             FILE* pipe =
 #ifdef _WIN32
-                _popen(cmdConfig.c_str(), "r");
+                _popen(cmdBuild.c_str(), "r");
 #else
-                popen(cmdConfig.c_str(), "r");
+                popen(cmdBuild.c_str(), "r");
 #endif
             if (pipe) {
                 char buffer[256];
@@ -4702,93 +4741,86 @@ void EditorScene::ExportStandaloneGame()
         }
 
         if (checkCancel()) {
-            updateStatus("Build cancelled.", 0.0f);
+            updateStatus("Export cancelled.", 0.0f);
             std::lock_guard<std::mutex> lock(m_BuildMutex);
             m_BuildFinished = true;
             return;
         }
 
-        updateStatus("Building RayneGame target...", 30.0f);
-        ConsolePanel::AddLogGlobal("Building RayneGame in: " + buildDir.string(), false);
-        std::string cmdBuild = cmakeBin + " --build \"" + buildDir.string() + "\" --target RayneGame 2>&1";
-        FILE* pipe =
-#ifdef _WIN32
-            _popen(cmdBuild.c_str(), "r");
-#else
-            popen(cmdBuild.c_str(), "r");
-#endif
-        if (pipe) {
-            char buffer[256];
-            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-                if (checkCancel()) break;
-                
-                std::string line = buffer;
-                if (!line.empty() && line.back() == '\n') line.pop_back();
-                ConsolePanel::AddLogGlobal(line, false);
-                
-                float newProgress = -1.f;
-                if (line.find("[") != std::string::npos && line.find("%]") != std::string::npos) {
-                    size_t start = line.find("[") + 1;
-                    size_t end = line.find("%]");
-                    std::string percentStr = line.substr(start, end - start);
-                    percentStr.erase(0, percentStr.find_first_not_of(" "));
-                    try {
-                        float p = std::stof(percentStr);
-                        newProgress = 30.0f + (p * 0.60f);
-                    } catch(...) {}
-                }
-                
-                updateStatus(line, newProgress);
-            }
-#ifdef _WIN32
-            _pclose(pipe);
-#else
-            pclose(pipe);
-#endif
-        }
-
-        if (checkCancel()) {
-            updateStatus("Build cancelled.", 0.0f);
-            std::lock_guard<std::mutex> lock(m_BuildMutex);
-            m_BuildFinished = true;
-            return;
-        }
-
+        // 3. Locate the built RayneGame executable
         std::filesystem::path exePath;
         std::vector<std::filesystem::path> possibleExePaths = {
             buildDir / "RayneGame.exe",
             buildDir / "Release" / "RayneGame.exe",
-            buildDir / "Debug" / "RayneGame.exe"
+            buildDir / "Debug" / "RayneGame.exe",
+            rootDir / "templates" / "RayneGame.exe",
+            rootDir / "cmake-build-debug" / "RayneGame.exe",
+            rootDir / "cmake-build-release" / "RayneGame.exe",
+            rootDir / "RayneGame.exe"
         };
+
+#ifdef _WIN32
+        char pathBuf[MAX_PATH];
+        if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
+            std::filesystem::path myExe(pathBuf);
+            possibleExePaths.insert(possibleExePaths.begin(), myExe.parent_path() / "RayneGame.exe");
+        }
+#endif
+        
         for (const auto& p : possibleExePaths) {
-            if (std::filesystem::exists(p)) {
+            if (!p.empty() && std::filesystem::exists(p)) {
                 exePath = p;
                 break;
             }
         }
 
         if (!exePath.empty()) {
-            updateStatus("Packaging game into Export/...", 95.0f);
+            updateStatus("Packaging game into Export/...", 70.0f);
             try {
                 std::filesystem::path exportDir = rootDir / "Export";
                 std::filesystem::create_directories(exportDir);
-                std::filesystem::create_directories(exportDir / "assets");
 
                 std::string outExeName = m_ProjectName.empty() ? "RayneGame.exe" : m_ProjectName + ".exe";
                 std::filesystem::copy_file(exePath, exportDir / outExeName, std::filesystem::copy_options::overwrite_existing);
 
-                if (std::filesystem::exists(rootDir / "assets")) {
-                    std::filesystem::copy(rootDir / "assets", exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                // Copy assets from source ASSET_PATH
+                updateStatus("Copying assets...", 80.0f);
+                std::filesystem::path srcAssets = std::filesystem::exists(rootDir / "assets") ? (rootDir / "assets") : std::filesystem::path(ASSET_PATH);
+                if (std::filesystem::exists(srcAssets)) {
+                    std::filesystem::copy(srcAssets, exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+                
+                // Copy engine_content from source ENGINE_ASSET_PATH
+                updateStatus("Copying engine_content...", 90.0f);
+                std::filesystem::path srcEngine = std::filesystem::exists(rootDir / "engine_content") ? (rootDir / "engine_content") : std::filesystem::path(ENGINE_ASSET_PATH);
+                if (std::filesystem::exists(srcEngine)) {
+                    std::filesystem::copy(srcEngine, exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
 
-                std::filesystem::path searchDir = exePath.parent_path();
-                for (const auto& entry : std::filesystem::directory_iterator(searchDir)) {
-                    if (entry.path().extension() == ".dll") {
-                        std::filesystem::copy_file(entry.path(), exportDir / entry.path().filename(), std::filesystem::copy_options::overwrite_existing);
+                // Copy DLLs
+                std::vector<std::filesystem::path> dllSearchDirs = {
+                    exePath.parent_path(),
+                    rootDir / "cmake-build-debug",
+                    rootDir / "cmake-build-release",
+                    rootDir / "build"
+                };
+#ifdef _WIN32
+                char currentExeBuf[MAX_PATH];
+                if (GetModuleFileNameA(NULL, currentExeBuf, MAX_PATH)) {
+                    dllSearchDirs.push_back(std::filesystem::path(currentExeBuf).parent_path());
+                }
+#endif
+                for (const auto& sDir : dllSearchDirs) {
+                    if (std::filesystem::exists(sDir)) {
+                        for (const auto& entry : std::filesystem::directory_iterator(sDir)) {
+                            if (entry.path().extension() == ".dll") {
+                                std::filesystem::copy_file(entry.path(), exportDir / entry.path().filename(), std::filesystem::copy_options::overwrite_existing);
+                            }
+                        }
                     }
                 }
 
-                updateStatus("Build finished! Exported to Export/ folder.", 100.0f);
+                updateStatus("Export finished! Exported to Export/ folder.", 100.0f);
                 ConsolePanel::AddLogGlobal("Standalone game exported successfully to: " + exportDir.string(), false);
 
 #ifdef _WIN32
@@ -4799,8 +4831,8 @@ void EditorScene::ExportStandaloneGame()
                 ConsolePanel::AddLogGlobal(std::string("Export error: ") + e.what(), true);
             }
         } else {
-            updateStatus("Build failed: RayneGame.exe not found. See Console.", 0.0f);
-            ConsolePanel::AddLogGlobal("Build failed! Check Console Panel output above.", true);
+            updateStatus("Export failed: RayneGame.exe not found.", 0.0f);
+            ConsolePanel::AddLogGlobal("Export failed: RayneGame.exe not found. Please build target 'RayneGame' in your IDE.", true);
         }
 
         {

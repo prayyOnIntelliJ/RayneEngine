@@ -542,7 +542,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
     if (m_SaveFeedbackTimer > 0.f)
     {
         sf::Text asText;
-        asText.setFont(*m_Font);
+        if (m_Font) asText.setFont(*m_Font);
         asText.setCharacterSize(14);
         asText.setFillColor(C_TEXT_PRIMARY);
         asText.setString("UI Saved successfully!");
@@ -566,7 +566,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
 
         asText.setPosition(pX + 20.f, pY + (pH - th) / 2.f - 4.f);
 
-        float alpha = std::clamp(m_SaveFeedbackTimer / 0.5f, 0.f, 1.f) * 255.f;
+        sf::Uint8 alpha = static_cast<sf::Uint8>(std::clamp(m_SaveFeedbackTimer / 0.5f, 0.f, 1.f) * 255.f);
         asBg.setFillColor(sf::Color(C_BG_ELEVATED.r, C_BG_ELEVATED.g, C_BG_ELEVATED.b, alpha));
         asBg.setOutlineColor(sf::Color(C_BORDER_LIGHT.r, C_BORDER_LIGHT.g, C_BORDER_LIGHT.b, alpha));
         successBar.setFillColor(sf::Color(C_SUCCESS.r, C_SUCCESS.g, C_SUCCESS.b, alpha));
@@ -1122,9 +1122,13 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
         if (path.empty()) path = std::string(ASSET_PATH) + "/ui.json";
-        UIManager::Get().Save(path);
-        std::cout << "[INFO] [UIEditorScene] UI Saved to " << path << "\n";
-        m_SaveFeedbackTimer = 2.0f;
+        try {
+            UIManager::Get().Save(path);
+            std::cout << "[INFO] [UIEditorScene] UI Saved to " << path << "\n";
+            m_SaveFeedbackTimer = 2.0f;
+        } catch (const std::exception& e) {
+            std::cerr << "[ERROR] [UIEditorScene] Failed to save UI: " << e.what() << "\n";
+        }
     } else if (action == "add_panel")
     {
         int maxZ = 0;
