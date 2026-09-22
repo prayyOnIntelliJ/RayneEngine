@@ -173,7 +173,8 @@ void EditorScene::InitMenus()
     MenuEntry buildMenu;
     buildMenu.label = "Build";
     buildMenu.items = {
-        {"Build Game (Standalone)", "build_game", false, ""}
+        {"Build Game (Standalone)", "build_game", false, ""},
+        {"Package Engine (ZIP)", "package_engine", false, ""}
     };
 
     MenuEntry edit;
@@ -269,6 +270,9 @@ void EditorScene::HandleMenuAction(const std::string &action)
     } else if (action == "build_game")
     {
         ExportStandaloneGame();
+    } else if (action == "package_engine")
+    {
+        PackageEngineZip();
     } else if (action == "project_settings")
     {
         m_ShowProjectSettings = !m_ShowProjectSettings;
@@ -4764,6 +4768,7 @@ void EditorScene::ExportStandaloneGame()
         if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
             std::filesystem::path myExe(pathBuf);
             possibleExePaths.insert(possibleExePaths.begin(), myExe.parent_path() / "RayneGame.exe");
+            possibleExePaths.insert(possibleExePaths.begin(), myExe.parent_path() / "templates" / "RayneGame.exe");
         }
 #endif
         
@@ -4820,6 +4825,21 @@ void EditorScene::ExportStandaloneGame()
                     }
                 }
 
+                // Also automatically create a ready-to-send ZIP archive of the exported game!
+                if (!cmakeBin.empty()) {
+                    std::string zipName = (m_ProjectName.empty() ? "RayneGame" : m_ProjectName) + "_Standalone.zip";
+                    std::filesystem::path zipTarget = rootDir / zipName;
+                    std::string zipCmd = cmakeBin + " -E tar cf \"" + zipTarget.string() + "\" --format=zip .";
+#ifdef _WIN32
+                    FILE* pZip = _popen(("cd /d \"" + exportDir.string() + "\" && " + zipCmd).c_str(), "r");
+                    if (pZip) _pclose(pZip);
+#else
+                    FILE* pZip = popen(("cd \"" + exportDir.string() + "\" && " + zipCmd).c_str(), "r");
+                    if (pZip) pclose(pZip);
+#endif
+                    ConsolePanel::AddLogGlobal("Standalone game zip created: " + zipTarget.string(), false);
+                }
+
                 updateStatus("Export finished! Exported to Export/ folder.", 100.0f);
                 ConsolePanel::AddLogGlobal("Standalone game exported successfully to: " + exportDir.string(), false);
 
@@ -4833,6 +4853,110 @@ void EditorScene::ExportStandaloneGame()
         } else {
             updateStatus("Export failed: RayneGame.exe not found.", 0.0f);
             ConsolePanel::AddLogGlobal("Export failed: RayneGame.exe not found. Please build target 'RayneGame' in your IDE.", true);
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildFinished = true;
+        }
+    }).detach();
+}
+
+void EditorScene::PackageEngineZip()
+{
+    {
+        std::lock_guard<std::mutex> lock(m_BuildMutex);
+        if (m_ShowBuildPopup && !m_BuildFinished) {
+            ConsolePanel::AddLogGlobal("Another packaging/build task is already in progress.", true);
+            return;
+        }
+        m_ShowBuildPopup = true;
+        m_BuildFinished = false;
+        m_CancelBuildRequested = false;
+        m_BuildProgress = 0.0f;
+        m_BuildStatusText = "Starting Engine packaging...";
+    }
+
+    std::thread([this]() {
+        auto updateStatus = [this](const std::string& status, float progress) {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            m_BuildStatusText = status;
+            if (progress >= 0.0f) m_BuildProgress = progress;
+        };
+
+        auto checkCancel = [this]() {
+            std::lock_guard<std::mutex> lock(m_BuildMutex);
+            return m_CancelBuildRequested;
+        };
+
+        try {
+            updateStatus("Locating project and engine files...", 10.0f);
+            std::filesystem::path rootDir = FindProjectRoot();
+            std::string cmakeBin = ResolveCMakeExecutable();
+
+            std::filesystem::path engineExeDir;
+#ifdef _WIN32
+            char pathBuf[MAX_PATH];
+            if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
+                engineExeDir = std::filesystem::path(pathBuf).parent_path();
+            }
+#endif
+            if (engineExeDir.empty() || !std::filesystem::exists(engineExeDir / "RayneEngine.exe")) {
+                if (std::filesystem::exists(rootDir / "cmake-build-release" / "RayneEngine.exe")) {
+                    engineExeDir = rootDir / "cmake-build-release";
+                } else if (std::filesystem::exists(rootDir / "cmake-build-debug" / "RayneEngine.exe")) {
+                    engineExeDir = rootDir / "cmake-build-debug";
+                } else {
+                    engineExeDir = rootDir;
+                }
+            }
+
+            updateStatus("Preparing package contents...", 30.0f);
+            std::filesystem::path zipTarget = rootDir / "RayneEngine-Editor.zip";
+
+            if (cmakeBin.empty()) {
+                cmakeBin = "cmake";
+            }
+
+            updateStatus("Packaging RayneEngine into " + zipTarget.filename().string() + "...", 50.0f);
+            ConsolePanel::AddLogGlobal("Packaging RayneEngine Editor to: " + zipTarget.string(), false);
+
+            std::string cmd = cmakeBin + " -E tar cf \"" + zipTarget.string() + "\" --format=zip \"RayneEngine.exe\" \"assets\" \"engine_content\" \"templates\"";
+#ifdef _WIN32
+            for (const auto& entry : std::filesystem::directory_iterator(engineExeDir)) {
+                if (entry.path().extension() == ".dll") {
+                    cmd += " \"" + entry.path().filename().string() + "\"";
+                }
+            }
+#endif
+
+#ifdef _WIN32
+            std::string fullCmd = "cd /d \"" + engineExeDir.string() + "\" && " + cmd;
+            FILE* pipe = _popen(fullCmd.c_str(), "r");
+            if (pipe) {
+                char buf[256];
+                while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
+                _pclose(pipe);
+            }
+#else
+            std::string fullCmd = "cd \"" + engineExeDir.string() + "\" && " + cmd;
+            FILE* pipe = popen(fullCmd.c_str(), "r");
+            if (pipe) {
+                char buf[256];
+                while (fgets(buf, sizeof(buf), pipe) != nullptr) {}
+                pclose(pipe);
+            }
+#endif
+
+            updateStatus("Engine packaged successfully!", 100.0f);
+            ConsolePanel::AddLogGlobal("RayneEngine-Editor.zip created successfully in: " + rootDir.string(), false);
+
+#ifdef _WIN32
+            ShellExecuteA(NULL, "explore", rootDir.string().c_str(), NULL, NULL, SW_SHOWNORMAL);
+#endif
+        } catch (const std::exception& e) {
+            updateStatus(std::string("Packaging error: ") + e.what(), 100.0f);
+            ConsolePanel::AddLogGlobal(std::string("Package error: ") + e.what(), true);
         }
 
         {
@@ -4863,11 +4987,6 @@ void EditorScene::DrawBuildPopup(sf::RenderWindow& window) {
     panel.setOutlineThickness(1.f);
     window.draw(panel);
     
-    sf::Text header("Building Standalone Game", *m_Font, 16);
-    header.setPosition(pX + 20.f, pY + 20.f);
-    header.setFillColor(C_TEXT_PRIMARY);
-    window.draw(header);
-    
     std::string statusText;
     float progress = 0.0f;
     bool finished = false;
@@ -4877,6 +4996,14 @@ void EditorScene::DrawBuildPopup(sf::RenderWindow& window) {
         progress = m_BuildProgress;
         finished = m_BuildFinished;
     }
+    
+    std::string headerStr = (statusText.find("Engine") != std::string::npos || statusText.find("RayneEngine") != std::string::npos)
+        ? "Packaging RayneEngine (.zip)"
+        : "Building Standalone Game";
+    sf::Text header(headerStr, *m_Font, 16);
+    header.setPosition(pX + 20.f, pY + 20.f);
+    header.setFillColor(C_TEXT_PRIMARY);
+    window.draw(header);
     
     sf::Text status(statusText, *m_Font, 12);
     status.setPosition(pX + 20.f, pY + 60.f);

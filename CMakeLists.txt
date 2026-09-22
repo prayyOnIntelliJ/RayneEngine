@@ -148,6 +148,13 @@ if(WIN32)
     )
 endif()
 
+add_custom_command(TARGET RayneEngine POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:RayneEngine>/templates
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_SOURCE_DIR}/templates/RayneGame.exe
+        $<TARGET_FILE_DIR:RayneEngine>/templates/RayneGame.exe
+)
+
 set_target_properties(RayneEngine PROPERTIES
         VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
 )
@@ -222,5 +229,28 @@ add_custom_command(TARGET RayneGame POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
         $<TARGET_FILE:RayneGame>
         ${CMAKE_SOURCE_DIR}/templates/RayneGame.exe
+)
+
+if(WIN32)
+    set(OPENAL_PACKAGE_ITEM "openal32.dll")
+else()
+    set(OPENAL_PACKAGE_ITEM "")
+endif()
+
+add_custom_target(PackageEngine
+        COMMAND ${CMAKE_COMMAND} -E echo "Creating RayneEngine-Editor.zip..."
+        COMMAND ${CMAKE_COMMAND} -E tar cf "${CMAKE_SOURCE_DIR}/RayneEngine-Editor.zip" --format=zip
+                "$<TARGET_FILE_NAME:RayneEngine>"
+                "assets"
+                "engine_content"
+                "templates"
+                "${OPENAL_PACKAGE_ITEM}"
+                "$<TARGET_FILE_NAME:sfml-system>"
+                "$<TARGET_FILE_NAME:sfml-window>"
+                "$<TARGET_FILE_NAME:sfml-graphics>"
+                "$<TARGET_FILE_NAME:sfml-audio>"
+        WORKING_DIRECTORY "$<TARGET_FILE_DIR:RayneEngine>"
+        DEPENDS RayneEngine
+        COMMENT "Packaging complete RayneEngine Editor into RayneEngine-Editor.zip..."
 )
 

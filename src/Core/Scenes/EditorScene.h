@@ -326,6 +326,7 @@ private:
 
     void HandleMenuAction(const std::string &action);
     void ExportStandaloneGame();
+    void PackageEngineZip();
 
     void AddObject(sf::Vector2f pos, ObjectType type = ObjectType::Rectangle);
 
