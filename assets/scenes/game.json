@@ -84,23 +84,6 @@
                 237
             ],
             "height": 40.0,
-            "id": "obj_0",
-            "rotation": 0.0,
-            "scaleX": 1.0,
-            "scaleY": 1.0,
-            "tag": "",
-            "type": "rectangle",
-            "width": 40.0,
-            "x": 1080.0,
-            "y": 720.0
-        },
-        {
-            "color": [
-                100,
-                149,
-                237
-            ],
-            "height": 40.0,
             "id": "obj_1",
             "rotation": 0.0,
             "scaleX": 1.0,
@@ -162,6 +145,23 @@
             "width": 40.0,
             "x": 1840.0,
             "y": 0.0
+        },
+        {
+            "color": [
+                100,
+                149,
+                237
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 640.0,
+            "y": 440.0
         }
     ]
 }

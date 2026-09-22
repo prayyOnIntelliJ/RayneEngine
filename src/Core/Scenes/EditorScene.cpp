@@ -1807,7 +1807,7 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         at.setFont(*m_Font);
         at.setCharacterSize(12);
         at.setFillColor(act ? C_ACCENT_BRIGHT : hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-        at.setString("+ Add  v");
+        at.setString("+ Add");
         at.setPosition(ar.left + (ar.width - at.getLocalBounds().width) / 2.f,
                        ar.top + (ar.height - at.getLocalBounds().height) / 2.f - 2.f);
         window.draw(at);

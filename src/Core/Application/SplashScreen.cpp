@@ -77,8 +77,11 @@ void SplashScreen::DrawProgressBar()
     if (m_HasFont)
     {
         int pct = static_cast<int>(m_DisplayProgress * 100.f);
+        sf::Color textColor(195, 195, 200);
         sf::Text pctText(std::to_string(pct) + "%", m_Font, 14);
-        pctText.setFillColor(sf::Color(150, 150, 155));
+        pctText.setFillColor(textColor);
+        pctText.setOutlineColor(textColor);
+        pctText.setOutlineThickness(0.5f);
         sf::FloatRect pb = pctText.getLocalBounds();
         pctText.setPosition(barX + barWidth - pb.width, barY + barHeight + 8.f);
         m_Window.draw(pctText);
@@ -92,8 +95,11 @@ void SplashScreen::DrawStatusText()
     float w = static_cast<float>(m_Window.getSize().x);
     float h = static_cast<float>(m_Window.getSize().y);
 
+    sf::Color textColor(195, 195, 200);
     sf::Text status(m_StatusText, m_Font, 14);
-    status.setFillColor(sf::Color(150, 150, 155));
+    status.setFillColor(textColor);
+    status.setOutlineColor(textColor);
+    status.setOutlineThickness(0.5f);
     
     float barWidth  = std::min(w * 0.4f, 400.f);
     float barHeight = 4.f;
@@ -111,8 +117,11 @@ void SplashScreen::DrawVersionInfo()
     float w = static_cast<float>(m_Window.getSize().x);
     float h = static_cast<float>(m_Window.getSize().y);
 
+    sf::Color verColor(135, 135, 140);
     sf::Text ver(m_ProjectName + " " + m_VersionStr, m_Font, 12);
-    ver.setFillColor(sf::Color(100, 100, 105));
+    ver.setFillColor(verColor);
+    ver.setOutlineColor(verColor);
+    ver.setOutlineThickness(0.4f);
     sf::FloatRect vb = ver.getLocalBounds();
     ver.setPosition(w - vb.width - 16.f, h - vb.height - 16.f);
     m_Window.draw(ver);
