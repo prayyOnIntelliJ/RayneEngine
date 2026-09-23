@@ -580,7 +580,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
             float currentAngle = std::atan2(pos.y - center.y, pos.x - center.x) * 180.f / 3.14159265f;
             
             float newRotation = m_RotateObjAngleStart + (currentAngle - m_RotateMouseAngleStart);
-            // Snap to 15 degrees if shift is held
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
             {
                 newRotation = std::round(newRotation / 15.f) * 15.f;
@@ -1456,7 +1455,6 @@ void EditorScene::Render(sf::RenderWindow &window)
         window.draw(box);
     }
 
-    // Draw transform gizmos (scale + rotate handles) in world space
     DrawGizmos(window);
 
     const sf::View uiView(sf::FloatRect(
@@ -3498,7 +3496,7 @@ static sf::Vector2f HandlePos(const EditorObject* obj, int idx)
     sf::Vector2f s = obj->shape.getSize();
     sf::Vector2f c = p + s * 0.5f;
     
-    sf::Vector2f u; // unrotated position
+    sf::Vector2f u;
     switch (idx)
     {
         case 0: u = {p.x, p.y}; break;
@@ -3512,7 +3510,6 @@ static sf::Vector2f HandlePos(const EditorObject* obj, int idx)
         default: u = {0.f, 0.f}; break;
     }
     
-    // SFML shapes rotate around their origin, which is (0,0) -> the top-left corner `p`
     return RotatePoint(u, p, obj->rotation);
 }
 
@@ -3546,33 +3543,26 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
 {
     if (!m_Selected) return;
 
-    // --- pixel-to-world scale factor (zoom-compensated handle size) ---
     sf::Vector2i zeroScreen{0, 0};
     sf::Vector2i tenScreen{10, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
     const sf::Vector2f wTen  = m_Window.mapPixelToCoords(tenScreen,  m_camera);
-    const float hw = std::abs(wTen.x - wZero.x); // half-size in world units (~10 px)
+    const float hw = std::abs(wTen.x - wZero.x);
 
-    // --- rotation handle offset (40 px above top-center in screen space) ---
     sf::Vector2i fortyScreen{0, 40};
     const sf::Vector2f wForty = m_Window.mapPixelToCoords(fortyScreen, m_camera);
-    const float rotOffset = std::abs(wForty.y - wZero.y); // 40 px in world units
+    const float rotOffset = std::abs(wForty.y - wZero.y);
 
     sf::Vector2f p = m_Selected->shape.getPosition();
     sf::Vector2f s = m_Selected->shape.getSize();
     sf::Vector2f center = p + s * 0.5f;
     sf::Vector2f unrotatedTopMid = {center.x, p.y};
 
-    // Rotation handle sits rotOffset above the unrotated top-center, then we rotate it around `p`
     sf::Vector2f unrotatedRotateHandle = {unrotatedTopMid.x, unrotatedTopMid.y - rotOffset};
     m_RotateHandlePos = RotatePoint(unrotatedRotateHandle, p, m_Selected->rotation);
     
-    // Also get the rotated topMid for drawing the connecting line
     sf::Vector2f topMid = RotatePoint(unrotatedTopMid, p, m_Selected->rotation);
 
-    // ----------------------------------------------------------------
-    // 1. Scale handles (8 points)
-    // ----------------------------------------------------------------
     static const sf::Color C_SCALE_FILL  = sf::Color(255, 255, 255, 230);
     static const sf::Color C_SCALE_EDGE  = sf::Color(200, 200, 220, 180);
     static const sf::Color C_SCALE_OUTL  = sf::Color(100, 90, 200, 255);
@@ -3592,18 +3582,12 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
         window.draw(handle);
     }
 
-    // ----------------------------------------------------------------
-    // 2. Connecting line: top-center → rotation handle
-    // ----------------------------------------------------------------
     static const sf::Color C_ROT_LINE = sf::Color(80, 220, 140, 180);
     sf::VertexArray line(sf::Lines, 2);
     line[0] = {topMid,          C_ROT_LINE};
     line[1] = {m_RotateHandlePos, C_ROT_LINE};
     window.draw(line);
 
-    // ----------------------------------------------------------------
-    // 3. Rotation handle circle
-    // ----------------------------------------------------------------
     static const sf::Color C_ROT_FILL  = sf::Color(60, 210, 120, 230);
     static const sf::Color C_ROT_OUTL  = sf::Color(30, 160, 80, 255);
     const float rotR = hw * 1.4f;
@@ -3616,7 +3600,6 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     rotHandle.setOutlineThickness(hw * 0.3f);
     window.draw(rotHandle);
 
-    // Small rotation-arrow icon (curved hint) inside the handle
     const float a = rotR * 0.55f;
     sf::VertexArray arc(sf::LinesStrip, 5);
     arc[0] = {{m_RotateHandlePos.x - a,       m_RotateHandlePos.y},        sf::Color(255,255,255,200)};
@@ -3631,7 +3614,6 @@ bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
 {
     if (!m_Selected) return false;
 
-    // Use same 40 px screen-space hit radius as the handle
     sf::Vector2i zeroScreen{0, 0};
     sf::Vector2i tenScreen{14, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
@@ -4820,7 +4802,6 @@ static std::string ResolveCMakeExecutable()
 
 void EditorScene::ExportStandaloneGame()
 {
-    // 1. Auto-save current scene and project settings before exporting
     SyncToRegistry();
     SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
     SaveProjectSettings();
@@ -4860,7 +4841,6 @@ void EditorScene::ExportStandaloneGame()
             }
         }
 
-        // 2. If in a C++ development environment and CMake is available, compile RayneGame
         if (!cmakeBin.empty() && !buildDir.empty()) {
             updateStatus("Building RayneGame target with CMake...", 20.0f);
             ConsolePanel::AddLogGlobal("Building RayneGame in: " + buildDir.string(), false);
@@ -4896,7 +4876,6 @@ void EditorScene::ExportStandaloneGame()
             return;
         }
 
-        // 3. Locate the template RayneGame executable
         std::filesystem::path exePath;
         std::vector<std::filesystem::path> possibleExePaths = {
             appDir / "templates" / "RayneGame.exe",
@@ -4926,21 +4905,18 @@ void EditorScene::ExportStandaloneGame()
                 std::string outExeName = m_ProjectName.empty() ? "RayneGame.exe" : m_ProjectName + ".exe";
                 std::filesystem::copy_file(exePath, exportDir / outExeName, std::filesystem::copy_options::overwrite_existing);
 
-                // Copy assets from local project
                 updateStatus("Copying assets...", 80.0f);
                 std::filesystem::path srcAssets = std::filesystem::exists(rootDir / "assets") ? (rootDir / "assets") : (appDir / "assets");
                 if (std::filesystem::exists(srcAssets)) {
                     std::filesystem::copy(srcAssets, exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
                 
-                // Copy engine_content from local project
                 updateStatus("Copying engine_content...", 90.0f);
                 std::filesystem::path srcEngine = std::filesystem::exists(rootDir / "engine_content") ? (rootDir / "engine_content") : (appDir / "engine_content");
                 if (std::filesystem::exists(srcEngine)) {
                     std::filesystem::copy(srcEngine, exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
 
-                // Copy DLLs
                 std::vector<std::filesystem::path> dllSearchDirs = {
                     appDir,
                     exePath.parent_path(),
@@ -4959,7 +4935,6 @@ void EditorScene::ExportStandaloneGame()
                     }
                 }
 
-                // Also automatically create a ready-to-send ZIP archive of the exported game!
                 std::string zipName = (m_ProjectName.empty() ? "RayneGame" : m_ProjectName) + "_Standalone.zip";
                 std::filesystem::path zipTarget = rootDir / zipName;
                 bool zipCreated = false;
@@ -5407,12 +5382,10 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
     const float x = (window.getSize().x - w) / 2.f;
     const float y = (window.getSize().y - h) / 2.f;
 
-    // Semi-transparent backdrop overlay
     sf::RectangleShape backdrop(sf::Vector2f(window.getSize().x, window.getSize().y));
     backdrop.setFillColor(sf::Color(0, 0, 0, 140));
     window.draw(backdrop);
 
-    // Dialog panel
     sf::RectangleShape panel(sf::Vector2f(w, h));
     panel.setPosition(x, y);
     panel.setFillColor(C_BG_PANEL);
@@ -5422,13 +5395,11 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
 
     m_ProjectSettingsButtons.clear();
 
-    // Title
     sf::Text title("Project Settings", *m_Font, 16);
     title.setPosition(x + 20.f, y + 16.f);
     title.setFillColor(C_TEXT_PRIMARY);
     window.draw(title);
 
-    // Close button
     sf::RectangleShape closeBtn(sf::Vector2f(22.f, 22.f));
     closeBtn.setPosition(x + w - 32.f, y + 16.f);
     closeBtn.setFillColor(C_BG_INPUT);
@@ -5442,7 +5413,6 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
     window.draw(closeTxt);
     m_ProjectSettingsButtons.push_back({closeBtn.getGlobalBounds(), "close_proj_settings"});
 
-    // Tabs
     float tabY = y + 50.f;
     std::vector<std::string> tabs = {"General", "Display & Graphics", "Audio"};
     float tabX = x + 20.f;
@@ -5465,7 +5435,6 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
         tabX += tw + 6.f;
     }
 
-    // Divider line below tabs
     sf::RectangleShape divLine(sf::Vector2f(w - 40.f, 1.f));
     divLine.setPosition(x + 20.f, tabY + 34.f);
     divLine.setFillColor(C_BORDER);
@@ -5474,13 +5443,11 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
     float currY = tabY + 44.f;
 
     if (m_ProjectSettingsTab == 0) {
-        // General Tab
         currY += DrawProjectSettingsInputField(window, "Project Name", m_ProjectName, ProjectSettingsField::ProjectName, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Version", m_ProjectVersion, ProjectSettingsField::Version, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Author / Studio", m_ProjectAuthor, ProjectSettingsField::Author, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Start Scene", m_ProjectStartScene, ProjectSettingsField::StartScene, x + 20.f, currY, x + w);
     } else if (m_ProjectSettingsTab == 1) {
-        // Display & Graphics Tab
         currY += DrawProjectSettingsInputField(window, "Window Width", std::to_string(m_ProjectWindowWidth), ProjectSettingsField::WindowWidth, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Window Height", std::to_string(m_ProjectWindowHeight), ProjectSettingsField::WindowHeight, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsToggle(window, "Vertical Sync (VSync)", m_ProjectVSync, "toggle_vsync", x + 20.f, currY, x + w);
@@ -5488,12 +5455,10 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
         currY += DrawProjectSettingsToggle(window, "Fullscreen (Standalone)", m_ProjectFullscreen, "toggle_fullscreen", x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Clear Color (Hex)", ColorToHex(m_ProjectClearColor), ProjectSettingsField::ClearColorHex, x + 20.f, currY, x + w);
     } else if (m_ProjectSettingsTab == 2) {
-        // Audio Tab
         currY += DrawProjectSettingsInputField(window, "Master Volume (0-100)", std::to_string((int)m_ProjectMasterVolume), ProjectSettingsField::MasterVolume, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Music Volume (0-100)", std::to_string((int)m_ProjectMusicVolume), ProjectSettingsField::MusicVolume, x + 20.f, currY, x + w);
     }
 
-    // Save & Close Button
     float btnW = 110.f;
     float btnH = 28.f;
     float btnX = x + w - btnW - 20.f;
@@ -5557,6 +5522,5 @@ void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos) {
             return;
         }
     }
-    // Clicked outside any input box/button
     CommitActiveProjectSettingsField();
 }
