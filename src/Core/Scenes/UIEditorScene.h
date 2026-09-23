@@ -7,9 +7,11 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/View.hpp>
 
+#include <memory>
 #include "../Scenes/Scene.h"
 #include "../Scenes/SceneManager.h"
 #include "../UI/UIManager.h"
+#include "ContentBrowser.h"
 
 class UIEditorScene : public Scene
 {
@@ -37,11 +39,15 @@ private:
     static constexpr float PaletteWidth = 200.f;
     static constexpr float InspectorWidth = 270.f;
     static constexpr float HierarchyHeight = 350.f;
+    static constexpr float BrowserHeight = 180.f;
 
     sf::FloatRect m_CanvasBounds;
     sf::FloatRect m_PaletteBounds;
     sf::FloatRect m_InspectorBounds;
     sf::FloatRect m_HierarchyBounds;
+    sf::FloatRect m_BrowserBounds;
+
+    std::unique_ptr<ContentBrowser> m_ContentBrowser;
 
     struct MenuItem
     {
@@ -131,6 +137,17 @@ private:
         TextColorB,
         OnClickParam,
         OnHoverParam,
+        TexturePath,
+        HoverTexturePath,
+        PressedTexturePath,
+        CheckedTexturePath,
+        KnobTexturePath,
+        FillTexturePath,
+        SliderValue,
+        SliderMin,
+        SliderMax,
+        ProgressValue,
+        ProgressMax,
     };
 
     EditField m_ActiveField = EditField::None;
@@ -183,6 +200,10 @@ private:
 
     float DrawEditableRow(sf::RenderWindow &window, const std::string &key, const std::string &val,
                           const std::string &action, float x, float y);
+
+    float DrawTextureSlot(sf::RenderWindow &window, const std::string &label, const std::string &path,
+                          const std::string &action, const std::string &clearAction,
+                          const std::string &browseAction, float x, float y);
 
     float DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,
                            float y, sf::Color fillColor, sf::Color borderColor);

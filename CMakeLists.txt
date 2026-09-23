@@ -113,6 +113,10 @@ target_link_libraries(RayneEngine
         nlohmann_json::nlohmann_json
 )
 
+if(WIN32)
+    target_link_libraries(RayneEngine PRIVATE comdlg32)
+endif()
+
 add_custom_command(TARGET RayneEngine POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_SOURCE_DIR}/assets
