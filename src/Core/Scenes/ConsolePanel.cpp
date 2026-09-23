@@ -2,6 +2,11 @@
 #include <algorithm>
 #include <iostream>
 #include <chrono>
+#include <sstream>
+#include <iomanip>
+
+#include "../Application/Application.h"
+#include "../Scripting/LuaState.h"
 
 #include "SFML/Window/Clipboard.hpp"
 
@@ -109,16 +114,231 @@ ConsolePanel::~ConsolePanel()
 {
 }
 
-void ConsolePanel::ExecuteCommand(const std::string& command)
+void ConsolePanel::ExecuteCommand(const std::string& rawCommand)
 {
+    if (rawCommand.empty()) return;
+
+    size_t first = rawCommand.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos) return;
+    size_t last = rawCommand.find_last_not_of(" \t\r\n");
+    std::string command = rawCommand.substr(first, (last - first + 1));
     if (command.empty()) return;
-    
+
     AddLogGlobal("> " + command, false);
-    
-    if (command == "clear") {
+
+    std::istringstream iss(command);
+    std::string cmd;
+    iss >> cmd;
+    std::string lowerCmd = cmd;
+    std::transform(lowerCmd.begin(), lowerCmd.end(), lowerCmd.begin(), ::tolower);
+
+    std::string args;
+    std::getline(iss, args);
+    size_t argsFirst = args.find_first_not_of(" \t");
+    if (argsFirst != std::string::npos) {
+        args = args.substr(argsFirst);
+    } else {
+        args.clear();
+    }
+
+    if (lowerCmd == "clear" || lowerCmd == "cls")
+    {
         std::lock_guard<std::mutex> lock(s_Mutex);
         s_Messages.clear();
         m_ScrollOffset = 0.f;
+    }
+    else if (lowerCmd == "help")
+    {
+        AddLogGlobal("=== Available Commands ===", false);
+        AddLogGlobal("  help                  - List all available commands", false);
+        AddLogGlobal("  quit / exit           - Quit game (or return to editor)", false);
+        AddLogGlobal("  restart / reload      - Restart the current active scene", false);
+        AddLogGlobal("  scene load <name>     - Load a scene by name", false);
+        AddLogGlobal("  pause [on|off]        - Toggle or set simulation pause", false);
+        AddLogGlobal("  timescale <value>     - Set simulation time scale (e.g. 0.5, 1.0, 2.0)", false);
+        AddLogGlobal("  fps [on|off|toggle]   - Show current FPS or toggle on-screen overlay", false);
+        AddLogGlobal("  screenshot [name]     - Save screenshot to screenshots/", false);
+        AddLogGlobal("  fullscreen [on|off]   - Toggle or set fullscreen mode", false);
+        AddLogGlobal("  cursor [show|hide]    - Toggle or set mouse cursor visibility", false);
+        AddLogGlobal("  openurl <url>         - Open URL in default browser", false);
+        AddLogGlobal("  clear / cls           - Clear the console window", false);
+        AddLogGlobal("  lua <code>            - Execute arbitrary Lua script code", false);
+        AddLogGlobal("==========================", false);
+    }
+    else if (lowerCmd == "quit" || lowerCmd == "exit")
+    {
+        if (g_App) {
+            AddLogGlobal("Quitting application / Play mode...", false);
+            g_App->Quit();
+        } else {
+            AddLogGlobal("[Error] Engine application instance not available", true);
+        }
+    }
+    else if (lowerCmd == "restart" || lowerCmd == "reload")
+    {
+        if (g_App) {
+            AddLogGlobal("Restarting current scene...", false);
+            g_App->RestartCurrentScene();
+        } else {
+            AddLogGlobal("[Error] Engine application instance not available", true);
+        }
+    }
+    else if (lowerCmd == "scene")
+    {
+        std::istringstream aiss(args);
+        std::string subCmd;
+        aiss >> subCmd;
+        std::transform(subCmd.begin(), subCmd.end(), subCmd.begin(), ::tolower);
+        if (subCmd == "load")
+        {
+            std::string sceneName;
+            aiss >> sceneName;
+            if (!sceneName.empty())
+            {
+                if (g_App) {
+                    AddLogGlobal("Loading scene: " + sceneName + "...", false);
+                    g_App->LoadGameScene(sceneName);
+                }
+            }
+            else
+            {
+                AddLogGlobal("Usage: scene load <scene_name>", true);
+            }
+        }
+        else
+        {
+            AddLogGlobal("Usage: scene load <scene_name>", true);
+        }
+    }
+    else if (lowerCmd == "pause")
+    {
+        if (g_App) {
+            if (args == "on" || args == "1" || args == "true") {
+                g_App->SetPaused(true);
+            } else if (args == "off" || args == "0" || args == "false") {
+                g_App->SetPaused(false);
+            } else {
+                g_App->TogglePause();
+            }
+            AddLogGlobal(std::string("Simulation paused: ") + (g_App->IsPaused() ? "ON" : "OFF"), false);
+        }
+    }
+    else if (lowerCmd == "timescale")
+    {
+        if (g_App) {
+            if (!args.empty()) {
+                try {
+                    float ts = std::stof(args);
+                    g_App->SetTimeScale(ts);
+                    AddLogGlobal("TimeScale set to " + std::to_string(g_App->GetTimeScale()), false);
+                } catch (...) {
+                    AddLogGlobal("Usage: timescale <float_value> (e.g. timescale 0.5)", true);
+                }
+            } else {
+                AddLogGlobal("Current TimeScale: " + std::to_string(g_App->GetTimeScale()), false);
+            }
+        }
+    }
+    else if (lowerCmd == "fps")
+    {
+        if (g_App) {
+            if (args == "on" || args == "1" || args == "true") {
+                g_App->SetShowFPSOverlay(true);
+                AddLogGlobal("FPS overlay: ON", false);
+            } else if (args == "off" || args == "0" || args == "false") {
+                g_App->SetShowFPSOverlay(false);
+                AddLogGlobal("FPS overlay: OFF", false);
+            } else if (args == "toggle") {
+                g_App->SetShowFPSOverlay(!g_App->IsFPSOverlayShown());
+                AddLogGlobal(std::string("FPS overlay: ") + (g_App->IsFPSOverlayShown() ? "ON" : "OFF"), false);
+            } else {
+                char buf[128];
+                std::snprintf(buf, sizeof(buf), "FPS: %.1f | Frame Time: %.2f ms | Overlay: %s",
+                              g_App->GetFPS(), g_App->GetDeltaTime() * 1000.f,
+                              g_App->IsFPSOverlayShown() ? "ON" : "OFF");
+                AddLogGlobal(buf, false);
+            }
+        }
+    }
+    else if (lowerCmd == "screenshot")
+    {
+        if (g_App) {
+            std::string path = g_App->TakeScreenshot(args);
+            if (!path.empty()) {
+                AddLogGlobal("Screenshot saved: " + path, false);
+            } else {
+                AddLogGlobal("[Error] Failed to capture screenshot", true);
+            }
+        }
+    }
+    else if (lowerCmd == "fullscreen")
+    {
+        if (g_App) {
+            if (args == "on" || args == "1" || args == "true") {
+                g_App->SetFullscreen(true);
+            } else if (args == "off" || args == "0" || args == "false") {
+                g_App->SetFullscreen(false);
+            } else {
+                g_App->ToggleFullscreen();
+            }
+            AddLogGlobal(std::string("Fullscreen: ") + (g_App->IsFullscreen() ? "ON" : "OFF"), false);
+        }
+    }
+    else if (lowerCmd == "cursor")
+    {
+        if (g_App) {
+            if (args == "show" || args == "on" || args == "1" || args == "true") {
+                g_App->SetCursorVisible(true);
+                AddLogGlobal("Cursor: Visible", false);
+            } else if (args == "hide" || args == "off" || args == "0" || args == "false") {
+                g_App->SetCursorVisible(false);
+                AddLogGlobal("Cursor: Hidden", false);
+            } else {
+                AddLogGlobal("Usage: cursor <show|hide>", true);
+            }
+        }
+    }
+    else if (lowerCmd == "openurl")
+    {
+        if (g_App) {
+            if (!args.empty()) {
+                g_App->OpenURL(args);
+                AddLogGlobal("Opening URL: " + args, false);
+            } else {
+                AddLogGlobal("Usage: openurl <url>", true);
+            }
+        }
+    }
+    else
+    {
+        // Execute as Lua code fallback
+        std::string luaCode = (lowerCmd == "lua") ? args : command;
+        if (!luaCode.empty())
+        {
+            auto& lua = LuaState::GetLua();
+            sol::protected_function_result result = lua.safe_script(luaCode, sol::script_pass_on_error);
+            if (!result.valid())
+            {
+                sol::error err = result;
+                AddLogGlobal(std::string("[Lua Error] ") + err.what(), true);
+            }
+            else
+            {
+                if (result.return_count() > 0)
+                {
+                    sol::object obj = result[0];
+                    if (obj.is<std::string>()) {
+                        AddLogGlobal(obj.as<std::string>(), false);
+                    } else if (obj.is<double>()) {
+                        AddLogGlobal(std::to_string(obj.as<double>()), false);
+                    } else if (obj.is<bool>()) {
+                        AddLogGlobal(obj.as<bool>() ? "true" : "false", false);
+                    } else if (obj.is<int>()) {
+                        AddLogGlobal(std::to_string(obj.as<int>()), false);
+                    }
+                }
+            }
+        }
     }
 }
 

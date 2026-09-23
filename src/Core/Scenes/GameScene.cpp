@@ -184,10 +184,14 @@ void GameScene::HandleEvent(const sf::Event &event)
 
 void GameScene::Update(float deltaTime)
 {
+    bool isPaused = (g_App && g_App->IsPaused());
+    float timeScale = (g_App ? g_App->GetTimeScale() : 1.0f);
+    float effectiveDt = isPaused ? 0.f : (deltaTime * timeScale);
+
     m_Registry.ForEach<TransformComponent, VelocityComponent>(
-        [deltaTime](Entity, TransformComponent &t, VelocityComponent &v) {
-            t.x += v.dx * deltaTime;
-            t.y += v.dy * deltaTime;
+        [effectiveDt](Entity, TransformComponent &t, VelocityComponent &v) {
+            t.x += v.dx * effectiveDt;
+            t.y += v.dy * effectiveDt;
         });
 
 #ifndef RAYNE_STANDALONE
@@ -199,12 +203,14 @@ void GameScene::Update(float deltaTime)
     }
 #endif
 
-    m_Registry.ForEach<ScriptComponent>([deltaTime](Entity, ScriptComponent &sc) { sc.OnUpdate(deltaTime); });
+    m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
 
-    TimerManager::Get().Update(deltaTime);
-    TweenManager::Get().Update(deltaTime);
-
-    CheckCollisions();
+    if (!isPaused)
+    {
+        TimerManager::Get().Update(effectiveDt);
+        TweenManager::Get().Update(effectiveDt);
+        CheckCollisions();
+    }
 
     m_Registry.ForEach<TransformComponent, CameraComponent>(
         [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.x, t.y); } });

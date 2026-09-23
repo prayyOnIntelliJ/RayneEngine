@@ -3,9 +3,13 @@
 
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <ctime>
+#include <filesystem>
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
 
 #include "../ECS/Components.h"
 #include "../Input/InputManager.h"
@@ -96,6 +100,7 @@ Application::Application()
     }
 
     m_StartScene = initialScene;
+    m_CurrentSceneName = initialScene;
     m_ProjectName = projName;
     m_ProjectVersion = projVersion;
     m_ProjectAuthor = projAuthor;
@@ -185,24 +190,7 @@ void Application::RunSplashSequence()
     LuaState::Init(m_Registry, [this](const std::string &sceneName) {
         if (m_SceneManager.CurrentName() == "game")
         {
-            m_Registry.Clear();
-            TimerManager::Get().Clear();
-            TweenManager::Get().Clear();
-            EventManager::Get().Clear();
-            
-            EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
-                if (m_Registry.HasComponent<ScriptComponent>(e.a))
-                    m_Registry.GetComponent<ScriptComponent>(e.a).OnCollision(e.b);
-
-                if (m_Registry.HasComponent<ScriptComponent>(e.b))
-                    m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
-            });
-
-            SceneSerializer::LoadIntoRegistry(m_Registry, std::string(ASSET_PATH) + "/scenes/" + sceneName + ".json");
-            std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + sceneName + "_ui.json";
-            UIManager::Get().SetCurrentUIPath(uiPath);
-            UIManager::Get().Load(uiPath);
-            m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+            LoadGameScene(sceneName);
         }
     });
 
@@ -231,10 +219,7 @@ void Application::RunSplashSequence()
     AnimateFrames(15);
 
 #ifdef RAYNE_STANDALONE
-    SceneSerializer::LoadIntoRegistry(m_Registry, std::string(ASSET_PATH) + "/scenes/" + m_StartScene + ".json");
-    std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + m_StartScene + "_ui.json";
-    UIManager::Get().SetCurrentUIPath(uiPath);
-    UIManager::Get().Load(uiPath);
+    LoadGameScene(m_StartScene);
 
     std::cout << "[INFO] [Application] Switching to Game Scene (Standalone)...\n";
     m_SceneManager.SwitchSceneTo("game");
@@ -258,6 +243,13 @@ void Application::Run()
     {
         sf::Time dt = m_DeltaTimeClock.restart();
         float deltaTime = dt.asSeconds();
+
+        m_CurrentDeltaTime = deltaTime;
+        if (deltaTime > 0.0001f)
+        {
+            float instantFPS = 1.0f / deltaTime;
+            m_CurrentFPS = (m_CurrentFPS <= 0.f) ? instantFPS : (m_CurrentFPS * 0.9f + instantFPS * 0.1f);
+        }
 
         SetEvents();
         if (!m_RenderWindow.isOpen()) break;
@@ -291,6 +283,38 @@ void Application::Render()
 {
     m_RenderWindow.clear(m_ClearColor);
     m_SceneManager.Render(m_RenderWindow);
+
+    if (m_ShowFPSOverlay)
+    {
+        auto font = ResourceManager::Get().GetFont(std::string(ENGINE_ASSET_PATH) + "/fonts/Merriweather.ttf");
+        if (font)
+        {
+            sf::View defaultView = m_RenderWindow.getDefaultView();
+            m_RenderWindow.setView(defaultView);
+
+            char buf[64];
+            std::snprintf(buf, sizeof(buf), "FPS: %.1f (%.1f ms)", m_CurrentFPS, m_CurrentDeltaTime * 1000.f);
+
+            sf::Text fpsText;
+            fpsText.setFont(*font);
+            fpsText.setCharacterSize(13);
+            fpsText.setString(buf);
+            fpsText.setFillColor(sf::Color(120, 240, 120));
+
+            sf::FloatRect bounds = fpsText.getLocalBounds();
+            float x = static_cast<float>(m_RenderWindow.getSize().x) - bounds.width - 16.f;
+            float y = 8.f;
+            fpsText.setPosition(x, y);
+
+            sf::RectangleShape bg({bounds.width + 12.f, bounds.height + 10.f});
+            bg.setPosition(x - 6.f, y - 2.f);
+            bg.setFillColor(sf::Color(0, 0, 0, 160));
+
+            m_RenderWindow.draw(bg);
+            m_RenderWindow.draw(fpsText);
+        }
+    }
+
     m_RenderWindow.display();
 }
 
@@ -321,4 +345,152 @@ void Application::SetMusicVolume(float vol)
 {
     m_MusicVolume = vol;
     AudioManager::Get().SetMusicVolume(vol);
+}
+
+void Application::Quit()
+{
+#ifdef RAYNE_STANDALONE
+    std::cout << "[INFO] [Application] Quit called: closing window...\n";
+    m_RenderWindow.close();
+#else
+    if (m_SceneManager.CurrentName() == "game")
+    {
+        std::cout << "[INFO] [Application] Quit called in Play Mode: returning to editor...\n";
+        m_SceneManager.SwitchSceneTo("editor");
+    }
+    else
+    {
+        std::cout << "[INFO] [Application] Quit called: closing window...\n";
+        m_RenderWindow.close();
+    }
+#endif
+}
+
+void Application::RestartCurrentScene()
+{
+    std::cout << "[INFO] [Application] Restarting current scene: " << m_CurrentSceneName << "...\n";
+    LoadGameScene(m_CurrentSceneName);
+}
+
+void Application::LoadGameScene(const std::string& sceneName)
+{
+    if (sceneName.empty()) return;
+    m_CurrentSceneName = sceneName;
+    m_IsPaused = false;
+    m_TimeScale = 1.0f;
+
+    m_Registry.Clear();
+    TimerManager::Get().Clear();
+    TweenManager::Get().Clear();
+    EventManager::Get().Clear();
+    
+    EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
+        if (m_Registry.HasComponent<ScriptComponent>(e.a))
+            m_Registry.GetComponent<ScriptComponent>(e.a).OnCollision(e.b);
+
+        if (m_Registry.HasComponent<ScriptComponent>(e.b))
+            m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
+    });
+
+    std::string scenePath = std::string(ASSET_PATH) + "/scenes/" + sceneName + ".json";
+    if (std::filesystem::exists(scenePath))
+    {
+        SceneSerializer::LoadIntoRegistry(m_Registry, scenePath);
+    }
+    else
+    {
+        std::cout << "[WARN] [Application] Scene file not found: " << scenePath << "\n";
+    }
+
+    std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + sceneName + "_ui.json";
+    UIManager::Get().SetCurrentUIPath(uiPath);
+    if (std::filesystem::exists(uiPath))
+    {
+        UIManager::Get().Load(uiPath);
+    }
+    else
+    {
+        UIManager::Get().GetElements().clear();
+    }
+
+    m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+}
+
+void Application::SetFullscreen(bool fullscreen)
+{
+    if (m_ProjectFullscreen == fullscreen) return;
+    m_ProjectFullscreen = fullscreen;
+
+    if (m_ProjectFullscreen)
+    {
+        m_RenderWindow.create(sf::VideoMode(m_WindowWidth, m_WindowHeight), m_ProjectName, sf::Style::Fullscreen);
+    }
+    else
+    {
+        m_RenderWindow.create(sf::VideoMode(m_WindowWidth, m_WindowHeight), m_ProjectName, sf::Style::Close | sf::Style::Titlebar);
+    }
+
+    m_RenderWindow.setVerticalSyncEnabled(m_ProjectVSync);
+    if (!m_ProjectVSync && m_ProjectTargetFPS > 0)
+    {
+        m_RenderWindow.setFramerateLimit(m_ProjectTargetFPS);
+    }
+    SetIcon();
+}
+
+void Application::SetCursorVisible(bool visible)
+{
+    m_RenderWindow.setMouseCursorVisible(visible);
+}
+
+std::string Application::TakeScreenshot(const std::string& customFilename)
+{
+    std::filesystem::create_directories("screenshots");
+    std::string filename = customFilename;
+    if (filename.empty())
+    {
+        auto now = std::chrono::system_clock::now();
+        std::time_t timeNow = std::chrono::system_clock::to_time_t(now);
+        std::tm tmStruct{};
+#if defined(_WIN32)
+        localtime_s(&tmStruct, &timeNow);
+#else
+        localtime_r(&timeNow, &tmStruct);
+#endif
+        char buf[64];
+        std::strftime(buf, sizeof(buf), "screenshot_%Y-%m-%d_%H-%M-%S.png", &tmStruct);
+        filename = std::string("screenshots/") + buf;
+    }
+    else if (filename.find('/') == std::string::npos && filename.find('\\') == std::string::npos)
+    {
+        filename = "screenshots/" + filename;
+        if (filename.find(".png") == std::string::npos && filename.find(".jpg") == std::string::npos)
+        {
+            filename += ".png";
+        }
+    }
+
+    sf::Vector2u winSize = m_RenderWindow.getSize();
+    sf::Texture tex;
+    if (tex.create(winSize.x, winSize.y))
+    {
+        tex.update(m_RenderWindow);
+        sf::Image img = tex.copyToImage();
+        if (img.saveToFile(filename))
+        {
+            std::cout << "[INFO] [Application] Screenshot saved to " << filename << "\n";
+            return filename;
+        }
+    }
+
+    std::cout << "[WARN] [Application] Failed to save screenshot to " << filename << "\n";
+    return "";
+}
+
+void Application::OpenURL(const std::string& url)
+{
+    if (url.empty()) return;
+#ifdef _WIN32
+    ShellExecuteA(nullptr, "open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+#endif
 }

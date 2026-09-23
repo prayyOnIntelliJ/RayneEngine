@@ -31,6 +31,35 @@ public:
     void SetMasterVolume(float vol);
     void SetMusicVolume(float vol);
 
+    // Utility & Lifecycle
+    void Quit();
+    void RestartCurrentScene();
+    void LoadGameScene(const std::string& sceneName);
+
+    // Simulation & Time
+    void SetPaused(bool paused) { m_IsPaused = paused; }
+    bool IsPaused() const { return m_IsPaused; }
+    void TogglePause() { m_IsPaused = !m_IsPaused; }
+    void SetTimeScale(float scale) { m_TimeScale = (scale < 0.f ? 0.f : scale); }
+    float GetTimeScale() const { return m_TimeScale; }
+
+    // Window & Display
+    void SetFullscreen(bool fullscreen);
+    void ToggleFullscreen() { SetFullscreen(!m_ProjectFullscreen); }
+    bool IsFullscreen() const { return m_ProjectFullscreen; }
+    void SetCursorVisible(bool visible);
+
+    // System & Media
+    std::string TakeScreenshot(const std::string& customFilename = "");
+    void OpenURL(const std::string& url);
+
+    // Diagnostics / Debug
+    float GetFPS() const { return m_CurrentFPS; }
+    float GetDeltaTime() const { return m_CurrentDeltaTime; }
+    void SetShowFPSOverlay(bool show) { m_ShowFPSOverlay = show; }
+    bool IsFPSOverlayShown() const { return m_ShowFPSOverlay; }
+    const std::string& GetCurrentSceneName() const { return m_CurrentSceneName; }
+
 private:
     void SetIcon();
 
@@ -46,6 +75,7 @@ private:
     std::string m_ProjectVersion = "1.0.0";
     std::string m_ProjectAuthor = "";
     std::string m_StartScene = "scenes/game.json";
+    std::string m_CurrentSceneName = "game";
     int m_WindowWidth = 1280;
     int m_WindowHeight = 720;
     bool m_ProjectVSync = true;
@@ -54,6 +84,12 @@ private:
     sf::Color m_ClearColor = sf::Color(18, 20, 23);
     float m_MasterVolume = 100.f;
     float m_MusicVolume = 100.f;
+
+    bool m_IsPaused = false;
+    float m_TimeScale = 1.0f;
+    float m_CurrentFPS = 0.f;
+    float m_CurrentDeltaTime = 0.f;
+    bool m_ShowFPSOverlay = false;
 
     sf::RenderWindow m_RenderWindow;
     SceneManager m_SceneManager;
