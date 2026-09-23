@@ -102,6 +102,96 @@ function CreateEntity() end
 ---@param sceneName string The name of the scene (without the .json extension)
 function LoadScene(sceneName) end
 
+---Quits the game. In Standalone, closes the application. In Editor, returns to the editor.
+function QuitGame() end
+
+---Restarts the currently active scene, resetting all entities, UI, and scripts.
+function RestartScene() end
+
+---Pauses or unpauses game simulation (physics, timers, tweens). Scripts receive dt=0 while paused.
+---@param paused boolean
+function PauseGame(paused) end
+
+---Sets the game simulation time scale (e.g. 0.5 for half speed, 2.0 for double speed).
+---@param scale number
+function SetTimeScale(scale) end
+
+---Returns the current frames per second (FPS).
+---@return number
+function GetFPS() end
+
+---@class Engine
+Engine = {}
+
+---Quits the game. In Standalone, closes the application. In Editor, returns to the editor.
+function Engine.Quit() end
+
+---Restarts the currently active scene, resetting all entities, UI, and scripts.
+function Engine.RestartScene() end
+
+---Loads a different scene from the assets/scenes folder
+---@param sceneName string The name of the scene (without the .json extension)
+function Engine.LoadScene(sceneName) end
+
+---Pauses or unpauses game simulation (physics, timers, tweens). Scripts receive dt=0 while paused.
+---@param paused boolean
+function Engine.SetPaused(paused) end
+
+---Returns true if the game simulation is currently paused.
+---@return boolean
+function Engine.IsPaused() end
+
+---Toggles the pause state of the game simulation.
+function Engine.TogglePause() end
+
+---Sets the game simulation time scale (e.g. 0.5 for half speed, 2.0 for double speed).
+---@param scale number
+function Engine.SetTimeScale(scale) end
+
+---Gets the current game simulation time scale.
+---@return number
+function Engine.GetTimeScale() end
+
+---Sets fullscreen mode.
+---@param fullscreen boolean
+function Engine.SetFullscreen(fullscreen) end
+
+---Toggles fullscreen mode.
+function Engine.ToggleFullscreen() end
+
+---Returns true if the window is currently in fullscreen mode.
+---@return boolean
+function Engine.IsFullscreen() end
+
+---Sets whether the mouse cursor is visible.
+---@param visible boolean
+function Engine.SetCursorVisible(visible) end
+
+---Captures a screenshot and saves it to the screenshots/ folder.
+---@param filename? string Optional custom filename or relative path
+---@return string The saved filepath
+function Engine.TakeScreenshot(filename) end
+
+---Opens a URL or system path using the default OS handler.
+---@param url string
+function Engine.OpenURL(url) end
+
+---Returns the current frames per second (FPS).
+---@return number
+function Engine.GetFPS() end
+
+---Returns the unscaled delta time of the current frame in seconds.
+---@return number
+function Engine.GetDeltaTime() end
+
+---Enables or disables the on-screen FPS counter overlay.
+---@param show boolean
+function Engine.ShowFPS(show) end
+
+---Returns whether the on-screen FPS counter overlay is visible.
+---@return boolean
+function Engine.IsFPSShown() end
+
 ---Sets the Position of an Entity
 ---@param e Entity
 ---@param x number

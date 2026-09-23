@@ -9,6 +9,7 @@
 #include "../Resources/ResourceManager.h"
 #include "../Audio/AudioManager.h"
 #include "../UI/UIManager.h"
+#include "../Application/Application.h"
 #include "TimerManager.h"
 #include "TweenManager.h"
 
@@ -232,8 +233,93 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         TweenManager::Get().Position(e, targetX, targetY, duration, ease.value_or("Linear"), registry);
     });
 
+    std::cout << "[INFO] [Lua] Registering Engine Utility bindings...\n";
+    sol::table engineTable = s_Lua.create_named_table("Engine");
+
+    // Lifecycle
+    engineTable.set_function("Quit", []() {
+        if (g_App) g_App->Quit();
+    });
+    engineTable.set_function("RestartScene", []() {
+        if (g_App) g_App->RestartCurrentScene();
+    });
+    engineTable.set_function("LoadScene", [loadSceneCallback](const std::string &sceneName) {
+        if (g_App) g_App->LoadGameScene(sceneName);
+        else if (loadSceneCallback) loadSceneCallback(sceneName);
+    });
+
+    // Simulation & Pause
+    engineTable.set_function("SetPaused", [](bool paused) {
+        if (g_App) g_App->SetPaused(paused);
+    });
+    engineTable.set_function("IsPaused", []() -> bool {
+        return g_App ? g_App->IsPaused() : false;
+    });
+    engineTable.set_function("TogglePause", []() {
+        if (g_App) g_App->TogglePause();
+    });
+    engineTable.set_function("SetTimeScale", [](float scale) {
+        if (g_App) g_App->SetTimeScale(scale);
+    });
+    engineTable.set_function("GetTimeScale", []() -> float {
+        return g_App ? g_App->GetTimeScale() : 1.0f;
+    });
+
+    // Window & Display
+    engineTable.set_function("SetFullscreen", [](bool fullscreen) {
+        if (g_App) g_App->SetFullscreen(fullscreen);
+    });
+    engineTable.set_function("ToggleFullscreen", []() {
+        if (g_App) g_App->ToggleFullscreen();
+    });
+    engineTable.set_function("IsFullscreen", []() -> bool {
+        return g_App ? g_App->IsFullscreen() : false;
+    });
+    engineTable.set_function("SetCursorVisible", [](bool visible) {
+        if (g_App) g_App->SetCursorVisible(visible);
+    });
+
+    // System & Media
+    engineTable.set_function("TakeScreenshot", [](sol::optional<std::string> path) -> std::string {
+        return g_App ? g_App->TakeScreenshot(path.value_or("")) : "";
+    });
+    engineTable.set_function("OpenURL", [](const std::string &url) {
+        if (g_App) g_App->OpenURL(url);
+    });
+
+    // Debug & Diagnostics
+    engineTable.set_function("GetFPS", []() -> float {
+        return g_App ? g_App->GetFPS() : 0.f;
+    });
+    engineTable.set_function("GetDeltaTime", []() -> float {
+        return g_App ? g_App->GetDeltaTime() : 0.f;
+    });
+    engineTable.set_function("ShowFPS", [](bool show) {
+        if (g_App) g_App->SetShowFPSOverlay(show);
+    });
+    engineTable.set_function("IsFPSShown", []() -> bool {
+        return g_App ? g_App->IsFPSOverlayShown() : false;
+    });
+
+    // Global Aliases for convenience
+    s_Lua.set_function("QuitGame", []() {
+        if (g_App) g_App->Quit();
+    });
+    s_Lua.set_function("RestartScene", []() {
+        if (g_App) g_App->RestartCurrentScene();
+    });
+    s_Lua.set_function("PauseGame", [](bool paused) {
+        if (g_App) g_App->SetPaused(paused);
+    });
+    s_Lua.set_function("SetTimeScale", [](float scale) {
+        if (g_App) g_App->SetTimeScale(scale);
+    });
+    s_Lua.set_function("GetFPS", []() -> float {
+        return g_App ? g_App->GetFPS() : 0.f;
+    });
     s_Lua.set_function("LoadScene", [loadSceneCallback](const std::string &sceneName) {
-        if (loadSceneCallback) loadSceneCallback(sceneName);
+        if (g_App) g_App->LoadGameScene(sceneName);
+        else if (loadSceneCallback) loadSceneCallback(sceneName);
     });
 
     std::cout << "[INFO] [Lua] Registering UI Manager bindings...\n";
