@@ -4,6 +4,11 @@
 
 void InputManager::HandleEvent(const sf::Event &event)
 {
+    if (event.type == sf::Event::TextEntered)
+    {
+        m_TextEntered.push_back(event.text.unicode);
+    }
+
     if (event.type == sf::Event::KeyPressed)
     {
         const int key = static_cast<int>(event.key.code);
@@ -43,6 +48,7 @@ void InputManager::HandleEvent(const sf::Event &event)
 
 void InputManager::EndFrame()
 {
+    m_TextEntered.clear();
     m_KeysPressed.clear();
     m_KeysReleased.clear();
     m_MousePressed.clear();

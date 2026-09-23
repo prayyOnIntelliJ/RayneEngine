@@ -2,6 +2,7 @@
 #define RAYNEENGINE_INPUTMANAGER_H
 
 #include <unordered_set>
+#include <vector>
 #include "SFML/Window/Event.hpp"
 #include "SFML/Window/Keyboard.hpp"
 #include "SFML/Window/Mouse.hpp"
@@ -36,6 +37,8 @@ public:
     static sf::Vector2i MousePosition();
 
     static float MouseScrollDelta();
+    
+    const std::vector<sf::Uint32>& GetTextEntered() const { return m_TextEntered; }
 
     static void RegisterLua(sol::state &lua);
 
@@ -52,6 +55,7 @@ private:
 
     sf::Vector2i m_MousePosition;
     float m_ScrollDelta = 0.f;
+    std::vector<sf::Uint32> m_TextEntered;
 };
 
 #endif
