@@ -1416,7 +1416,28 @@ void EditorScene::Render(sf::RenderWindow &window)
         }
     }
 
-    if (!m_Dragging)
+    bool canPlace = true;
+    if (m_Dragging || m_Resizing || m_Rotating || m_BoxSelecting || m_panning) canPlace = false;
+    
+    if (canPlace)
+    {
+        if (m_MouseScreenPos.y < TopBarHeight) canPlace = false;
+        else if (m_BrowserBounds.contains(m_MouseScreenPos)) canPlace = false;
+        else if (m_InspectorBounds.contains(m_MouseScreenPos)) canPlace = false;
+        else if (m_HierarchyBounds.contains(m_MouseScreenPos)) canPlace = false;
+        else if (m_TabBrowserBounds.contains(m_MouseScreenPos)) canPlace = false;
+        else if (m_TabConsoleBounds.contains(m_MouseScreenPos)) canPlace = false;
+    }
+    
+    if (canPlace)
+    {
+        sf::Vector2f wPos = MouseWorldPos();
+        if (m_Selected && GetResizeHandle(wPos) >= 0) canPlace = false;
+        else if (m_Selected && GetRotateHandle(wPos)) canPlace = false;
+        else if (ObjectAt(wPos) != nullptr) canPlace = false;
+    }
+
+    if (canPlace)
     {
         if (IsPolygonType(m_PlacementType))
             window.draw(m_CirclePreview);
