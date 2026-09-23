@@ -26,6 +26,32 @@ static const sf::Color C_DANGER_DIM = sf::Color(70, 20, 18, 200);
 static const sf::Color C_GRID_MINOR = sf::Color(38, 43, 51);
 static const sf::Color C_GRID_MAJOR = sf::Color(51, 58, 69);
 
+enum class ActionParamType {
+    None,
+    Bool,
+    String,
+    Float
+};
+
+struct DropdownOption {
+    std::string label;
+    std::string code;
+    ActionParamType paramType;
+    std::string defaultParam;
+};
+
+static const std::vector<DropdownOption> UTILITY_ACTIONS = {
+    {"None", "", ActionParamType::None, ""},
+    {"Quit Game", "Quit", ActionParamType::None, ""},
+    {"Restart Scene", "Restart", ActionParamType::None, ""},
+    {"Toggle Pause", "TogglePause", ActionParamType::None, ""},
+    {"Set TimeScale", "SetTimeScale", ActionParamType::Float, "1.0"},
+    {"Set Fullscreen", "SetFullscreen", ActionParamType::Bool, "true"},
+    {"Take Screenshot", "TakeScreenshot", ActionParamType::None, ""},
+    {"Open URL", "OpenURL", ActionParamType::String, "https://rayne3d.com"},
+    {"Log Message", "Log", ActionParamType::String, "Hello from UI!"}
+};
+
 UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
     : Scene(manager), m_Window(window)
 {
@@ -117,6 +143,34 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
     {
         if (event.mouseButton.button == sf::Mouse::Left)
         {
+            if (!m_ActiveDropdown.empty())
+            {
+                // Check if clicked inside dropdown
+                if (m_DropdownRect.contains(m_MouseScreenPos) && m_SelectedElement)
+                {
+                    float y = m_DropdownRect.top + 4.f;
+                    for (const auto& opt : UTILITY_ACTIONS)
+                    {
+                        sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
+                        if (r.contains(m_MouseScreenPos))
+                        {
+                            if (m_ActiveDropdown == "onclick") {
+                                m_SelectedElement->onClickAction = opt.code;
+                                m_SelectedElement->onClickParam = opt.defaultParam;
+                            }
+                            else if (m_ActiveDropdown == "onhover") {
+                                m_SelectedElement->onHoverAction = opt.code;
+                                m_SelectedElement->onHoverParam = opt.defaultParam;
+                            }
+                            break;
+                        }
+                        y += 24.f;
+                    }
+                }
+                m_ActiveDropdown = "";
+                return;
+            }
+
             if (m_OpenMenuIndex >= 0)
             {
                 for (auto &[r, a]: m_MenuItemHitboxes)
@@ -348,7 +402,8 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         if (event.text.unicode == 8 || event.text.unicode == 13 || event.text.unicode == 27) return;
 
         char c = static_cast<char>(event.text.unicode);
-        if (m_ActiveField == EditField::Id || m_ActiveField == EditField::UIText)
+        if (m_ActiveField == EditField::Id || m_ActiveField == EditField::UIText || 
+            m_ActiveField == EditField::OnClickParam || m_ActiveField == EditField::OnHoverParam)
             m_ActiveInputText += c;
         else if (std::isdigit(c) || c == '-' || c == '.')
             m_ActiveInputText += c;
@@ -511,6 +566,14 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         {
             try { m_SelectedElement->textColor.b = static_cast<sf::Uint8>(std::clamp(std::stoi(m_ActiveInputText), 0, 255)); } catch (...) {}
         }
+        else if (m_ActiveField == EditField::OnClickParam)
+        {
+            m_SelectedElement->onClickParam = m_ActiveInputText;
+        }
+        else if (m_ActiveField == EditField::OnHoverParam)
+        {
+            m_SelectedElement->onHoverParam = m_ActiveInputText;
+        }
 
         m_SelectedElement->UpdateDrawables();
     }
@@ -538,6 +601,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
     DrawInspector(window);
     DrawHierarchy(window);
     DrawMenuBar(window);
+    DrawDropdownOverlay(window);
 
     if (m_SaveFeedbackTimer > 0.f)
     {
@@ -973,6 +1037,49 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                          isDisabled ? C_DANGER_DIM : C_SUCCESS_DIM,
                          isDisabled ? C_DANGER : C_SUCCESS);
         y += 30.f;
+
+        y += 10.f;
+        y = DrawSectionHeader(window, "ACTIONS", sf::Color(150, 255, 150), px, y);
+        
+        std::string clickLabel = m_SelectedElement->onClickAction.empty() ? "None" : m_SelectedElement->onClickAction;
+        ActionParamType clickParamType = ActionParamType::None;
+        for (const auto& opt : UTILITY_ACTIONS) {
+            if (opt.code == m_SelectedElement->onClickAction) { clickLabel = opt.label; clickParamType = opt.paramType; break; }
+        }
+        if (clickLabel.length() > 18) clickLabel = clickLabel.substr(0, 15) + "..";
+        y = DrawEditableRow(window, "onClick", clickLabel, "dropdown_onclick", px, y);
+
+        if (clickParamType == ActionParamType::Bool) {
+            y += 4.f;
+            bool isParamTrue = (m_SelectedElement->onClickParam == "true");
+            DrawActionButton(window, isParamTrue ? "Yes" : "No", "clickparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
+            y += 30.f;
+        } else if (clickParamType == ActionParamType::String || clickParamType == ActionParamType::Float) {
+            std::string cpDisplay = (m_ActiveField == EditField::OnClickParam && !m_ActiveInputText.empty())
+                                        ? m_ActiveInputText + "|"
+                                        : (m_ActiveField == EditField::OnClickParam ? "|" : m_SelectedElement->onClickParam);
+            y = DrawEditableRow(window, "  Param", cpDisplay, "edit_clickparam", px, y);
+        }
+
+        std::string hoverLabel = m_SelectedElement->onHoverAction.empty() ? "None" : m_SelectedElement->onHoverAction;
+        ActionParamType hoverParamType = ActionParamType::None;
+        for (const auto& opt : UTILITY_ACTIONS) {
+            if (opt.code == m_SelectedElement->onHoverAction) { hoverLabel = opt.label; hoverParamType = opt.paramType; break; }
+        }
+        if (hoverLabel.length() > 18) hoverLabel = hoverLabel.substr(0, 15) + "..";
+        y = DrawEditableRow(window, "onHover", hoverLabel, "dropdown_onhover", px, y);
+
+        if (hoverParamType == ActionParamType::Bool) {
+            y += 4.f;
+            bool isParamTrue = (m_SelectedElement->onHoverParam == "true");
+            DrawActionButton(window, isParamTrue ? "Yes" : "No", "hoverparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
+            y += 30.f;
+        } else if (hoverParamType == ActionParamType::String || hoverParamType == ActionParamType::Float) {
+            std::string hpDisplay = (m_ActiveField == EditField::OnHoverParam && !m_ActiveInputText.empty())
+                                        ? m_ActiveInputText + "|"
+                                        : (m_ActiveField == EditField::OnHoverParam ? "|" : m_SelectedElement->onHoverParam);
+            y = DrawEditableRow(window, "  Param", hpDisplay, "edit_hoverparam", px, y);
+        }
     }
 
     float totalContentBottom = y + scrollOff;
@@ -1419,6 +1526,44 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_ActiveField = EditField::TextColorB;
         m_ActiveInputText = std::to_string(m_SelectedElement->textColor.b);
     }
+    else if (action == "dropdown_onclick")
+    {
+        m_ActiveDropdown = "onclick";
+        for (auto& hb : m_InspectorHitboxes) {
+            if (hb.action == "dropdown_onclick") {
+                m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width, UTILITY_ACTIONS.size() * 24.f + 8.f);
+                break;
+            }
+        }
+    }
+    else if (action == "dropdown_onhover")
+    {
+        m_ActiveDropdown = "onhover";
+        for (auto& hb : m_InspectorHitboxes) {
+            if (hb.action == "dropdown_onhover") {
+                m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width, UTILITY_ACTIONS.size() * 24.f + 8.f);
+                break;
+            }
+        }
+    }
+    else if (action == "edit_clickparam")
+    {
+        m_ActiveField = EditField::OnClickParam;
+        m_ActiveInputText = m_SelectedElement->onClickParam;
+    }
+    else if (action == "edit_hoverparam")
+    {
+        m_ActiveField = EditField::OnHoverParam;
+        m_ActiveInputText = m_SelectedElement->onHoverParam;
+    }
+    else if (action == "clickparam_bool")
+    {
+        m_SelectedElement->onClickParam = (m_SelectedElement->onClickParam == "true") ? "false" : "true";
+    }
+    else if (action == "hoverparam_bool")
+    {
+        m_SelectedElement->onHoverParam = (m_SelectedElement->onHoverParam == "true") ? "false" : "true";
+    }
 }
 
 
@@ -1638,6 +1783,42 @@ void UIEditorScene::HandleMenuAction(const std::string &action)
         m_CanvasView.setCenter(m_CanvasSize.x / 2.f, m_CanvasSize.y / 2.f);
     } else if (action == "back") {
         HandleAction("back");
+    }
+}
+
+void UIEditorScene::DrawDropdownOverlay(sf::RenderWindow &window)
+{
+    if (m_ActiveDropdown.empty()) return;
+
+    sf::RectangleShape bg({m_DropdownRect.width, m_DropdownRect.height});
+    bg.setFillColor(C_BG_ELEVATED);
+    bg.setOutlineColor(C_BORDER_LIGHT);
+    bg.setOutlineThickness(1.f);
+    bg.setPosition(m_DropdownRect.left, m_DropdownRect.top);
+    window.draw(bg);
+
+    float y = m_DropdownRect.top + 4.f;
+    for (const auto& opt : UTILITY_ACTIONS)
+    {
+        sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
+        bool hov = r.contains(m_MouseScreenPos);
+        
+        if (hov) {
+            sf::RectangleShape hbg({m_DropdownRect.width - 4.f, 22.f});
+            hbg.setFillColor(C_ACCENT_DIM);
+            hbg.setPosition(m_DropdownRect.left + 2.f, y + 1.f);
+            window.draw(hbg);
+        }
+
+        sf::Text t;
+        t.setFont(*m_Font);
+        t.setCharacterSize(12);
+        t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        t.setString(opt.label);
+        t.setPosition(m_DropdownRect.left + 8.f, y + 4.f);
+        window.draw(t);
+
+        y += 24.f;
     }
 }
 

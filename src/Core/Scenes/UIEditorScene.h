@@ -129,10 +129,16 @@ private:
         TextColorR,
         TextColorG,
         TextColorB,
+        OnClickParam,
+        OnHoverParam,
     };
 
     EditField m_ActiveField = EditField::None;
     std::string m_ActiveInputText;
+
+    std::string m_ActiveDropdown;
+    sf::FloatRect m_DropdownRect;
+    std::string m_DropdownTarget;
 
     struct ButtonHitbox
     {
@@ -164,6 +170,8 @@ private:
     void DrawHierarchy(sf::RenderWindow &window);
 
     void DrawInspector(sf::RenderWindow &window);
+    
+    void DrawDropdownOverlay(sf::RenderWindow &window);
 
     void DrawCanvas(sf::RenderWindow &window);
 
