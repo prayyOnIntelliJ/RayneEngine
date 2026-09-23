@@ -3,16 +3,11 @@
 #include <vector>
 #include <SFML/Graphics/Image.hpp>
 
-// ---------------------------------------------------------------------------
-// EXIF orientation helper – parses raw JPEG bytes, no external library needed
-// Returns EXIF orientation value 1-8 (1 = normal, 0 = not found / not JPEG)
-// ---------------------------------------------------------------------------
 static int ReadJpegExifOrientation(const std::string &path)
 {
     std::ifstream f(path, std::ios::binary);
     if (!f) return 0;
 
-    // Check JPEG SOI marker
     uint8_t soi[2];
     f.read(reinterpret_cast<char*>(soi), 2);
     if (soi[0] != 0xFF || soi[1] != 0xD8) return 0;
@@ -29,14 +24,12 @@ static int ReadJpegExifOrientation(const std::string &path)
 
         int len = (segLen[0] << 8) | segLen[1];
 
-        // APP1 marker = 0xFFE1 → may contain Exif
         if (marker[1] == 0xE1 && len > 6)
         {
             std::vector<uint8_t> seg(len - 2);
             f.read(reinterpret_cast<char*>(seg.data()), len - 2);
             if (!f) break;
 
-            // Check "Exif\0\0" header
             if (seg.size() >= 6 && seg[0]=='E' && seg[1]=='x' && seg[2]=='i' && seg[3]=='f' && seg[4]==0 && seg[5]==0)
             {
                 const uint8_t *tiff = seg.data() + 6;
@@ -61,7 +54,7 @@ static int ReadJpegExifOrientation(const std::string &path)
                     size_t entryOff = ifdOffset + 2 + i * 12;
                     if (entryOff + 12 > tiffSize) break;
                     uint16_t tag = read16(tiff + entryOff);
-                    if (tag == 0x0112) // Orientation
+                    if (tag == 0x0112)
                     {
                         return read16(tiff + entryOff + 8);
                     }
@@ -70,13 +63,11 @@ static int ReadJpegExifOrientation(const std::string &path)
             continue;
         }
 
-        // Skip non-APP1 segments
         f.seekg(len - 2, std::ios::cur);
     }
     return 0;
 }
 
-// Apply EXIF orientation to an sf::Image in-place
 static void ApplyExifOrientation(sf::Image &img, int orientation)
 {
     if (orientation <= 1 || orientation > 8) return;
@@ -84,7 +75,6 @@ static void ApplyExifOrientation(sf::Image &img, int orientation)
     unsigned int w = img.getSize().x;
     unsigned int h = img.getSize().y;
 
-    // Build transformed pixel buffer
     bool transpose = (orientation >= 5);
     unsigned int dstW = transpose ? h : w;
     unsigned int dstH = transpose ? w : h;
@@ -99,13 +89,13 @@ static void ApplyExifOrientation(sf::Image &img, int orientation)
             unsigned int dstX, dstY;
             switch (orientation)
             {
-                case 2: dstX = w - 1 - x; dstY = y;         break; // mirror H
-                case 3: dstX = w - 1 - x; dstY = h - 1 - y; break; // 180°
-                case 4: dstX = x;          dstY = h - 1 - y; break; // mirror V
-                case 5: dstX = y;          dstY = x;          break; // transpose
-                case 6: dstX = h - 1 - y; dstY = x;          break; // 90° CW
-                case 7: dstX = h - 1 - y; dstY = w - 1 - x;  break; // transverse
-                case 8: dstX = y;          dstY = w - 1 - x;  break; // 90° CCW
+                case 2: dstX = w - 1 - x; dstY = y;         break;
+                case 3: dstX = w - 1 - x; dstY = h - 1 - y; break;
+                case 4: dstX = x;          dstY = h - 1 - y; break;
+                case 5: dstX = y;          dstY = x;          break;
+                case 6: dstX = h - 1 - y; dstY = x;          break;
+                case 7: dstX = h - 1 - y; dstY = w - 1 - x;  break;
+                case 8: dstX = y;          dstY = w - 1 - x;  break;
                 default: dstX = x; dstY = y;                  break;
             }
             size_t srcIdx = (y * w + x) * 4;
@@ -120,8 +110,6 @@ static void ApplyExifOrientation(sf::Image &img, int orientation)
     img.create(dstW, dstH, dst.data());
 }
 
-// ---------------------------------------------------------------------------
-
 std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path)
 {
     auto it = m_Textures.find(path);
@@ -130,8 +118,6 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
 
     std::cout << "[INFO] [ResourceManager] Loading texture from disk: " << path << "...\n";
 
-    // Check for JPEG EXIF orientation before loading into SFML
-    // (SFML ignores EXIF data, causing rotated images for phone/camera photos)
     std::string lower = path;
     for (char &c : lower) c = (char)std::tolower((unsigned char)c);
     bool isJpeg = lower.size() >= 4 &&

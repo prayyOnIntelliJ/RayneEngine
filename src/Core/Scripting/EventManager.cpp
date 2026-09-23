@@ -7,7 +7,7 @@ void EventManager::SubscribeCollision(std::function<void(CollisionEvent)> callba
 
 void EventManager::FireCollision(Entity a, Entity b)
 {
-    auto callbacks = m_CollisionCallbacks; // Copy to prevent iterator invalidation if cleared during callback
+    auto callbacks = m_CollisionCallbacks;
     for (auto &cb: callbacks)
         cb({a, b});
 }

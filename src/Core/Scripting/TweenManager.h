@@ -43,7 +43,6 @@ public:
             } else if (it->easeType == "EaseInOutQuad") {
                 eased = t < 0.5f ? 2.f * t * t : -1.f + (4.f - 2.f * t) * t;
             }
-            // else linear
             
             if (it->registry->HasComponent<TransformComponent>(it->entity)) {
                 auto& tc = it->registry->GetComponent<TransformComponent>(it->entity);

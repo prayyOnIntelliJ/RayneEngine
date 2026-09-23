@@ -31,29 +31,24 @@ public:
     void SetMasterVolume(float vol);
     void SetMusicVolume(float vol);
 
-    // Utility & Lifecycle
     void Quit();
     void RestartCurrentScene();
     void LoadGameScene(const std::string& sceneName);
 
-    // Simulation & Time
     void SetPaused(bool paused) { m_IsPaused = paused; }
     bool IsPaused() const { return m_IsPaused; }
     void TogglePause() { m_IsPaused = !m_IsPaused; }
     void SetTimeScale(float scale) { m_TimeScale = (scale < 0.f ? 0.f : scale); }
     float GetTimeScale() const { return m_TimeScale; }
 
-    // Window & Display
     void SetFullscreen(bool fullscreen);
     void ToggleFullscreen() { SetFullscreen(!m_ProjectFullscreen); }
     bool IsFullscreen() const { return m_ProjectFullscreen; }
     void SetCursorVisible(bool visible);
 
-    // System & Media
     std::string TakeScreenshot(const std::string& customFilename = "");
     void OpenURL(const std::string& url);
 
-    // Diagnostics / Debug
     float GetFPS() const { return m_CurrentFPS; }
     float GetDeltaTime() const { return m_CurrentDeltaTime; }
     void SetShowFPSOverlay(bool show) { m_ShowFPSOverlay = show; }

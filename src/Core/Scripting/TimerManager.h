@@ -27,9 +27,7 @@ public:
                 if (m_Tasks[i].callback.valid()) {
                     m_Tasks[i].callback();
                 }
-                // Check if tasks were cleared during callback
                 if (m_Tasks.empty()) break;
-                // Since we don't know if tasks were added/removed arbitrarily, just erase safely
                 if (i < m_Tasks.size() && m_Tasks[i].timeLeft <= 0.f) {
                     m_Tasks.erase(m_Tasks.begin() + i);
                 }
