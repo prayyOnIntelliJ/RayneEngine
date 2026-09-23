@@ -4,6 +4,8 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include "../Scripting/LuaState.h"
+#include "../Resources/ResourceManager.h"
+#include "../Input/InputManager.h"
 
 using json = nlohmann::json;
 
@@ -11,8 +13,9 @@ void UIElement::UpdateDrawables()
 {
     shape.setPosition(position);
     shape.setSize(size);
+    extraShape.setFillColor(sf::Color::Transparent); // Reset extra shape by default
 
-    if (type == UIElementType::Button)
+    if (type == UIElementType::Button || type == UIElementType::Checkbox || type == UIElementType::TextInput)
     {
         if (disabled)
         {
@@ -23,20 +26,76 @@ void UIElement::UpdateDrawables()
         else
         {
             sf::Color base = isPressed ? pressedColor : (isHovered ? hoverColor : normalColor);
+            if (type == UIElementType::TextInput && isFocused) base = pressedColor; // Use pressed color when focused
             base.a = static_cast<sf::Uint8>(std::clamp(opacity, 0.f, 255.f));
             shape.setFillColor(base);
         }
         shape.setOutlineColor(borderColor);
         shape.setOutlineThickness(borderThickness);
+
+        if (type == UIElementType::Checkbox)
+        {
+            shape.setTexture(isChecked ? checkedTexture.get() : texture.get());
+            if (isChecked && !checkedTexture)
+            {
+                // Fallback checkmark draw
+                extraShape.setSize({size.x * 0.6f, size.y * 0.6f});
+                extraShape.setPosition(position.x + size.x * 0.2f, position.y + size.y * 0.2f);
+                extraShape.setFillColor(textColor);
+            }
+        }
+        else if (type == UIElementType::Button)
+        {
+            if (isPressed && pressedTexture)
+                shape.setTexture(pressedTexture.get());
+            else if (isHovered && hoverTexture)
+                shape.setTexture(hoverTexture.get());
+            else
+                shape.setTexture(texture.get());
+        }
+        else
+        {
+            shape.setTexture(texture.get());
+        }
     }
-    else if (type == UIElementType::Panel)
+    else if (type == UIElementType::Panel || type == UIElementType::Image)
     {
         sf::Color c = color;
-        c.a = static_cast<sf::Uint8>(std::clamp(
-            static_cast<float>(color.a) * (opacity / 255.f), 0.f, 255.f));
+        c.a = static_cast<sf::Uint8>(std::clamp(static_cast<float>(color.a) * (opacity / 255.f), 0.f, 255.f));
         shape.setFillColor(c);
         shape.setOutlineColor(outlineColor);
         shape.setOutlineThickness(outlineThickness);
+        shape.setTexture(texture.get());
+    }
+    else if (type == UIElementType::Slider)
+    {
+        sf::Color c = color;
+        c.a = static_cast<sf::Uint8>(std::clamp(opacity, 0.f, 255.f));
+        shape.setFillColor(c);
+        shape.setTexture(texture.get());
+
+        // Knob
+        float range = sliderMax - sliderMin;
+        float percent = (range > 0) ? (sliderValue - sliderMin) / range : 0.f;
+        float knobWidth = size.y * 0.8f;
+        extraShape.setSize({knobWidth, size.y * 1.2f});
+        extraShape.setPosition(position.x + percent * size.x - knobWidth / 2.f, position.y - size.y * 0.1f);
+        extraShape.setFillColor(normalColor);
+        extraShape.setTexture(knobTexture.get());
+    }
+    else if (type == UIElementType::ProgressBar)
+    {
+        sf::Color c = color;
+        c.a = static_cast<sf::Uint8>(std::clamp(opacity, 0.f, 255.f));
+        shape.setFillColor(c);
+        shape.setTexture(texture.get());
+
+        // Fill
+        float percent = (progressMax > 0) ? std::clamp(progressValue / progressMax, 0.f, 1.f) : 0.f;
+        extraShape.setSize({size.x * percent, size.y});
+        extraShape.setPosition(position);
+        extraShape.setFillColor(normalColor);
+        extraShape.setTexture(fillTexture.get());
     }
     else
     {
@@ -45,11 +104,15 @@ void UIElement::UpdateDrawables()
         shape.setOutlineThickness(0.f);
     }
 
-    if (type == UIElementType::Text || type == UIElementType::Button)
+    if (type == UIElementType::Text || type == UIElementType::Button || type == UIElementType::Checkbox || type == UIElementType::TextInput)
     {
         if (font) drawableText.setFont(*font);
 
         std::string displayText = text;
+        if (type == UIElementType::TextInput)
+        {
+            displayText = text + (isFocused ? "_" : "");
+        }
         if (textUpperCase)
             std::transform(displayText.begin(), displayText.end(), displayText.begin(), ::toupper);
 
@@ -66,9 +129,13 @@ void UIElement::UpdateDrawables()
         float textY = position.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
         float textX = 0.f;
 
-        if (type == UIElementType::Button)
+        if (type == UIElementType::Button || type == UIElementType::Checkbox)
         {
             textX = position.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
+        }
+        else if (type == UIElementType::TextInput)
+        {
+            textX = position.x + 5.f + textOffset.x; // small padding
         }
         else
         {
@@ -104,6 +171,9 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
     });
 
     bool buttonHit = false;
+    
+    const auto& textEntered = InputManager::Get().GetTextEntered();
+
     for (auto *el: sortedElements)
     {
         if (!el->visible) continue;
@@ -128,7 +198,9 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             }
         };
 
-        if (el->type == UIElementType::Button && !el->disabled)
+        bool canInteract = (el->type == UIElementType::Button || el->type == UIElementType::Checkbox || el->type == UIElementType::Slider || el->type == UIElementType::TextInput);
+        
+        if (canInteract && !el->disabled)
         {
             sf::FloatRect bounds(el->position.x, el->position.y, el->size.x, el->size.y);
             bool hovered = !buttonHit && bounds.contains(mousePos);
@@ -143,22 +215,54 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             if (hovered)
             {
                 buttonHit = true;
-                if (mouseClicked) { el->isPressed = true; }
+                if (mouseClicked) { 
+                    el->isPressed = true; 
+                    if (el->type == UIElementType::TextInput) el->isFocused = true;
+                }
             }
+            else
+            {
+                if (mouseClicked && el->type == UIElementType::TextInput) el->isFocused = false;
+            }
+
+            if (el->type == UIElementType::Slider && el->isPressed)
+            {
+                float relativeX = mousePos.x - el->position.x;
+                float percent = std::clamp(relativeX / el->size.x, 0.f, 1.f);
+                el->sliderValue = el->sliderMin + percent * (el->sliderMax - el->sliderMin);
+            }
+
             if (mouseReleased)
             {
                 if (el->isPressed && el->isHovered)
                 {
                     m_LastClickedButton = el->id;
+                    if (el->type == UIElementType::Checkbox) el->isChecked = !el->isChecked;
                     executeAction(el->onClickAction, el->onClickParam, el->id, "Click");
                 }
                 el->isPressed = false;
             }
+
+            if (el->type == UIElementType::TextInput && el->isFocused)
+            {
+                for (sf::Uint32 unicode : textEntered)
+                {
+                    if (unicode == '\b') // Backspace
+                    {
+                        if (!el->text.empty()) el->text.pop_back();
+                    }
+                    else if (unicode >= 32 && unicode < 128)
+                    {
+                        el->text += static_cast<char>(unicode);
+                    }
+                }
+            }
         }
-        else if (el->type == UIElementType::Button && el->disabled)
+        else if (canInteract && el->disabled)
         {
             el->isHovered = false;
             el->isPressed = false;
+            el->isFocused = false;
         }
         el->UpdateDrawables();
     }
@@ -179,15 +283,158 @@ void UIManager::Render(sf::RenderWindow &window)
         if (!el->visible) continue;
 
         if (el->shape.getFillColor() != sf::Color::Transparent ||
-            el->shape.getOutlineThickness() != 0.f)
+            el->shape.getOutlineThickness() != 0.f || el->shape.getTexture() != nullptr)
             window.draw(el->shape);
+            
+        if (el->extraShape.getFillColor() != sf::Color::Transparent || el->extraShape.getTexture() != nullptr)
+            window.draw(el->extraShape);
 
-        if (el->type == UIElementType::Text || el->type == UIElementType::Button)
+        if (el->type == UIElementType::Text || el->type == UIElementType::Button || el->type == UIElementType::Checkbox || el->type == UIElementType::TextInput)
         {
             if (el->font)
                 window.draw(el->drawableText);
         }
     }
+}
+
+void UIManager::SetTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->texturePath = path;
+        el->texture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetHoverTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->hoverTexturePath = path;
+        el->hoverTexture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetPressedTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->pressedTexturePath = path;
+        el->pressedTexture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetCheckedTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->checkedTexturePath = path;
+        el->checkedTexture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetKnobTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->knobTexturePath = path;
+        el->knobTexture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetFillTexture(const std::string &id, const std::string &path)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->fillTexturePath = path;
+        el->fillTexture = ResourceManager::Get().GetTexture(path);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetChecked(const std::string &id, bool checked)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->isChecked = checked;
+        el->UpdateDrawables();
+    }
+}
+
+bool UIManager::GetChecked(const std::string &id)
+{
+    if (auto *el = GetElement(id)) return el->isChecked;
+    return false;
+}
+
+void UIManager::SetSliderValue(const std::string &id, float value)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->sliderValue = std::clamp(value, el->sliderMin, el->sliderMax);
+        el->UpdateDrawables();
+    }
+}
+
+float UIManager::GetSliderValue(const std::string &id)
+{
+    if (auto *el = GetElement(id)) return el->sliderValue;
+    return 0.f;
+}
+
+void UIManager::SetSliderMinMax(const std::string &id, float min, float max)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->sliderMin = min;
+        el->sliderMax = max;
+        el->sliderValue = std::clamp(el->sliderValue, min, max);
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetProgressValue(const std::string &id, float value)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->progressValue = value;
+        el->UpdateDrawables();
+    }
+}
+
+float UIManager::GetProgressValue(const std::string &id)
+{
+    if (auto *el = GetElement(id)) return el->progressValue;
+    return 0.f;
+}
+
+void UIManager::SetProgressMax(const std::string &id, float max)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->progressMax = max;
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetFocused(const std::string &id, bool focused)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->isFocused = focused;
+        el->UpdateDrawables();
+    }
+}
+
+bool UIManager::GetFocused(const std::string &id)
+{
+    if (auto *el = GetElement(id)) return el->isFocused;
+    return false;
 }
 
 
@@ -200,7 +447,15 @@ void UIManager::Save(const std::string &path)
     {
         json j;
         j["id"] = el.id;
-        j["type"] = (el.type == UIElementType::Text) ? "text" : (el.type == UIElementType::Panel) ? "panel" : "button";
+        if (el.type == UIElementType::Text) j["type"] = "text";
+        else if (el.type == UIElementType::Button) j["type"] = "button";
+        else if (el.type == UIElementType::Image) j["type"] = "image";
+        else if (el.type == UIElementType::Checkbox) j["type"] = "checkbox";
+        else if (el.type == UIElementType::Slider) j["type"] = "slider";
+        else if (el.type == UIElementType::TextInput) j["type"] = "textinput";
+        else if (el.type == UIElementType::ProgressBar) j["type"] = "progressbar";
+        else j["type"] = "panel";
+
         j["x"] = el.position.x;
         j["y"] = el.position.y;
         j["width"] = el.size.x;
@@ -213,7 +468,9 @@ void UIManager::Save(const std::string &path)
         j["outlineThickness"] = el.outlineThickness;
         j["cornerRadius"] = el.cornerRadius;
 
-        if (el.type == UIElementType::Text || el.type == UIElementType::Button)
+        j["texturePath"] = el.texturePath;
+
+        if (el.type == UIElementType::Text || el.type == UIElementType::Button || el.type == UIElementType::Checkbox || el.type == UIElementType::TextInput)
         {
             j["text"] = el.text;
             j["characterSize"] = el.characterSize;
@@ -229,7 +486,7 @@ void UIManager::Save(const std::string &path)
             j["textOffsetY"] = el.textOffset.y;
         }
 
-        if (el.type == UIElementType::Button)
+        if (el.type == UIElementType::Button || el.type == UIElementType::Checkbox || el.type == UIElementType::Slider || el.type == UIElementType::TextInput)
         {
             j["normalColor"] = {el.normalColor.r, el.normalColor.g, el.normalColor.b, el.normalColor.a};
             j["hoverColor"] = {el.hoverColor.r, el.hoverColor.g, el.hoverColor.b, el.hoverColor.a};
@@ -238,10 +495,39 @@ void UIManager::Save(const std::string &path)
             j["borderThickness"] = el.borderThickness;
             j["disabled"] = el.disabled;
             j["disabledColor"] = {el.disabledColor.r, el.disabledColor.g, el.disabledColor.b, el.disabledColor.a};
-            j["onClickAction"] = el.onClickAction;
-            j["onClickParam"] = el.onClickParam;
-            j["onHoverAction"] = el.onHoverAction;
-            j["onHoverParam"] = el.onHoverParam;
+            
+            if (el.type == UIElementType::Button || el.type == UIElementType::Checkbox)
+            {
+                j["onClickAction"] = el.onClickAction;
+                j["onClickParam"] = el.onClickParam;
+                j["onHoverAction"] = el.onHoverAction;
+                j["onHoverParam"] = el.onHoverParam;
+            }
+
+            if (el.type == UIElementType::Button)
+            {
+                j["hoverTexturePath"] = el.hoverTexturePath;
+                j["pressedTexturePath"] = el.pressedTexturePath;
+            }
+        }
+
+        if (el.type == UIElementType::Checkbox)
+        {
+            j["isChecked"] = el.isChecked;
+            j["checkedTexturePath"] = el.checkedTexturePath;
+        }
+        if (el.type == UIElementType::Slider)
+        {
+            j["sliderValue"] = el.sliderValue;
+            j["sliderMin"] = el.sliderMin;
+            j["sliderMax"] = el.sliderMax;
+            j["knobTexturePath"] = el.knobTexturePath;
+        }
+        if (el.type == UIElementType::ProgressBar)
+        {
+            j["progressValue"] = el.progressValue;
+            j["progressMax"] = el.progressMax;
+            j["fillTexturePath"] = el.fillTexturePath;
         }
 
         data["ui_elements"].push_back(j);
@@ -273,6 +559,11 @@ void UIManager::Load(const std::string &path)
         std::string typeStr = j.value("type", "panel");
         if (typeStr == "text") el.type = UIElementType::Text;
         else if (typeStr == "button") el.type = UIElementType::Button;
+        else if (typeStr == "image") el.type = UIElementType::Image;
+        else if (typeStr == "checkbox") el.type = UIElementType::Checkbox;
+        else if (typeStr == "slider") el.type = UIElementType::Slider;
+        else if (typeStr == "textinput") el.type = UIElementType::TextInput;
+        else if (typeStr == "progressbar") el.type = UIElementType::ProgressBar;
         else el.type = UIElementType::Panel;
 
         el.position = {j.value("x", 0.f), j.value("y", 0.f)};
@@ -282,6 +573,9 @@ void UIManager::Load(const std::string &path)
         el.visible = j.value("visible", true);
         el.outlineThickness = j.value("outlineThickness", 0.f);
         el.cornerRadius = j.value("cornerRadius", 0.f);
+        
+        el.texturePath = j.value("texturePath", "");
+        if (!el.texturePath.empty()) el.texture = ResourceManager::Get().GetTexture(el.texturePath);
 
         if (j.contains("color"))
             el.color = sf::Color(j["color"][0], j["color"][1], j["color"][2],
@@ -293,9 +587,10 @@ void UIManager::Load(const std::string &path)
                                         j["outlineColor"][2],
                                         j["outlineColor"].size() > 3 ? j["outlineColor"][3].get<int>() : 255);
 
-        if (el.type == UIElementType::Text || el.type == UIElementType::Button)
+        if (el.type == UIElementType::Text || el.type == UIElementType::Button || el.type == UIElementType::Checkbox || el.type == UIElementType::TextInput)
         {
             el.text = j.value("text", "Text");
+            if (el.type == UIElementType::TextInput) el.text = j.value("text", "");
             el.characterSize = j.value("characterSize", 16);
             el.textStyle = static_cast<sf::Text::Style>(j.value("textStyle", 0));
             el.textAlign = static_cast<TextAlign>(j.value("textAlign", 0));
@@ -319,7 +614,7 @@ void UIManager::Load(const std::string &path)
                                                     : 255);
         }
 
-        if (el.type == UIElementType::Button)
+        if (el.type == UIElementType::Button || el.type == UIElementType::Checkbox || el.type == UIElementType::Slider || el.type == UIElementType::TextInput)
         {
             el.borderThickness = j.value("borderThickness", 0.f);
             el.disabled = j.value("disabled", false);
@@ -360,6 +655,36 @@ void UIManager::Load(const std::string &path)
                                                  : 255);
         }
 
+        if (el.type == UIElementType::Button)
+        {
+            el.hoverTexturePath = j.value("hoverTexturePath", "");
+            if (!el.hoverTexturePath.empty()) el.hoverTexture = ResourceManager::Get().GetTexture(el.hoverTexturePath);
+            el.pressedTexturePath = j.value("pressedTexturePath", "");
+            if (!el.pressedTexturePath.empty()) el.pressedTexture = ResourceManager::Get().GetTexture(el.pressedTexturePath);
+        }
+
+        if (el.type == UIElementType::Checkbox)
+        {
+            el.isChecked = j.value("isChecked", false);
+            el.checkedTexturePath = j.value("checkedTexturePath", "");
+            if (!el.checkedTexturePath.empty()) el.checkedTexture = ResourceManager::Get().GetTexture(el.checkedTexturePath);
+        }
+        if (el.type == UIElementType::Slider)
+        {
+            el.sliderValue = j.value("sliderValue", 0.5f);
+            el.sliderMin = j.value("sliderMin", 0.0f);
+            el.sliderMax = j.value("sliderMax", 1.0f);
+            el.knobTexturePath = j.value("knobTexturePath", "");
+            if (!el.knobTexturePath.empty()) el.knobTexture = ResourceManager::Get().GetTexture(el.knobTexturePath);
+        }
+        if (el.type == UIElementType::ProgressBar)
+        {
+            el.progressValue = j.value("progressValue", 0.5f);
+            el.progressMax = j.value("progressMax", 1.0f);
+            el.fillTexturePath = j.value("fillTexturePath", "");
+            if (!el.fillTexturePath.empty()) el.fillTexture = ResourceManager::Get().GetTexture(el.fillTexturePath);
+        }
+
         el.font = m_DefaultFont;
         el.UpdateDrawables();
         m_Elements.push_back(el);
@@ -376,9 +701,9 @@ UIElement *UIManager::CreateElement(const std::string &id, UIElementType type)
     el.size = {100, 50};
     el.color = sf::Color::White;
     el.font = m_DefaultFont;
-    if (type == UIElementType::Text || type == UIElementType::Button)
+    if (type == UIElementType::Text || type == UIElementType::Button || type == UIElementType::Checkbox || type == UIElementType::TextInput)
     {
-        el.text = (type == UIElementType::Button) ? "Button" : "Text";
+        el.text = (type == UIElementType::Button) ? "Button" : ((type == UIElementType::Checkbox) ? "Check" : ((type == UIElementType::TextInput) ? "" : "Text"));
         el.textColor = (type == UIElementType::Button) ? sf::Color::Black : sf::Color::White;
     }
     el.UpdateDrawables();

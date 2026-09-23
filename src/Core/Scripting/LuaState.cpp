@@ -409,6 +409,54 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         UIManager::Get().SetDisabled(id, disabled);
     });
 
+    s_Lua.set_function("UI_SetTexture", [](const std::string &id, const std::string &path) {
+        UIManager::Get().SetTexture(id, path);
+    });
+
+    s_Lua.set_function("UI_SetHoverTexture", [](const std::string &id, const std::string &path) {
+        UIManager::Get().SetHoverTexture(id, path);
+    });
+
+    s_Lua.set_function("UI_SetPressedTexture", [](const std::string &id, const std::string &path) {
+        UIManager::Get().SetPressedTexture(id, path);
+    });
+
+    s_Lua.set_function("UI_SetCheckedTexture", [](const std::string &id, const std::string &path) {
+        UIManager::Get().SetCheckedTexture(id, path);
+    });
+
+    s_Lua.set_function("UI_SetChecked", [](const std::string &id, bool checked) {
+        UIManager::Get().SetChecked(id, checked);
+    });
+
+    s_Lua.set_function("UI_GetChecked", [](const std::string &id) -> bool {
+        return UIManager::Get().GetChecked(id);
+    });
+
+    s_Lua.set_function("UI_SetSliderValue", [](const std::string &id, float value) {
+        UIManager::Get().SetSliderValue(id, value);
+    });
+
+    s_Lua.set_function("UI_GetSliderValue", [](const std::string &id) -> float {
+        return UIManager::Get().GetSliderValue(id);
+    });
+
+    s_Lua.set_function("UI_SetProgressValue", [](const std::string &id, float value) {
+        UIManager::Get().SetProgressValue(id, value);
+    });
+
+    s_Lua.set_function("UI_GetProgressValue", [](const std::string &id) -> float {
+        return UIManager::Get().GetProgressValue(id);
+    });
+    
+    s_Lua.set_function("UI_SetFocused", [](const std::string &id, bool focused) {
+        UIManager::Get().SetFocused(id, focused);
+    });
+    
+    s_Lua.set_function("UI_GetFocused", [](const std::string &id) -> bool {
+        return UIManager::Get().GetFocused(id);
+    });
+
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
 
 }

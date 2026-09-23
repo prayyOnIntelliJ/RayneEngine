@@ -6,7 +6,7 @@
 #include <memory>
 #include <SFML/Graphics.hpp>
 
-enum class UIElementType { Text, Panel, Button };
+enum class UIElementType { Text, Panel, Button, Image, Checkbox, Slider, TextInput, ProgressBar };
 
 enum class TextAlign { Left, Center, Right };
 
@@ -52,8 +52,31 @@ struct UIElement
     std::string onClickParam = "";
     std::string onHoverAction = "";
     std::string onHoverParam = "";
+    
+    std::string texturePath = "";
+    std::string hoverTexturePath = "";
+    std::string pressedTexturePath = "";
+    std::string checkedTexturePath = "";
+    std::string knobTexturePath = "";
+    std::string fillTexturePath = "";
+
+    std::shared_ptr<sf::Texture> texture;
+    std::shared_ptr<sf::Texture> hoverTexture;
+    std::shared_ptr<sf::Texture> pressedTexture;
+    std::shared_ptr<sf::Texture> checkedTexture;
+    std::shared_ptr<sf::Texture> knobTexture;
+    std::shared_ptr<sf::Texture> fillTexture;
+
+    bool isChecked = false;
+    float sliderValue = 0.5f;
+    float sliderMin = 0.0f;
+    float sliderMax = 1.0f;
+    float progressValue = 0.5f;
+    float progressMax = 1.0f;
+    bool isFocused = false;
 
     sf::RectangleShape shape;
+    sf::RectangleShape extraShape;
     sf::Text drawableText;
     std::shared_ptr<sf::Font> font;
 
@@ -134,6 +157,29 @@ public:
     void SetDisabled(const std::string &id, bool disabled);
 
     bool IsButtonHovered(const std::string &id);
+
+    void SetTexture(const std::string &id, const std::string &path);
+    void SetHoverTexture(const std::string &id, const std::string &path);
+    void SetPressedTexture(const std::string &id, const std::string &path);
+    void SetCheckedTexture(const std::string &id, const std::string &path);
+    void SetKnobTexture(const std::string &id, const std::string &path);
+    void SetFillTexture(const std::string &id, const std::string &path);
+
+    void SetChecked(const std::string &id, bool checked);
+    bool GetChecked(const std::string &id);
+
+    void SetSliderValue(const std::string &id, float value);
+    float GetSliderValue(const std::string &id);
+
+    void SetSliderMinMax(const std::string &id, float min, float max);
+
+    void SetProgressValue(const std::string &id, float value);
+    float GetProgressValue(const std::string &id);
+
+    void SetProgressMax(const std::string &id, float max);
+
+    void SetFocused(const std::string &id, bool focused);
+    bool GetFocused(const std::string &id);
 
 private:
     UIManager() = default;
