@@ -23,6 +23,8 @@
 #undef CreateWindow
 #endif
 
+static sf::Vector2f RotatePoint(sf::Vector2f point, sf::Vector2f center, float angleDegrees);
+
 static const sf::Color C_PANEL_BG = sf::Color(30, 32, 38);
 
 static ShapeType MapToShapeType(ObjectType type)
@@ -504,57 +506,55 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (m_Resizing && m_Selected)
         {
-            const sf::Vector2f mouseWorld = MouseWorldPos();
-            const sf::Vector2f delta = mouseWorld - m_ResizeMouseStart;
+            sf::Vector2f mouseWorld = MouseWorldPos();
+            sf::Vector2f deltaWorld = mouseWorld - m_ResizeMouseStart;
+            sf::Vector2f deltaLocal = RotatePoint(deltaWorld, {0.f, 0.f}, -m_Selected->rotation);
 
-            sf::Vector2f newPos = m_ResizeObjOrigin;
             sf::Vector2f newSize = m_ResizeObjSize;
+            sf::Vector2f localPosOffset = {0.f, 0.f};
             const float minSize = 4.f;
 
             switch (m_ResizeHandle)
             {
                 case 0:
-                    newPos.x = std::min(m_ResizeObjOrigin.x + delta.x,
-                                        m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
-                    newPos.y = std::min(m_ResizeObjOrigin.y + delta.y,
-                                        m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
-                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
-                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    localPosOffset.x = std::min(deltaLocal.x, m_ResizeObjSize.x - minSize);
+                    localPosOffset.y = std::min(deltaLocal.y, m_ResizeObjSize.y - minSize);
+                    newSize.x = m_ResizeObjSize.x - localPosOffset.x;
+                    newSize.y = m_ResizeObjSize.y - localPosOffset.y;
                     break;
                 case 1:
-                    newPos.y = std::min(m_ResizeObjOrigin.y + delta.y,
-                                        m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
-                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    localPosOffset.y = std::min(deltaLocal.y, m_ResizeObjSize.y - minSize);
+                    newSize.y = m_ResizeObjSize.y - localPosOffset.y;
                     break;
                 case 2:
-                    newPos.y = std::min(m_ResizeObjOrigin.y + delta.y,
-                                        m_ResizeObjOrigin.y + m_ResizeObjSize.y - minSize);
-                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
-                    newSize.y = std::max(m_ResizeObjSize.y - delta.y, minSize);
+                    localPosOffset.y = std::min(deltaLocal.y, m_ResizeObjSize.y - minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x + deltaLocal.x, minSize);
+                    newSize.y = m_ResizeObjSize.y - localPosOffset.y;
                     break;
                 case 3:
-                    newPos.x = std::min(m_ResizeObjOrigin.x + delta.x,
-                                        m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
-                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
+                    localPosOffset.x = std::min(deltaLocal.x, m_ResizeObjSize.x - minSize);
+                    newSize.x = m_ResizeObjSize.x - localPosOffset.x;
                     break;
                 case 4:
-                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x + deltaLocal.x, minSize);
                     break;
                 case 5:
-                    newPos.x = std::min(m_ResizeObjOrigin.x + delta.x,
-                                        m_ResizeObjOrigin.x + m_ResizeObjSize.x - minSize);
-                    newSize.x = std::max(m_ResizeObjSize.x - delta.x, minSize);
-                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    localPosOffset.x = std::min(deltaLocal.x, m_ResizeObjSize.x - minSize);
+                    newSize.x = m_ResizeObjSize.x - localPosOffset.x;
+                    newSize.y = std::max(m_ResizeObjSize.y + deltaLocal.y, minSize);
                     break;
                 case 6:
-                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y + deltaLocal.y, minSize);
                     break;
                 case 7:
-                    newSize.x = std::max(m_ResizeObjSize.x + delta.x, minSize);
-                    newSize.y = std::max(m_ResizeObjSize.y + delta.y, minSize);
+                    newSize.x = std::max(m_ResizeObjSize.x + deltaLocal.x, minSize);
+                    newSize.y = std::max(m_ResizeObjSize.y + deltaLocal.y, minSize);
                     break;
                 default: break;
             }
+
+            sf::Vector2f worldPosOffset = RotatePoint(localPosOffset, {0.f, 0.f}, m_Selected->rotation);
+            sf::Vector2f newPos = m_ResizeObjOrigin + worldPosOffset;
 
             m_Selected->shape.setPosition(newPos);
             m_Selected->shape.setSize(newSize);
@@ -571,6 +571,27 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 if (ts.x > 0 && ts.y > 0)
                     m_Selected->previewSprite.setScale(newSize.x / ts.x, newSize.y / ts.y);
             }
+        }
+
+        if (m_Rotating && m_Selected)
+        {
+            sf::Vector2f center = m_Selected->shape.getPosition() + m_Selected->shape.getSize() * 0.5f;
+            sf::Vector2f pos = MouseWorldPos();
+            float currentAngle = std::atan2(pos.y - center.y, pos.x - center.x) * 180.f / 3.14159265f;
+            
+            float newRotation = m_RotateObjAngleStart + (currentAngle - m_RotateMouseAngleStart);
+            // Snap to 15 degrees if shift is held
+            if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
+            {
+                newRotation = std::round(newRotation / 15.f) * 15.f;
+            }
+
+            m_Selected->rotation = newRotation;
+            m_Selected->shape.setRotation(newRotation);
+            if (IsPolygonType(m_Selected->objectType))
+                m_Selected->circleShape.setRotation(newRotation);
+            if (m_Selected->previewTexture)
+                m_Selected->previewSprite.setRotation(newRotation);
         }
 
         if (m_ContentBrowser->HasDraggedAsset())
@@ -980,6 +1001,24 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
         m_Resizing = false;
         m_ResizeHandle = -1;
+
+        if (m_Rotating && m_Selected && m_Selected->entity != 0)
+        {
+            if (m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
+            {
+                auto &t = m_Registry.GetComponent<TransformComponent>(m_Selected->entity);
+                t.rotation = m_Selected->rotation;
+            }
+
+            json after = SerializeObject(*m_Selected);
+            json before = m_DragBeforeStates[m_Selected->id];
+            if (before != after) {
+                auto cmd = std::make_shared<ObjectStateCommand>(m_Selected->id, before, after);
+                m_UndoStack.push_back(cmd);
+                m_RedoStack.clear();
+            }
+        }
+        m_Rotating = false;
     }
 
     if (event.type == sf::Event::MouseButtonPressed &&
@@ -1153,6 +1192,16 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_ResizeObjOrigin = m_Selected->shape.getPosition();
                 m_ResizeObjSize = m_Selected->shape.getSize();
                 UpdateStatusText();
+                return;
+            }
+            if (GetRotateHandle(pos))
+            {
+                m_Rotating = true;
+                m_DragBeforeStates.clear();
+                m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
+                sf::Vector2f center = m_Selected->shape.getPosition() + m_Selected->shape.getSize() * 0.5f;
+                m_RotateMouseAngleStart = std::atan2(pos.y - center.y, pos.x - center.x) * 180.f / 3.14159265f;
+                m_RotateObjAngleStart = m_Selected->rotation;
                 return;
             }
         }
@@ -1385,6 +1434,9 @@ void EditorScene::Render(sf::RenderWindow &window)
         box.setOutlineThickness(1.f);
         window.draw(box);
     }
+
+    // Draw transform gizmos (scale + rotate handles) in world space
+    DrawGizmos(window);
 
     const sf::View uiView(sf::FloatRect(
         0.f, 0.f,
@@ -3405,22 +3457,42 @@ void EditorScene::DrawGrid()
     m_Window.draw(lines);
 }
 
-static sf::Vector2f HandlePos(const sf::FloatRect &b, int idx)
+static sf::Vector2f RotatePoint(sf::Vector2f point, sf::Vector2f center, float angleDegrees)
 {
-    const float cx = b.left + b.width * 0.5f;
-    const float cy = b.top + b.height * 0.5f;
+    float angleRad = angleDegrees * 3.14159265f / 180.f;
+    float cosA = std::cos(angleRad);
+    float sinA = std::sin(angleRad);
+    
+    sf::Vector2f translated = point - center;
+    sf::Vector2f rotated;
+    rotated.x = translated.x * cosA - translated.y * sinA;
+    rotated.y = translated.x * sinA + translated.y * cosA;
+    
+    return rotated + center;
+}
+
+static sf::Vector2f HandlePos(const EditorObject* obj, int idx)
+{
+    sf::Vector2f p = obj->shape.getPosition();
+    sf::Vector2f s = obj->shape.getSize();
+    sf::Vector2f c = p + s * 0.5f;
+    
+    sf::Vector2f u; // unrotated position
     switch (idx)
     {
-        case 0: return {b.left, b.top};
-        case 1: return {cx, b.top};
-        case 2: return {b.left + b.width, b.top};
-        case 3: return {b.left, cy};
-        case 4: return {b.left + b.width, cy};
-        case 5: return {b.left, b.top + b.height};
-        case 6: return {cx, b.top + b.height};
-        case 7: return {b.left + b.width, b.top + b.height};
-        default: return {0.f, 0.f};
+        case 0: u = {p.x, p.y}; break;
+        case 1: u = {c.x, p.y}; break;
+        case 2: u = {p.x + s.x, p.y}; break;
+        case 3: u = {p.x, c.y}; break;
+        case 4: u = {p.x + s.x, c.y}; break;
+        case 5: u = {p.x, p.y + s.y}; break;
+        case 6: u = {c.x, p.y + s.y}; break;
+        case 7: u = {p.x + s.x, p.y + s.y}; break;
+        default: u = {0.f, 0.f}; break;
     }
+    
+    // SFML shapes rotate around their origin, which is (0,0) -> the top-left corner `p`
+    return RotatePoint(u, p, obj->rotation);
 }
 
 int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
@@ -3433,10 +3505,9 @@ int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
     const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
     const float hitRadius = std::abs(wEight.x - wZero.x);
 
-    const sf::FloatRect b = m_Selected->shape.getGlobalBounds();
     for (int i = 0; i < 8; ++i)
     {
-        const sf::Vector2f hp = HandlePos(b, i);
+        const sf::Vector2f hp = HandlePos(m_Selected, i);
         const float dx = worldPos.x - hp.x;
         const float dy = worldPos.y - hp.y;
         if (std::sqrt(dx * dx + dy * dy) <= hitRadius)
@@ -3447,55 +3518,110 @@ int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
 
 void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
 {
+    DrawGizmos(window);
+}
+
+void EditorScene::DrawGizmos(sf::RenderWindow &window)
+{
     if (!m_Selected) return;
 
-    const sf::FloatRect b = m_Selected->shape.getGlobalBounds();
-
+    // --- pixel-to-world scale factor (zoom-compensated handle size) ---
     sf::Vector2i zeroScreen{0, 0};
-    sf::Vector2i eightScreen{8, 0};
+    sf::Vector2i tenScreen{10, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
-    const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
-    const float hw = std::abs(wEight.x - wZero.x);
+    const sf::Vector2f wTen  = m_Window.mapPixelToCoords(tenScreen,  m_camera);
+    const float hw = std::abs(wTen.x - wZero.x); // half-size in world units (~10 px)
+
+    // --- rotation handle offset (40 px above top-center in screen space) ---
+    sf::Vector2i fortyScreen{0, 40};
+    const sf::Vector2f wForty = m_Window.mapPixelToCoords(fortyScreen, m_camera);
+    const float rotOffset = std::abs(wForty.y - wZero.y); // 40 px in world units
+
+    sf::Vector2f p = m_Selected->shape.getPosition();
+    sf::Vector2f s = m_Selected->shape.getSize();
+    sf::Vector2f center = p + s * 0.5f;
+    sf::Vector2f unrotatedTopMid = {center.x, p.y};
+
+    // Rotation handle sits rotOffset above the unrotated top-center, then we rotate it around `p`
+    sf::Vector2f unrotatedRotateHandle = {unrotatedTopMid.x, unrotatedTopMid.y - rotOffset};
+    m_RotateHandlePos = RotatePoint(unrotatedRotateHandle, p, m_Selected->rotation);
+    
+    // Also get the rotated topMid for drawing the connecting line
+    sf::Vector2f topMid = RotatePoint(unrotatedTopMid, p, m_Selected->rotation);
+
+    // ----------------------------------------------------------------
+    // 1. Scale handles (8 points)
+    // ----------------------------------------------------------------
+    static const sf::Color C_SCALE_FILL  = sf::Color(255, 255, 255, 230);
+    static const sf::Color C_SCALE_EDGE  = sf::Color(200, 200, 220, 180);
+    static const sf::Color C_SCALE_OUTL  = sf::Color(100, 90, 200, 255);
 
     for (int i = 0; i < 8; ++i)
     {
-        const sf::Vector2f hp = HandlePos(b, i);
+        const sf::Vector2f hp = HandlePos(m_Selected, i);
+        const bool isCorner = (i == 0 || i == 2 || i == 5 || i == 7);
 
         sf::RectangleShape handle({hw * 2.f, hw * 2.f});
         handle.setOrigin(hw, hw);
         handle.setPosition(hp);
-
-        if (i == 7)
-        {
-            handle.setFillColor(sf::Color(C_ACCENT_HOV.r, C_ACCENT_HOV.g, C_ACCENT_HOV.b, 230));
-            handle.setOutlineColor(sf::Color(C_ACCENT_ACT.r, C_ACCENT_ACT.g, C_ACCENT_ACT.b, 255));
-        } else
-        {
-            handle.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 210));
-            handle.setOutlineColor(sf::Color(C_ACCENT_ACT.r, C_ACCENT_ACT.g, C_ACCENT_ACT.b, 200));
-        }
-        handle.setOutlineThickness(0.5f);
+        handle.setRotation(m_Selected->rotation);
+        handle.setFillColor(isCorner ? C_SCALE_FILL : C_SCALE_EDGE);
+        handle.setOutlineColor(C_SCALE_OUTL);
+        handle.setOutlineThickness(hw * 0.3f);
         window.draw(handle);
-    } {
-        const sf::Vector2f brp = HandlePos(b, 7);
-        const float a = hw * 1.5f;
-        sf::VertexArray arrow(sf::Lines, 6);
-        arrow[0] = {
-            {brp.x + hw * 0.3f, brp.y + hw * 0.3f},
-            sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
-        };
-        arrow[1] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
-        arrow[2] = {
-            {brp.x + a, brp.y + a * 0.4f}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
-        };
-        arrow[3] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
-        arrow[4] = {
-            {brp.x + a * 0.4f, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)
-        };
-        arrow[5] = {{brp.x + a, brp.y + a}, sf::Color(C_ACCENT_BRIGHT.r, C_ACCENT_BRIGHT.g, C_ACCENT_BRIGHT.b, 220)};
-        window.draw(arrow);
     }
+
+    // ----------------------------------------------------------------
+    // 2. Connecting line: top-center → rotation handle
+    // ----------------------------------------------------------------
+    static const sf::Color C_ROT_LINE = sf::Color(80, 220, 140, 180);
+    sf::VertexArray line(sf::Lines, 2);
+    line[0] = {topMid,          C_ROT_LINE};
+    line[1] = {m_RotateHandlePos, C_ROT_LINE};
+    window.draw(line);
+
+    // ----------------------------------------------------------------
+    // 3. Rotation handle circle
+    // ----------------------------------------------------------------
+    static const sf::Color C_ROT_FILL  = sf::Color(60, 210, 120, 230);
+    static const sf::Color C_ROT_OUTL  = sf::Color(30, 160, 80, 255);
+    const float rotR = hw * 1.4f;
+
+    sf::CircleShape rotHandle(rotR);
+    rotHandle.setOrigin(rotR, rotR);
+    rotHandle.setPosition(m_RotateHandlePos);
+    rotHandle.setFillColor(m_Rotating ? sf::Color(100, 255, 160, 245) : C_ROT_FILL);
+    rotHandle.setOutlineColor(C_ROT_OUTL);
+    rotHandle.setOutlineThickness(hw * 0.3f);
+    window.draw(rotHandle);
+
+    // Small rotation-arrow icon (curved hint) inside the handle
+    const float a = rotR * 0.55f;
+    sf::VertexArray arc(sf::LinesStrip, 5);
+    arc[0] = {{m_RotateHandlePos.x - a,       m_RotateHandlePos.y},        sf::Color(255,255,255,200)};
+    arc[1] = {{m_RotateHandlePos.x - a * 0.5f, m_RotateHandlePos.y - a},   sf::Color(255,255,255,200)};
+    arc[2] = {{m_RotateHandlePos.x,             m_RotateHandlePos.y - a},   sf::Color(255,255,255,200)};
+    arc[3] = {{m_RotateHandlePos.x + a * 0.5f, m_RotateHandlePos.y - a},   sf::Color(255,255,255,200)};
+    arc[4] = {{m_RotateHandlePos.x + a,        m_RotateHandlePos.y},        sf::Color(255,255,255,200)};
+    window.draw(arc);
 }
+
+bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
+{
+    if (!m_Selected) return false;
+
+    // Use same 40 px screen-space hit radius as the handle
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i tenScreen{14, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wTen  = m_Window.mapPixelToCoords(tenScreen,  m_camera);
+    const float hitRadius = std::abs(wTen.x - wZero.x);
+
+    const float dx = worldPos.x - m_RotateHandlePos.x;
+    const float dy = worldPos.y - m_RotateHandlePos.y;
+    return std::sqrt(dx * dx + dy * dy) <= hitRadius;
+}
+
 
 void EditorScene::UpdateStatusText()
 {

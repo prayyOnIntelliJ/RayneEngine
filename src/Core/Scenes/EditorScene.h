@@ -139,6 +139,11 @@ private:
     sf::Vector2f m_ResizeObjOrigin;
     sf::Vector2f m_ResizeObjSize;
 
+    bool m_Rotating = false;
+    float m_RotateMouseAngleStart = 0.f;
+    float m_RotateObjAngleStart = 0.f;
+    sf::Vector2f m_RotateHandlePos;
+
     sf::RectangleShape m_Preview;
     sf::CircleShape m_CirclePreview;
 
@@ -392,9 +397,13 @@ private:
 
     void DrawGrid();
 
+    void DrawGizmos(sf::RenderWindow &window);
+
     void DrawResizeHandles(sf::RenderWindow &window);
 
     int GetResizeHandle(sf::Vector2f worldPos) const;
+
+    bool GetRotateHandle(sf::Vector2f worldPos) const;
 
     void UpdateStatusText();
 
