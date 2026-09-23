@@ -141,7 +141,13 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
     int exifOrientation = isJpeg ? ReadJpegExifOrientation(path) : 0;
 
     sf::Image img;
-    if (!img.loadFromFile(path))
+    bool loaded = img.loadFromFile(path);
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = img.loadFromFile(fallback);
+    }
+    if (!loaded)
     {
         std::cerr << "[ERROR] [ResourceManager] Failed to load texture: " << path << "\n";
         return nullptr;
@@ -175,7 +181,13 @@ std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
 
     std::cout << "[INFO] [ResourceManager] Loading font from disk: " << path << "...\n";
     auto font = std::make_shared<sf::Font>();
-    if (!font->loadFromFile(path))
+    bool loaded = font->loadFromFile(path);
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = font->loadFromFile(fallback);
+    }
+    if (!loaded)
     {
         std::cerr << "[ERROR] [ResourceManager] Failed to load font: " << path << "\n";
         return nullptr;
@@ -194,7 +206,13 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
 
     std::cout << "[INFO] [ResourceManager] Loading sound buffer from disk: " << path << "...\n";
     auto buffer = std::make_shared<sf::SoundBuffer>();
-    if (!buffer->loadFromFile(path))
+    bool loaded = buffer->loadFromFile(path);
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = buffer->loadFromFile(fallback);
+    }
+    if (!loaded)
     {
         std::cerr << "[ERROR] [ResourceManager] Failed to load sound buffer: " << path << "\n";
         return nullptr;
