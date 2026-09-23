@@ -13,7 +13,7 @@ void UIElement::UpdateDrawables()
 {
     shape.setPosition(position);
     shape.setSize(size);
-    extraShape.setFillColor(sf::Color::Transparent); // Reset extra shape by default
+    extraShape.setFillColor(sf::Color::Transparent);
 
     if (type == UIElementType::Button || type == UIElementType::Checkbox || type == UIElementType::TextInput)
     {
@@ -26,7 +26,7 @@ void UIElement::UpdateDrawables()
         else
         {
             sf::Color base = isPressed ? pressedColor : (isHovered ? hoverColor : normalColor);
-            if (type == UIElementType::TextInput && isFocused) base = pressedColor; // Use pressed color when focused
+            if (type == UIElementType::TextInput && isFocused) base = pressedColor;
             base.a = static_cast<sf::Uint8>(std::clamp(opacity, 0.f, 255.f));
             shape.setFillColor(base);
         }
@@ -38,7 +38,6 @@ void UIElement::UpdateDrawables()
             shape.setTexture(isChecked ? checkedTexture.get() : texture.get());
             if (isChecked && !checkedTexture)
             {
-                // Fallback checkmark draw
                 extraShape.setSize({size.x * 0.6f, size.y * 0.6f});
                 extraShape.setPosition(position.x + size.x * 0.2f, position.y + size.y * 0.2f);
                 extraShape.setFillColor(textColor);
@@ -74,7 +73,6 @@ void UIElement::UpdateDrawables()
         shape.setFillColor(c);
         shape.setTexture(texture.get());
 
-        // Knob
         float range = sliderMax - sliderMin;
         float percent = (range > 0) ? (sliderValue - sliderMin) / range : 0.f;
         float knobWidth = size.y * 0.8f;
@@ -90,7 +88,6 @@ void UIElement::UpdateDrawables()
         shape.setFillColor(c);
         shape.setTexture(texture.get());
 
-        // Fill
         float percent = (progressMax > 0) ? std::clamp(progressValue / progressMax, 0.f, 1.f) : 0.f;
         extraShape.setSize({size.x * percent, size.y});
         extraShape.setPosition(position);
@@ -135,7 +132,7 @@ void UIElement::UpdateDrawables()
         }
         else if (type == UIElementType::TextInput)
         {
-            textX = position.x + 5.f + textOffset.x; // small padding
+            textX = position.x + 5.f + textOffset.x;
         }
         else
         {
@@ -247,7 +244,7 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             {
                 for (sf::Uint32 unicode : textEntered)
                 {
-                    if (unicode == '\b') // Backspace
+                    if (unicode == '\b')
                     {
                         if (!el->text.empty()) el->text.pop_back();
                     }

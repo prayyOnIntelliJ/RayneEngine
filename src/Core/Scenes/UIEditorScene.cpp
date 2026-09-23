@@ -234,7 +234,6 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         {
             if (!m_ActiveDropdown.empty())
             {
-                // Check if clicked inside dropdown
                 if (m_DropdownRect.contains(m_MouseScreenPos) && m_SelectedElement)
                 {
                     float y = m_DropdownRect.top + 4.f;
@@ -1261,7 +1260,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                             : std::to_string((int)m_SelectedElement->opacity));
     y = DrawEditableRow(window, "Opacity", opacityDisplay, "edit_opacity", px, y);
 
-    // PANEL & IMAGE: Base Color and Texture
     if (m_SelectedElement->type == UIElementType::Panel || m_SelectedElement->type == UIElementType::Image)
     {
         std::string colorHeader = (m_SelectedElement->type == UIElementType::Image) ? "TINT COLOR" : "BG COLOR";
@@ -1293,7 +1291,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Outline Thk", outThkDisplay, "edit_outline_thickness", px, y);
     }
 
-    // TEXT & TEXTINPUT & BUTTON: Text settings
     if (m_SelectedElement->type == UIElementType::Text || m_SelectedElement->type == UIElementType::TextInput || m_SelectedElement->type == UIElementType::Button)
     {
         y += 10.f;
@@ -1365,7 +1362,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Text B", tcBDisplay, "edit_textcolor_b", px, y);
     }
 
-    // TEXTINPUT SPECIFIC STYLING
     if (m_SelectedElement->type == UIElementType::TextInput)
     {
         y += 10.f;
@@ -1395,7 +1391,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Border Thk", bThkDisplay, "edit_borderthickness", px, y);
     }
 
-    // BUTTON
     if (m_SelectedElement->type == UIElementType::Button)
     {
         y += 10.f;
@@ -1445,7 +1440,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 30.f;
     }
 
-    // CHECKBOX
     if (m_SelectedElement->type == UIElementType::Checkbox)
     {
         y += 10.f;
@@ -1487,7 +1481,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Border Thk", bThkDisplay, "edit_borderthickness", px, y);
     }
 
-    // SLIDER
     if (m_SelectedElement->type == UIElementType::Slider)
     {
         y += 10.f;
@@ -1518,7 +1511,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Knob B", nbDisplay, "edit_normalb", px, y);
     }
 
-    // PROGRESS BAR
     if (m_SelectedElement->type == UIElementType::ProgressBar)
     {
         y += 10.f;
@@ -1547,7 +1539,6 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawEditableRow(window, "Fill B", nbDisplay, "edit_normalb", px, y);
     }
 
-    // ACTIONS (Button & Checkbox)
     if (m_SelectedElement->type == UIElementType::Button || m_SelectedElement->type == UIElementType::Checkbox)
     {
         y += 10.f;
@@ -1825,7 +1816,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->size = {200.f, 20.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 10.f};
             m_SelectedElement->color = sf::Color(80, 80, 90);
-            m_SelectedElement->normalColor = sf::Color(200, 200, 210); // knob color
+            m_SelectedElement->normalColor = sf::Color(200, 200, 210);
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
         }
@@ -1839,7 +1830,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->size = {200.f, 30.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 15.f};
             m_SelectedElement->color = sf::Color(50, 50, 60);
-            m_SelectedElement->normalColor = C_SUCCESS; // fill color
+            m_SelectedElement->normalColor = C_SUCCESS;
             m_SelectedElement->progressValue = 0.5f;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
@@ -1854,7 +1845,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->size = {200.f, 40.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 20.f};
             m_SelectedElement->normalColor = C_BG_INPUT;
-            m_SelectedElement->pressedColor = sf::Color(30, 35, 42); // focused color
+            m_SelectedElement->pressedColor = sf::Color(30, 35, 42);
             m_SelectedElement->borderColor = C_BORDER;
             m_SelectedElement->borderThickness = 1.f;
             m_SelectedElement->characterSize = 18;
