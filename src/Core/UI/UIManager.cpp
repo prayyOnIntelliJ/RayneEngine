@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include "../Scripting/LuaState.h"
 
 using json = nlohmann::json;
 
@@ -106,10 +107,37 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
     for (auto *el: sortedElements)
     {
         if (!el->visible) continue;
+        auto executeAction = [&](const std::string& action, const std::string& param, const std::string& id, const std::string& eventType) {
+            if (action.empty() || action == "None") return;
+            std::string luaCode;
+            if (action == "Quit") luaCode = "Engine.Quit()";
+            else if (action == "Restart") luaCode = "Engine.RestartCurrentScene()";
+            else if (action == "TogglePause") luaCode = "Engine.SetPaused(not Engine.GetPaused())";
+            else if (action == "SetFullscreen") luaCode = "Engine.SetFullscreen(" + param + ")";
+            else if (action == "SetTimeScale") luaCode = "Engine.SetTimeScale(" + param + ")";
+            else if (action == "TakeScreenshot") luaCode = "Engine.TakeScreenshot()";
+            else if (action == "OpenURL") luaCode = "Engine.OpenURL(\"" + param + "\")";
+            else if (action == "Log") luaCode = "Engine.Log(\"" + param + "\")";
+            
+            if (!luaCode.empty()) {
+                try {
+                    LuaState::GetLua().safe_script(luaCode);
+                } catch (const std::exception& e) {
+                    std::cerr << "[ERROR] [UI] " << eventType << " action failed for " << id << ": " << e.what() << "\n";
+                }
+            }
+        };
+
         if (el->type == UIElementType::Button && !el->disabled)
         {
             sf::FloatRect bounds(el->position.x, el->position.y, el->size.x, el->size.y);
             bool hovered = !buttonHit && bounds.contains(mousePos);
+
+            if (hovered && !el->isHovered)
+            {
+                executeAction(el->onHoverAction, el->onHoverParam, el->id, "Hover");
+            }
+            
             el->isHovered = hovered;
 
             if (hovered)
@@ -119,7 +147,11 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             }
             if (mouseReleased)
             {
-                if (el->isPressed && el->isHovered) { m_LastClickedButton = el->id; }
+                if (el->isPressed && el->isHovered)
+                {
+                    m_LastClickedButton = el->id;
+                    executeAction(el->onClickAction, el->onClickParam, el->id, "Click");
+                }
                 el->isPressed = false;
             }
         }
@@ -206,6 +238,10 @@ void UIManager::Save(const std::string &path)
             j["borderThickness"] = el.borderThickness;
             j["disabled"] = el.disabled;
             j["disabledColor"] = {el.disabledColor.r, el.disabledColor.g, el.disabledColor.b, el.disabledColor.a};
+            j["onClickAction"] = el.onClickAction;
+            j["onClickParam"] = el.onClickParam;
+            j["onHoverAction"] = el.onHoverAction;
+            j["onHoverParam"] = el.onHoverParam;
         }
 
         data["ui_elements"].push_back(j);
@@ -287,6 +323,10 @@ void UIManager::Load(const std::string &path)
         {
             el.borderThickness = j.value("borderThickness", 0.f);
             el.disabled = j.value("disabled", false);
+            el.onClickAction = j.value("onClickAction", "");
+            el.onClickParam = j.value("onClickParam", "");
+            el.onHoverAction = j.value("onHoverAction", "");
+            el.onHoverParam = j.value("onHoverParam", "");
 
             if (j.contains("normalColor"))
                 el.normalColor = sf::Color(j["normalColor"][0], j["normalColor"][1],

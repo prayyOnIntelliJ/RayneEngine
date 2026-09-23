@@ -48,6 +48,11 @@ struct UIElement
     bool isHovered = false;
     bool isPressed = false;
 
+    std::string onClickAction = "";
+    std::string onClickParam = "";
+    std::string onHoverAction = "";
+    std::string onHoverParam = "";
+
     sf::RectangleShape shape;
     sf::Text drawableText;
     std::shared_ptr<sf::Font> font;
