@@ -39,8 +39,8 @@ void ProjectHubScene::SetupUI()
 
     std::string curName = "MyProject";
     std::string curAuthor = "Developer";
-    std::string curW = "1280";
-    std::string curH = "720";
+    std::string curW = "1920";
+    std::string curH = "1080";
     std::string curFps = "60";
     bool curVSync = true;
 
