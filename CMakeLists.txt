@@ -81,6 +81,7 @@ add_executable(RayneEngine
         src/Core/ECS/View.h
         src/Core/Scenes/EditorScene.cpp
         src/Core/Scenes/UIEditorScene.cpp
+        src/Core/Scenes/ProjectHubScene.cpp
         src/Core/Scenes/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
@@ -189,6 +190,7 @@ add_executable(RayneGame
         src/Core/ECS/View.h
         src/Core/Scenes/EditorScene.cpp
         src/Core/Scenes/UIEditorScene.cpp
+        src/Core/Scenes/ProjectHubScene.cpp
         src/Core/Scenes/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h

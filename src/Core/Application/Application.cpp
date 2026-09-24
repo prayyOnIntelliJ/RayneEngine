@@ -16,6 +16,7 @@
 
 #include "../Scenes/EditorScene.h"
 #include "../Scenes/UIEditorScene.h"
+#include "../Scenes/ProjectHubScene.h"
 
 #include "../Scenes/GameScene.h"
 #include "../Scenes/SceneSerializer.h"
@@ -67,7 +68,8 @@ Application::Application()
     std::string initialScene = "game";
     
     std::string path = std::string(ENGINE_ASSET_PATH) + "/project_settings.json";
-    if (std::filesystem::exists(path)) {
+    bool firstRun = !std::filesystem::exists(path);
+    if (!firstRun) {
         try {
             std::ifstream f(path);
             nlohmann::json j;
@@ -102,6 +104,7 @@ Application::Application()
     m_StartScene = initialScene;
     m_CurrentSceneName = initialScene;
     m_ProjectName = projName;
+    m_IsFirstRun = firstRun;
     m_ProjectVersion = projVersion;
     m_ProjectAuthor = projAuthor;
     m_WindowWidth = winW;
@@ -209,6 +212,8 @@ void Application::RunSplashSequence()
     m_SceneManager.RegisterScene<UIEditorScene>("ui_editor", m_RenderWindow);
     splash.SetProgress(0.78f, "Registered: UI Editor Scene");
     AnimateFrames(10);
+    
+    m_SceneManager.RegisterScene<ProjectHubScene>("hub", m_RenderWindow);
 #endif
 
     m_SceneManager.RegisterScene<GameScene>("game", m_RenderWindow, m_Registry);
@@ -224,8 +229,13 @@ void Application::RunSplashSequence()
     std::cout << "[INFO] [Application] Switching to Game Scene (Standalone)...\n";
     m_SceneManager.SwitchSceneTo("game");
 #else
-    std::cout << "[INFO] [Application] Switching to Editor Scene...\n";
-    m_SceneManager.SwitchSceneTo("editor");
+    if (m_IsFirstRun) {
+        std::cout << "[INFO] [Application] First run detected, switching to Hub Scene...\n";
+        m_SceneManager.SwitchSceneTo("hub");
+    } else {
+        std::cout << "[INFO] [Application] Switching to Editor Scene...\n";
+        m_SceneManager.SwitchSceneTo("editor");
+    }
 #endif
 
     splash.SetProgress(1.0f, "Ready!");
@@ -339,6 +349,15 @@ void Application::SetMasterVolume(float vol)
 {
     m_MasterVolume = vol;
     AudioManager::Get().SetMasterVolume(vol);
+}
+
+void Application::SetWindowSize(int w, int h)
+{
+    m_WindowWidth = w;
+    m_WindowHeight = h;
+    m_RenderWindow.setSize(sf::Vector2u(w, h));
+    sf::FloatRect visibleArea(0.f, 0.f, static_cast<float>(w), static_cast<float>(h));
+    m_RenderWindow.setView(sf::View(visibleArea));
 }
 
 void Application::SetMusicVolume(float vol)

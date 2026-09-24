@@ -28,6 +28,7 @@ public:
     void SetTargetFPS(unsigned int fps) { m_ProjectTargetFPS = fps; m_RenderWindow.setFramerateLimit(fps); }
     void SetClearColor(sf::Color color) { m_ClearColor = color; }
     sf::Color GetClearColor() const { return m_ClearColor; }
+    void SetWindowSize(int w, int h);
     void SetMasterVolume(float vol);
     void SetMusicVolume(float vol);
 
@@ -85,6 +86,7 @@ private:
     float m_CurrentFPS = 0.f;
     float m_CurrentDeltaTime = 0.f;
     bool m_ShowFPSOverlay = false;
+    bool m_IsFirstRun = false;
 
     sf::RenderWindow m_RenderWindow;
     SceneManager m_SceneManager;

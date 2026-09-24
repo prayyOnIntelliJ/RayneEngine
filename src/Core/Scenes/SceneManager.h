@@ -33,6 +33,12 @@ public:
 
     [[nodiscard]] const std::string &CurrentName() const;
 
+    [[nodiscard]] Scene *GetScene(const std::string &name) const
+    {
+        auto it = m_scenes.find(name);
+        return (it != m_scenes.end()) ? it->second.get() : nullptr;
+    }
+
 private:
     std::unordered_map<std::string, std::unique_ptr<Scene> > m_scenes;
     Scene *m_current = nullptr;
