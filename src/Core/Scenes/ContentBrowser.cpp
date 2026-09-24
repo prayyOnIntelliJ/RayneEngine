@@ -459,6 +459,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     m_Breadcrumbs.clear();
     m_FilterBounds.clear();
 
+    const bool blink = (static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::system_clock::now().time_since_epoch()).count() / 500) % 2) == 0;
+    const std::string cursor = blink ? "|" : "";
+
     sf::RectangleShape bg({width, height});
     bg.setPosition(x, y);
     bg.setFillColor(sf::Color(C_BG_CANVAS.r, C_BG_CANVAS.g, C_BG_CANVAS.b, 252));
@@ -654,7 +658,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     } else
     {
         searchContent.setFillColor(C_TEXT_PRIMARY);
-        searchContent.setString(m_SearchQuery + (m_SearchActive ? "|" : ""));
+        searchContent.setString(m_SearchQuery + (m_SearchActive ? cursor : ""));
     }
     searchContent.setPosition(m_SearchBoxBounds.left + 6.f, m_SearchBoxBounds.top + 4.f);
     window.draw(searchContent);
@@ -1072,8 +1076,16 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
     if (m_NewScriptPrompt)
     {
-        const float modalW = 280.f;
-        const float modalH = 80.f;
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_TEXT_PRIMARY);
+        title.setString("Create Lua Script (Enter to save, Esc to cancel)");
+
+        const float titleW = title.getLocalBounds().width;
+        const float modalW = std::max(380.f, titleW + 36.f);
+        const float modalH = 84.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1089,17 +1101,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
-        sf::Text title;
-        title.setFont(m_Font);
-        title.setCharacterSize(11);
-        title.setStyle(sf::Text::Bold);
-        title.setFillColor(C_TEXT_PRIMARY);
-        title.setString("Create Lua Script (Enter to save, Esc to cancel)");
-        title.setPosition(modalX + 10.f, modalY + 8.f);
+        title.setPosition(modalX + 14.f, modalY + 12.f);
         window.draw(title);
 
-        sf::RectangleShape inputField({modalW - 20.f, 24.f});
-        inputField.setPosition(modalX + 10.f, modalY + 32.f);
+        sf::RectangleShape inputField({modalW - 28.f, 26.f});
+        inputField.setPosition(modalX + 14.f, modalY + 38.f);
         inputField.setFillColor(C_BG_INPUT);
         inputField.setOutlineColor(C_ACCENT);
         inputField.setOutlineThickness(1.f);
@@ -1109,15 +1115,23 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         inputText.setFont(m_Font);
         inputText.setCharacterSize(11);
         inputText.setFillColor(sf::Color::White);
-        inputText.setString(m_NewScriptName + ".lua |");
-        inputText.setPosition(modalX + 16.f, modalY + 36.f);
+        inputText.setString(m_NewScriptName + cursor);
+        inputText.setPosition(modalX + 22.f, modalY + 43.f);
         window.draw(inputText);
     }
 
     if (m_NewScenePrompt)
     {
-        const float modalW = 280.f;
-        const float modalH = 80.f;
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_SUCCESS);
+        title.setString("Create Scene (Enter to save, Esc to cancel)");
+
+        const float titleW = title.getLocalBounds().width;
+        const float modalW = std::max(380.f, titleW + 36.f);
+        const float modalH = 84.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1133,17 +1147,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
-        sf::Text title;
-        title.setFont(m_Font);
-        title.setCharacterSize(11);
-        title.setStyle(sf::Text::Bold);
-        title.setFillColor(C_SUCCESS);
-        title.setString("Create Scene (Enter to save, Esc to cancel)");
-        title.setPosition(modalX + 10.f, modalY + 8.f);
+        title.setPosition(modalX + 14.f, modalY + 12.f);
         window.draw(title);
 
-        sf::RectangleShape inputField({modalW - 20.f, 24.f});
-        inputField.setPosition(modalX + 10.f, modalY + 32.f);
+        sf::RectangleShape inputField({modalW - 28.f, 26.f});
+        inputField.setPosition(modalX + 14.f, modalY + 38.f);
         inputField.setFillColor(C_BG_INPUT);
         inputField.setOutlineColor(C_SUCCESS);
         inputField.setOutlineThickness(1.f);
@@ -1153,15 +1161,23 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         inputText.setFont(m_Font);
         inputText.setCharacterSize(11);
         inputText.setFillColor(sf::Color::White);
-        inputText.setString(m_NewSceneName + ".json |");
-        inputText.setPosition(modalX + 16.f, modalY + 36.f);
+        inputText.setString(m_NewSceneName + cursor);
+        inputText.setPosition(modalX + 22.f, modalY + 43.f);
         window.draw(inputText);
     }
 
     if (m_NewFolderPrompt)
     {
-        const float modalW = 280.f;
-        const float modalH = 80.f;
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_WARNING);
+        title.setString("Create Folder (Enter to create, Esc to cancel)");
+
+        const float titleW = title.getLocalBounds().width;
+        const float modalW = std::max(380.f, titleW + 36.f);
+        const float modalH = 84.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1177,17 +1193,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
-        sf::Text title;
-        title.setFont(m_Font);
-        title.setCharacterSize(11);
-        title.setStyle(sf::Text::Bold);
-        title.setFillColor(C_WARNING);
-        title.setString("Create Folder (Enter to create, Esc to cancel)");
-        title.setPosition(modalX + 10.f, modalY + 8.f);
+        title.setPosition(modalX + 14.f, modalY + 12.f);
         window.draw(title);
 
-        sf::RectangleShape inputField({modalW - 20.f, 24.f});
-        inputField.setPosition(modalX + 10.f, modalY + 32.f);
+        sf::RectangleShape inputField({modalW - 28.f, 26.f});
+        inputField.setPosition(modalX + 14.f, modalY + 38.f);
         inputField.setFillColor(C_BG_INPUT);
         inputField.setOutlineColor(C_WARNING);
         inputField.setOutlineThickness(1.f);
@@ -1197,15 +1207,23 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         inputText.setFont(m_Font);
         inputText.setCharacterSize(11);
         inputText.setFillColor(sf::Color::White);
-        inputText.setString(m_NewFolderName + " |");
-        inputText.setPosition(modalX + 16.f, modalY + 36.f);
+        inputText.setString(m_NewFolderName + cursor);
+        inputText.setPosition(modalX + 22.f, modalY + 43.f);
         window.draw(inputText);
     }
 
     if (m_RenamePrompt)
     {
-        const float modalW = 320.f;
-        const float modalH = 86.f;
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_TEXT_PRIMARY);
+        title.setString("Rename (Enter to save, Esc to cancel)");
+
+        const float titleW = title.getLocalBounds().width;
+        const float modalW = std::max(380.f, titleW + 36.f);
+        const float modalH = 84.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1221,17 +1239,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
-        sf::Text title;
-        title.setFont(m_Font);
-        title.setCharacterSize(11);
-        title.setStyle(sf::Text::Bold);
-        title.setFillColor(C_TEXT_PRIMARY);
-        title.setString("Rename (Enter to save, Esc to cancel)");
-        title.setPosition(modalX + 10.f, modalY + 8.f);
+        title.setPosition(modalX + 14.f, modalY + 12.f);
         window.draw(title);
 
-        sf::RectangleShape inputField({modalW - 20.f, 24.f});
-        inputField.setPosition(modalX + 10.f, modalY + 34.f);
+        sf::RectangleShape inputField({modalW - 28.f, 26.f});
+        inputField.setPosition(modalX + 14.f, modalY + 38.f);
         inputField.setFillColor(C_BG_INPUT);
         inputField.setOutlineColor(C_ACCENT);
         inputField.setOutlineThickness(1.f);
@@ -1241,15 +1253,23 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         inputText.setFont(m_Font);
         inputText.setCharacterSize(11);
         inputText.setFillColor(sf::Color::White);
-        inputText.setString(m_RenameInput + " |");
-        inputText.setPosition(modalX + 16.f, modalY + 38.f);
+        inputText.setString(m_RenameInput + cursor);
+        inputText.setPosition(modalX + 22.f, modalY + 43.f);
         window.draw(inputText);
     }
 
     if (m_DeletePrompt)
     {
-        const float modalW = 320.f;
-        const float modalH = 84.f;
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(11);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_DANGER);
+        title.setString("Delete Item? (Enter to delete, Esc to cancel)");
+
+        const float titleW = title.getLocalBounds().width;
+        const float modalW = std::max(380.f, titleW + 36.f);
+        const float modalH = 88.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1265,24 +1285,18 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
-        sf::Text title;
-        title.setFont(m_Font);
-        title.setCharacterSize(11);
-        title.setStyle(sf::Text::Bold);
-        title.setFillColor(C_DANGER);
-        title.setString("Delete Item? (Enter to delete, Esc to cancel)");
-        title.setPosition(modalX + 10.f, modalY + 8.f);
+        title.setPosition(modalX + 14.f, modalY + 12.f);
         window.draw(title);
 
         std::string fname = fs::path(m_DeleteTarget).filename().string();
-        if (fname.size() > 34) fname = fname.substr(0, 32) + "...";
+        if (fname.size() > 38) fname = fname.substr(0, 36) + "...";
 
         sf::Text info;
         info.setFont(m_Font);
         info.setCharacterSize(11);
         info.setFillColor(C_TEXT_PRIMARY);
         info.setString("\"" + fname + "\"");
-        info.setPosition(modalX + 12.f, modalY + 36.f);
+        info.setPosition(modalX + 14.f, modalY + 38.f);
         window.draw(info);
 
         sf::Text sub;
@@ -1290,7 +1304,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sub.setCharacterSize(9);
         sub.setFillColor(C_TEXT_SECONDARY);
         sub.setString("This action cannot be undone.");
-        sub.setPosition(modalX + 12.f, modalY + 58.f);
+        sub.setPosition(modalX + 14.f, modalY + 62.f);
         window.draw(sub);
     }
 

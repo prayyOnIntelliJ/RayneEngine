@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include "../Scripting/LuaState.h"
 #include "../Resources/ResourceManager.h"
@@ -108,7 +109,9 @@ void UIElement::UpdateDrawables()
         std::string displayText = text;
         if (type == UIElementType::TextInput)
         {
-            displayText = text + (isFocused ? "_" : "");
+            const bool blink = (static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count() / 500) % 2) == 0;
+            displayText = text + (isFocused && blink ? "|" : "");
         }
         if (textUpperCase)
             std::transform(displayText.begin(), displayText.end(), displayText.begin(), ::toupper);

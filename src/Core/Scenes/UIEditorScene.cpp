@@ -2,6 +2,7 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
+#include <chrono>
 #include "../Resources/ResourceManager.h"
 #include "../Application/Application.h"
 #include <SFML/Window/Event.hpp>
@@ -2437,11 +2438,20 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
     field.setOutlineThickness(1.f);
     window.draw(field);
 
+    std::string displayVal = val;
+    if (!displayVal.empty() && displayVal.back() == '|')
+    {
+        const bool blink = (static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count() / 500) % 2) == 0;
+        if (!blink)
+            displayVal.pop_back();
+    }
+
     sf::Text valText;
     valText.setFont(*m_Font);
     valText.setCharacterSize(12);
     valText.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-    valText.setString(val);
+    valText.setString(displayVal);
     valText.setPosition(valX + 4.f, y + 3.f);
     window.draw(valText);
 

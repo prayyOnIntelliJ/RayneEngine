@@ -2678,11 +2678,19 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     field.setOutlineThickness(1.f);
     window.draw(field);
 
+    std::string displayVal = val;
+    if (!displayVal.empty() && displayVal.back() == '|')
+    {
+        const bool blink = ((int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0);
+        if (!blink)
+            displayVal.pop_back();
+    }
+
     sf::Text valText;
     valText.setFont(*m_Font);
     valText.setCharacterSize(12);
     valText.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-    valText.setString(val);
+    valText.setString(displayVal);
     valText.setPosition(valX + 5.f, y + 3.f);
     window.draw(valText);
 
@@ -2764,7 +2772,8 @@ float EditorScene::DrawScriptInput(sf::RenderWindow &window, float x, float y)
     inputText.setFont(*m_Font);
     inputText.setCharacterSize(11);
     inputText.setFillColor(textColor);
-    inputText.setString(display + (m_ActiveField == EditField::Script ? "|" : ""));
+    const bool blink = ((int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0);
+    inputText.setString(display + (m_ActiveField == EditField::Script && blink ? "|" : ""));
     inputText.setPosition(inputRect.left + 6.f, inputRect.top + 5.f);
     window.draw(inputText);
 
@@ -4314,7 +4323,8 @@ float EditorScene::DrawSettingsInputField(sf::RenderWindow &window,
     fieldBg.setOutlineThickness(1.f);
     window.draw(fieldBg);
 
-    std::string display = active ? (m_SettingsInputText + "|") : currentVal;
+    const bool blink = ((int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0);
+    std::string display = active ? (m_SettingsInputText + (blink ? "|" : "")) : currentVal;
     sf::Text valText;
     valText.setFont(*m_Font);
     valText.setCharacterSize(11);
