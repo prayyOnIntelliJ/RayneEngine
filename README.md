@@ -75,6 +75,8 @@ When launching the engine for the first time (i.e. no `project_settings.json` is
 
 These settings are serialized to `project_settings.json` which governs the standalone game's runtime behavior without interfering with the editor's fixed resolution.
 
+<img width="1920" height="999" alt="StartupScreenRE (1)" src="https://github.com/user-attachments/assets/8e7e0c96-a6a6-4168-858f-dd590b5f1f5e" />
+
 ---
 
 ### Visual Level Editor (`EditorScene`)
