@@ -9,10 +9,14 @@
 #include "SFML/Graphics/RenderWindow.hpp"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
+#include "SFML/Graphics/ConvexShape.hpp"
+#include "SFML/Graphics/VertexArray.hpp"
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Text.hpp"
 #include "SFML/Graphics/Font.hpp"
 #include "SFML/Graphics/Texture.hpp"
+
+#include <set>
 
 namespace fs = std::filesystem;
 
@@ -21,6 +25,7 @@ enum class AssetType
     Folder,
     Script,
     Scene,
+    UIScene,
     Image,
     Audio,
     Font,
@@ -150,13 +155,42 @@ private:
     std::string m_StatusMessage;
     double m_StatusMessageTime = 0.0;
 
-    static AssetType TypeFromExtension(const std::string &ext);
+    static AssetType TypeFromFile(const std::string &fullPath);
 
     static sf::Color ColorForType(AssetType type);
 
     static std::string LabelForType(AssetType type);
 
     static std::string FormatFileSize(uintmax_t bytes);
+
+    static std::string ExtensionLabel(const std::string &path, AssetType type);
+
+    static void DrawRoundedRect(sf::RenderWindow &window, float x, float y, float w, float h,
+                                float radius, sf::Color fillColor, sf::Color outlineColor = sf::Color::Transparent,
+                                float outlineThickness = 0.f);
+
+    static void DrawGradientRect(sf::RenderWindow &window, float x, float y, float w, float h,
+                                 sf::Color topColor, sf::Color bottomColor);
+
+    void DrawIconForType(sf::RenderWindow &window, AssetType type, sf::Color color,
+                         float cx, float cy, float size) const;
+
+    void DrawFolderIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawScriptIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawSceneIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawUISceneIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawAudioIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawFontIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawImageIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawUnknownIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+
+    void DrawExtensionBadge(sf::RenderWindow &window, const std::string &ext, sf::Color color,
+                            float cardRight, float cardBottom) const;
+
+    void DrawFolderContentDots(sf::RenderWindow &window, const std::string &folderPath,
+                               float cx, float bottomY) const;
+
+    std::set<AssetType> GetFolderContentTypes(const std::string &folderPath) const;
 
     void UpdateFilteredEntries();
 
