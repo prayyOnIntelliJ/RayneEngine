@@ -212,6 +212,7 @@ void EditorScene::InitMenus()
 
 void EditorScene::OnEnter()
 {
+    LoadProjectSettings();
     if (!m_PlayModeSnapshot.empty())
     {
         RestoreSnapshot();
