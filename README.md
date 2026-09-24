@@ -14,6 +14,8 @@
   <img src="https://img.shields.io/badge/Platform-Windows_%7C_Linux-lightgrey.svg" alt="Platform" />
 </p>
 
+> **Disclaimer**: This project, or portions of its code and assets, were created with the assistance of Artificial Intelligence (AI).
+
 ---
 
 ## Overview
@@ -21,6 +23,7 @@
 **RayneEngine** is a modular 2D game engine built with modern C++20 and [SFML](https://www.sfml-dev.org/). Designed as an in-depth portfolio project during game engineering training, it focuses on exploring clean software design patterns, high performance, and core engine subsystems from first principles:
 
 - Custom, cache-conscious **Entity Component System (ECS)** supporting up to 5 000 entities
+- **Project Hub** first-run setup modal for easily configuring project settings and standalone target specs
 - Native **Visual Level Editor** with live property inspection, grid snapping, and undo/redo
 - Dedicated **UI Editor** for designing game HUDs visually on a fixed 1920×1080 canvas
 - **In-Editor Console Panel** with live stdout/stderr capture, scrollable log, and command input
@@ -29,6 +32,7 @@
 - Multi-channel **Audio Engine** and hardware input polling
 - Complete **JSON Scene & UI Serialization** and project auto-saving
 - **UI Manager** for runtime Text, Panel, and Button elements controlled from Lua
+- **Standalone Game Export** creating an optimized `RayneGame` executable using your project settings
 
 ---
 
@@ -61,6 +65,17 @@ RayneEngine
 ---
 
 ## Subsystems and Features
+
+### Project Hub (First-Run Setup)
+
+When launching the engine for the first time (i.e. no `project_settings.json` is found), the **Project Hub** will appear as a sleek modal dialog over a dimmed editor background. Similar to modern engine hubs, it allows you to configure your new project before jumping into development:
+- **Project Details:** Define the project name and author.
+- **Resolution:** Set the target window width and height for your standalone game export.
+- **Engine Settings:** Toggle VSync and specify a target framerate (FPS).
+
+These settings are serialized to `project_settings.json` which governs the standalone game's runtime behavior without interfering with the editor's fixed resolution.
+
+---
 
 ### Visual Level Editor (`EditorScene`)
 
@@ -557,6 +572,10 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
 ```
 
+### Standalone Export (`RayneGame`)
+
+The project includes a standalone target called `RayneGame` that compiles without the editor tools and overhead. It uses the `project_settings.json` configured via the **Project Hub** to boot directly into your game, making it ready for distribution.
+
 ### Execution
 
 Run the binary from the root project directory so that the relative `assets/` path resolves correctly:
@@ -564,7 +583,9 @@ Run the binary from the root project directory so that the relative `assets/` pa
 ```bash
 # Windows
 .\build\Release\RayneEngine.exe
+.\build\Release\RayneGame.exe  # To test the standalone game
 
 # Linux
 ./build/RayneEngine
+./build/RayneGame
 ```
