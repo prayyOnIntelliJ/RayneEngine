@@ -1,4 +1,4 @@
-#include "GameScene.h"
+﻿#include "GameScene.h"
 #include "../Scenes/SceneManager.h"
 #include <iostream>
 #include "../Application/Application.h"
@@ -126,7 +126,7 @@ void GameScene::CheckCollisions()
                 if (overlapX > 0 && overlapY > 0)
                 {
                     if (!m_Registry.HasComponent<TransformComponent>(a.id) || !m_Registry.HasComponent<TransformComponent>(b.id))
-                        continue; // Entities might have been destroyed by OnCollision scripts
+                        continue; 
 
                     bool aMovable = m_Registry.HasComponent<VelocityComponent>(a.id);
                     bool bMovable = m_Registry.HasComponent<VelocityComponent>(b.id);

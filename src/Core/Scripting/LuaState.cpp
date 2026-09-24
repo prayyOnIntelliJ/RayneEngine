@@ -1,4 +1,4 @@
-#include "LuaState.h"
+﻿#include "LuaState.h"
 
 #include <iostream>
 
@@ -236,7 +236,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     std::cout << "[INFO] [Lua] Registering Engine Utility bindings...\n";
     sol::table engineTable = s_Lua.create_named_table("Engine");
 
-    // Lifecycle
     engineTable.set_function("Quit", []() {
         if (g_App) g_App->Quit();
     });
@@ -248,7 +247,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         else if (loadSceneCallback) loadSceneCallback(sceneName);
     });
 
-    // Simulation & Pause
     engineTable.set_function("SetPaused", [](bool paused) {
         if (g_App) g_App->SetPaused(paused);
     });
@@ -265,7 +263,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return g_App ? g_App->GetTimeScale() : 1.0f;
     });
 
-    // Window & Display
     engineTable.set_function("SetFullscreen", [](bool fullscreen) {
         if (g_App) g_App->SetFullscreen(fullscreen);
     });
@@ -279,7 +276,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         if (g_App) g_App->SetCursorVisible(visible);
     });
 
-    // System & Media
     engineTable.set_function("TakeScreenshot", [](sol::optional<std::string> path) -> std::string {
         return g_App ? g_App->TakeScreenshot(path.value_or("")) : "";
     });
@@ -287,7 +283,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         if (g_App) g_App->OpenURL(url);
     });
 
-    // Debug & Diagnostics
     engineTable.set_function("GetFPS", []() -> float {
         return g_App ? g_App->GetFPS() : 0.f;
     });
@@ -301,7 +296,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return g_App ? g_App->IsFPSOverlayShown() : false;
     });
 
-    // Global Aliases for convenience
     s_Lua.set_function("QuitGame", []() {
         if (g_App) g_App->Quit();
     });
