@@ -49,6 +49,37 @@ static bool OpenColorPickerDialog(sf::Color &ioColor, HWND hwnd = nullptr)
 }
 #endif
 
+static std::filesystem::path GetAppDir()
+{
+#ifdef _WIN32
+    char pathBuf[MAX_PATH];
+    if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
+        return std::filesystem::path(pathBuf).parent_path();
+    }
+#endif
+    return std::filesystem::current_path();
+}
+
+static std::filesystem::path FindProjectRoot()
+{
+    std::error_code ec;
+    std::filesystem::path cur = std::filesystem::current_path(ec);
+    std::filesystem::path appDir = GetAppDir();
+
+    // 1. If running from source (e.g. IDE or build directory), find the root with CMakeLists.txt
+    if (std::filesystem::exists(cur / "CMakeLists.txt") && std::filesystem::exists(cur / "assets")) return cur;
+    if (std::filesystem::exists(cur.parent_path() / "CMakeLists.txt") && std::filesystem::exists(cur.parent_path() / "assets")) return cur.parent_path();
+    
+    if (std::filesystem::exists(appDir / "CMakeLists.txt") && std::filesystem::exists(appDir / "assets")) return appDir;
+    if (std::filesystem::exists(appDir.parent_path() / "CMakeLists.txt") && std::filesystem::exists(appDir.parent_path() / "assets")) return appDir.parent_path();
+
+    // 2. Fallback for standalone editor distribution (no CMakeLists.txt)
+    if (!ec && std::filesystem::exists(cur / "assets")) return cur;
+    if (std::filesystem::exists(appDir / "assets")) return appDir;
+
+    return cur;
+}
+
 static std::string FormatFloat(float value, int precision = 2)
 {
     if (std::abs(value) < 1e-6f) value = 0.0f;
@@ -202,6 +233,10 @@ void EditorScene::InitMenus()
         {"Save", "save", false, "Ctrl+S"},
         {"Load", "load", false, "Ctrl+L"},
         {"", "", true, ""},
+        {"Open in CLion", "open_clion", false, ""},
+        {"Open in Rider", "open_rider", false, ""},
+        {"Open in VS Code", "open_vscode", false, ""},
+        {"", "", true, ""},
         {"Project Settings", "project_settings", false, ""},
         {"Quit", "quit", false, ""}
     };
@@ -315,6 +350,17 @@ void EditorScene::HandleMenuAction(const std::string &action)
         m_ShowProjectSettings = !m_ShowProjectSettings;
         m_ActiveProjectSettingsField = ProjectSettingsField::None;
         m_ProjectSettingsInputText.clear();
+    } else if (action == "open_clion" || action == "open_rider" || action == "open_vscode")
+    {
+        std::filesystem::path assetsPath = FindProjectRoot() / "assets";
+        std::string exeName = action == "open_clion" ? "clion" : (action == "open_rider" ? "rider" : "code");
+#ifdef _WIN32
+        std::string cmd = "start \"\" " + exeName + " \"" + assetsPath.string() + "\"";
+        system(cmd.c_str());
+#else
+        std::string cmd = exeName + " \"" + assetsPath.string() + "\" &";
+        system(cmd.c_str());
+#endif
     } else if (action == "quit") { m_Window.close(); } else if (action == "delete")
     {
         DeleteSelected();
@@ -4836,33 +4882,6 @@ bool EditorScene::IsSelected(const EditorObject* obj) const {
     return std::find(m_SelectedObjects.begin(), m_SelectedObjects.end(), obj) != m_SelectedObjects.end();
 }
 
-static std::filesystem::path GetAppDir()
-{
-#ifdef _WIN32
-    char pathBuf[MAX_PATH];
-    if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
-        return std::filesystem::path(pathBuf).parent_path();
-    }
-#endif
-    return std::filesystem::current_path();
-}
-
-static std::filesystem::path FindProjectRoot()
-{
-    std::error_code ec;
-    std::filesystem::path cur = std::filesystem::current_path(ec);
-    if (!ec && std::filesystem::exists(cur / "assets")) {
-        return cur;
-    }
-
-    std::filesystem::path appDir = GetAppDir();
-    if (std::filesystem::exists(appDir / "assets")) {
-        return appDir;
-    }
-
-    return cur;
-}
-
 static std::string ResolveCMakeExecutable()
 {
     if (system("cmake --version >nul 2>&1") == 0) {
@@ -4965,17 +4984,17 @@ void EditorScene::ExportStandaloneGame()
         }
 
         std::filesystem::path exePath;
-        std::vector<std::filesystem::path> possibleExePaths = {
-            appDir / "templates" / "RayneGame.exe",
-            rootDir / "templates" / "RayneGame.exe",
-            appDir / "RayneGame.exe",
-            rootDir / "RayneGame.exe"
-        };
+        std::vector<std::filesystem::path> possibleExePaths;
         if (!buildDir.empty()) {
+            // Favor the freshly built executable
             possibleExePaths.push_back(buildDir / "RayneGame.exe");
             possibleExePaths.push_back(buildDir / "Release" / "RayneGame.exe");
             possibleExePaths.push_back(buildDir / "Debug" / "RayneGame.exe");
         }
+        possibleExePaths.push_back(rootDir / "templates" / "RayneGame.exe");
+        possibleExePaths.push_back(appDir / "templates" / "RayneGame.exe");
+        possibleExePaths.push_back(rootDir / "RayneGame.exe");
+        possibleExePaths.push_back(appDir / "RayneGame.exe");
         
         for (const auto& p : possibleExePaths) {
             if (!p.empty() && std::filesystem::exists(p)) {
