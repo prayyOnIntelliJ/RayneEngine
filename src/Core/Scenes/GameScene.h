@@ -4,6 +4,7 @@
 #include "../ECS/Registry.h"
 #include "../Resources/ResourceManager.h"
 #include "SFML/Graphics/Text.hpp"
+#include <unordered_set>
 
 class GameScene : public Scene
 {
@@ -30,7 +31,12 @@ private:
 
     void CheckCollisions();
 
-    std::vector<std::pair<Entity, Entity> > m_LastCollisions;
+    struct PairHash {
+        size_t operator()(const std::pair<Entity, Entity>& p) const {
+            return std::hash<Entity>()(p.first) ^ (std::hash<Entity>()(p.second) << 16);
+        }
+    };
+    std::unordered_set<std::pair<Entity, Entity>, PairHash> m_LastCollisions;
     float m_HotReloadTimer = 0.f;
 };
 

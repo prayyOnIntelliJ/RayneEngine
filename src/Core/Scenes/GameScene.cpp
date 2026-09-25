@@ -1,4 +1,4 @@
-﻿#include "GameScene.h"
+#include "GameScene.h"
 #include "../Scenes/SceneManager.h"
 #include <iostream>
 #include "../Application/Application.h"
@@ -13,6 +13,7 @@
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Window/Event.hpp"
+#include <unordered_set>
 
 GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry)
     : Scene(manager), m_Window(window), m_Registry(registry)
@@ -81,7 +82,7 @@ void GameScene::CheckCollisions()
             }
         });
 
-    std::vector<std::pair<Entity, Entity> > currentCollisions;
+    std::unordered_set<std::pair<Entity, Entity>, PairHash> currentCollisions;
 
     for (size_t i = 0; i < collidables.size(); i++)
     {
@@ -101,11 +102,9 @@ void GameScene::CheckCollisions()
             Entity e1 = std::min(a.id, b.id);
             Entity e2 = std::max(a.id, b.id);
 
-            currentCollisions.emplace_back(e1, e2);
+            currentCollisions.emplace(e1, e2);
 
-            const bool wasColliding = std::find(
-                                          m_LastCollisions.begin(), m_LastCollisions.end(),
-                                          std::make_pair(e1, e2)) != m_LastCollisions.end();
+            const bool wasColliding = m_LastCollisions.count({e1, e2}) > 0;
 
             if (!wasColliding)
                 EventManager::Get().FireCollision(a.id, b.id);
