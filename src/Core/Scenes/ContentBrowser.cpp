@@ -67,7 +67,6 @@ bool ContentBrowser::IsBuildMode() const
     std::error_code ec;
     fs::path root(m_RootPath);
     fs::path projRoot = root.parent_path();
-    // If CMakeLists.txt or src exists in project root (or root), we are running in the source / dev environment
     if (fs::exists(projRoot / "CMakeLists.txt", ec) || fs::exists(root / "CMakeLists.txt", ec)) return false;
     if (fs::exists(projRoot / "src", ec) || fs::exists(root / "src", ec)) return false;
 
@@ -76,7 +75,6 @@ bool ContentBrowser::IsBuildMode() const
 
 bool ContentBrowser::IsReadOnlyPath(const std::string &path) const
 {
-    // Read-only is only enforced in the build environment!
     if (!IsBuildMode()) return false;
 
     std::error_code ec;
@@ -123,7 +121,6 @@ bool ContentBrowser::IsIgnoredEntry(const std::string &name, const std::string &
     if (name.empty()) return true;
     if (name[0] == '.') return true;
 
-    // In build mode, completely hide the scripting folder and all its contents
     if (IsBuildMode())
     {
         std::string lowerName = name;
@@ -865,13 +862,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             bool hovered = cardRect.contains(m_MousePos);
             bool selected = (entry.fullPath == m_SelectedPath);
 
-            // Hover lift effect: shift card 2px up when hovered
             float liftY = (hovered && !selected) ? -2.f : 0.f;
             float drawY = iy + liftY;
 
             const float radius = 6.f;
 
-            // Glow effect behind card on hover
             if (hovered || selected)
             {
                 sf::Color glowColor = selected ? sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 35)
@@ -880,7 +875,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                                 radius + 3.f, glowColor);
             }
 
-            // Card background with rounded corners
             sf::Color cardFill = selected
                                      ? C_ACCENT_DIM
                                      : hovered
@@ -904,7 +898,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                 auto tex = ResourceManager::Get().GetTexture(entry.fullPath);
                 if (tex && tex->getSize().x > 0 && tex->getSize().y > 0)
                 {
-                    // Subtle gradient background for image preview area
                     sf::Color imgColor = ColorForType(AssetType::Image);
                     DrawGradientRect(window, previewX, previewY, previewW, previewH,
                                      sf::Color(imgColor.r, imgColor.g, imgColor.b, 15),
@@ -932,7 +925,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                     window.draw(previewFrame);
                 }
 
-                // Extension badge for images
                 std::string ext = ExtensionLabel(entry.fullPath, entry.type);
                 if (!ext.empty())
                     DrawExtensionBadge(window, ext, ColorForType(entry.type),
@@ -941,12 +933,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             {
                 sf::Color typeColor = ColorForType(entry.type);
 
-                // Gradient background for the preview area
                 DrawGradientRect(window, previewX, previewY, previewW, previewH,
                                  sf::Color(typeColor.r, typeColor.g, typeColor.b, 30),
                                  sf::Color(typeColor.r, typeColor.g, typeColor.b, 8));
 
-                // Subtle border around preview area
                 sf::RectangleShape previewBorder({previewW, previewH});
                 previewBorder.setPosition(previewX, previewY);
                 previewBorder.setFillColor(sf::Color::Transparent);
@@ -954,7 +944,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                 previewBorder.setOutlineThickness(1.f);
                 window.draw(previewBorder);
 
-                // Hover glow inside preview area
                 if (hovered)
                 {
                     DrawGradientRect(window, previewX, previewY, previewW, previewH,
@@ -962,20 +951,17 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                                      sf::Color(typeColor.r, typeColor.g, typeColor.b, 45));
                 }
 
-                // Draw unique procedural icon silhouette
                 float iconCX = previewX + previewW / 2.f;
                 float iconCY = previewY + previewH / 2.f;
                 float iconSize = 28.f;
 
                 DrawIconForType(window, entry.type, typeColor, iconCX, iconCY, iconSize);
 
-                // Folder content dots
                 if (entry.type == AssetType::Folder)
                 {
                     DrawFolderContentDots(window, entry.fullPath, iconCX, previewY + previewH - 6.f);
                 }
 
-                // Extension badge (bottom-right of preview area)
                 if (entry.type != AssetType::Folder)
                 {
                     std::string ext = ExtensionLabel(entry.fullPath, entry.type);
@@ -985,7 +971,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                 }
             }
 
-            // Name label
             sf::Text nameText;
             nameText.setFont(m_Font);
             nameText.setCharacterSize(10);
@@ -1001,7 +986,6 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             nameText.setPosition(ix + (cardW - nameText.getLocalBounds().width) / 2.f, drawY + 72.f);
             window.draw(nameText);
 
-            // Subtitle (Folder or file size)
             sf::Text subText;
             subText.setFont(m_Font);
             subText.setCharacterSize(8);
@@ -1457,11 +1441,9 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         const float ghostW = thumbSz + 4.f;
         const float ghostH = thumbSz + 22.f;
 
-        // Shadow
         DrawRoundedRect(window, ox + 3.f, oy + 3.f, ghostW, ghostH, 4.f,
                         sf::Color(0, 0, 0, 100));
 
-        // Card
         DrawRoundedRect(window, ox, oy, ghostW, ghostH, 4.f,
                         C_BG_ELEVATED, accent, 1.5f);
 
@@ -1502,15 +1484,12 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         if (gname.size() > 18) gname = gname.substr(0, 17) + "...";
         const float pw = 140.f, ph = 30.f;
 
-        // Shadow
         DrawRoundedRect(window, ox + 2.f, oy + 2.f, pw + 2.f, ph + 2.f, 6.f,
                         sf::Color(0, 0, 0, 80));
 
-        // Pill background
         DrawRoundedRect(window, ox, oy, pw, ph, 6.f,
                         C_BG_ELEVATED, accent, 1.5f);
 
-        // Draw mini icon silhouette instead of plain dot
         DrawIconForType(window, m_Drag.type, accent,
                         ox + 15.f, oy + ph / 2.f, 10.f);
 
@@ -1850,7 +1829,6 @@ AssetType ContentBrowser::TypeFromFile(const std::string &fullPath)
 
     if (e == ".json")
     {
-        // Read the first few lines to determine if it's a UI scene or regular scene
         std::ifstream file(fullPath);
         if (file.is_open())
         {
@@ -1880,7 +1858,7 @@ sf::Color ContentBrowser::ColorForType(AssetType type)
         case AssetType::Folder: return sf::Color(235, 190, 85);
         case AssetType::Script: return sf::Color(100, 215, 130);
         case AssetType::Scene: return sf::Color(90, 170, 255);
-        case AssetType::UIScene: return sf::Color(240, 100, 140); // A pink/magenta color for UI
+        case AssetType::UIScene: return sf::Color(240, 100, 140);
         case AssetType::Image: return sf::Color(215, 115, 230);
         case AssetType::Audio: return sf::Color(255, 145, 75);
         case AssetType::Font: return sf::Color(75, 220, 210);
@@ -1919,7 +1897,6 @@ std::string ContentBrowser::ExtensionLabel(const std::string &path, AssetType ty
 
     std::string ext = fs::path(path).extension().string();
     if (ext.empty()) return "";
-    // Remove leading dot and uppercase
     ext = ext.substr(1);
     std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
     return "." + ext;
@@ -1941,12 +1918,11 @@ void ContentBrowser::DrawRoundedRect(sf::RenderWindow &window, float x, float y,
     }
 
     radius = std::min(radius, std::min(w, h) / 2.f);
-    const int segments = 6; // segments per corner arc
+    const int segments = 6;
 
     sf::ConvexShape shape;
     shape.setPointCount(segments * 4);
 
-    // Top-right corner
     for (int i = 0; i < segments; ++i)
     {
         float angle = static_cast<float>(i) / static_cast<float>(segments - 1) * 90.f;
@@ -1956,7 +1932,6 @@ void ContentBrowser::DrawRoundedRect(sf::RenderWindow &window, float x, float y,
             y + radius - std::sin(rad) * radius
         ));
     }
-    // Top-left corner
     for (int i = 0; i < segments; ++i)
     {
         float angle = static_cast<float>(i) / static_cast<float>(segments - 1) * 90.f;
@@ -1966,7 +1941,6 @@ void ContentBrowser::DrawRoundedRect(sf::RenderWindow &window, float x, float y,
             y + radius - std::sin(rad) * radius
         ));
     }
-    // Bottom-left corner
     for (int i = 0; i < segments; ++i)
     {
         float angle = static_cast<float>(i) / static_cast<float>(segments - 1) * 90.f;
@@ -1976,7 +1950,6 @@ void ContentBrowser::DrawRoundedRect(sf::RenderWindow &window, float x, float y,
             y + h - radius - std::sin(rad) * radius
         ));
     }
-    // Bottom-right corner
     for (int i = 0; i < segments; ++i)
     {
         float angle = static_cast<float>(i) / static_cast<float>(segments - 1) * 90.f;
@@ -2027,13 +2000,11 @@ void ContentBrowser::DrawIconForType(sf::RenderWindow &window, AssetType type, s
 void ContentBrowser::DrawFolderIcon(sf::RenderWindow &window, sf::Color color,
                                     float cx, float cy, float size) const
 {
-    // Classic folder shape with tab
     float w = size * 1.3f;
     float h = size * 0.9f;
     float tabW = w * 0.4f;
     float tabH = h * 0.2f;
 
-    // Folder body (main rectangle)
     sf::ConvexShape body;
     body.setPointCount(4);
     body.setPoint(0, {cx - w / 2.f, cy - h / 2.f + tabH});
@@ -2045,7 +2016,6 @@ void ContentBrowser::DrawFolderIcon(sf::RenderWindow &window, sf::Color color,
     body.setOutlineThickness(1.5f);
     window.draw(body);
 
-    // Folder tab (top-left trapezoid)
     sf::ConvexShape tab;
     tab.setPointCount(4);
     tab.setPoint(0, {cx - w / 2.f, cy - h / 2.f});
@@ -2061,7 +2031,6 @@ void ContentBrowser::DrawFolderIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawScriptIcon(sf::RenderWindow &window, sf::Color color,
                                     float cx, float cy, float size) const
 {
-    // Curly braces { }
     sf::Text leftBrace;
     leftBrace.setFont(m_Font);
     leftBrace.setCharacterSize(static_cast<unsigned int>(size * 1.2f));
@@ -2082,7 +2051,6 @@ void ContentBrowser::DrawScriptIcon(sf::RenderWindow &window, sf::Color color,
     rightBrace.setPosition(cx + 3.f, cy - rb.height / 2.f - rb.top);
     window.draw(rightBrace);
 
-    // Small code lines between braces
     for (int i = 0; i < 3; ++i)
     {
         float lineW = (i == 1) ? size * 0.3f : size * 0.2f;
@@ -2097,11 +2065,9 @@ void ContentBrowser::DrawScriptIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawSceneIcon(sf::RenderWindow &window, sf::Color color,
                                    float cx, float cy, float size) const
 {
-    // Layer stack / film clapperboard style
     float w = size * 1.1f;
     float h = size * 0.7f;
 
-    // Back layer (offset)
     sf::RectangleShape backLayer({w, h});
     backLayer.setPosition(cx - w / 2.f + 3.f, cy - h / 2.f - 3.f);
     backLayer.setFillColor(sf::Color(color.r, color.g, color.b, 30));
@@ -2109,7 +2075,6 @@ void ContentBrowser::DrawSceneIcon(sf::RenderWindow &window, sf::Color color,
     backLayer.setOutlineThickness(1.f);
     window.draw(backLayer);
 
-    // Middle layer
     sf::RectangleShape midLayer({w, h});
     midLayer.setPosition(cx - w / 2.f + 1.5f, cy - h / 2.f - 1.5f);
     midLayer.setFillColor(sf::Color(color.r, color.g, color.b, 40));
@@ -2117,7 +2082,6 @@ void ContentBrowser::DrawSceneIcon(sf::RenderWindow &window, sf::Color color,
     midLayer.setOutlineThickness(1.f);
     window.draw(midLayer);
 
-    // Front layer
     sf::RectangleShape frontLayer({w, h});
     frontLayer.setPosition(cx - w / 2.f, cy - h / 2.f);
     frontLayer.setFillColor(sf::Color(color.r, color.g, color.b, 60));
@@ -2125,7 +2089,6 @@ void ContentBrowser::DrawSceneIcon(sf::RenderWindow &window, sf::Color color,
     frontLayer.setOutlineThickness(1.5f);
     window.draw(frontLayer);
 
-    // Play triangle in center of front layer
     float triSize = size * 0.25f;
     sf::ConvexShape triangle;
     triangle.setPointCount(3);
@@ -2139,11 +2102,9 @@ void ContentBrowser::DrawSceneIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawUISceneIcon(sf::RenderWindow &window, sf::Color color,
                                      float cx, float cy, float size) const
 {
-    // Window/UI Layout icon
     float w = size * 1.2f;
     float h = size * 0.9f;
 
-    // Main window background
     sf::RectangleShape windowBg({w, h});
     windowBg.setPosition(cx - w / 2.f, cy - h / 2.f);
     windowBg.setFillColor(sf::Color(color.r, color.g, color.b, 40));
@@ -2151,26 +2112,21 @@ void ContentBrowser::DrawUISceneIcon(sf::RenderWindow &window, sf::Color color,
     windowBg.setOutlineThickness(1.5f);
     window.draw(windowBg);
 
-    // Window title bar
     sf::RectangleShape titleBar({w, h * 0.25f});
     titleBar.setPosition(cx - w / 2.f, cy - h / 2.f);
     titleBar.setFillColor(sf::Color(color.r, color.g, color.b, 100));
     window.draw(titleBar);
 
-    // Inner UI elements (a sidebar and a content area)
-    // Sidebar
     sf::RectangleShape sidebar({w * 0.25f, h * 0.55f});
     sidebar.setPosition(cx - w / 2.f + w * 0.1f, cy - h / 2.f + h * 0.35f);
     sidebar.setFillColor(sf::Color(color.r, color.g, color.b, 80));
     window.draw(sidebar);
 
-    // Content area / Button
     sf::RectangleShape contentArea({w * 0.45f, h * 0.25f});
     contentArea.setPosition(cx - w / 2.f + w * 0.45f, cy - h / 2.f + h * 0.35f);
     contentArea.setFillColor(sf::Color(color.r, color.g, color.b, 120));
     window.draw(contentArea);
     
-    // Checkbox or slider
     sf::RectangleShape bottomArea({w * 0.45f, h * 0.15f});
     bottomArea.setPosition(cx - w / 2.f + w * 0.45f, cy - h / 2.f + h * 0.7f);
     bottomArea.setFillColor(sf::Color(color.r, color.g, color.b, 80));
@@ -2180,11 +2136,9 @@ void ContentBrowser::DrawUISceneIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawAudioIcon(sf::RenderWindow &window, sf::Color color,
                                    float cx, float cy, float size) const
 {
-    // Music note symbol
     float noteHeadR = size * 0.22f;
     float stemH = size * 0.7f;
 
-    // Note head (filled ellipse approximated by circle)
     sf::CircleShape noteHead(noteHeadR);
     noteHead.setOrigin(noteHeadR, noteHeadR);
     noteHead.setScale(1.3f, 1.f);
@@ -2192,13 +2146,11 @@ void ContentBrowser::DrawAudioIcon(sf::RenderWindow &window, sf::Color color,
     noteHead.setFillColor(color);
     window.draw(noteHead);
 
-    // Stem
     sf::RectangleShape stem({2.f, stemH});
     stem.setPosition(cx - size * 0.1f + noteHeadR * 1.3f - 2.f, cy + size * 0.2f - stemH);
     stem.setFillColor(color);
     window.draw(stem);
 
-    // Flag (small curve at top of stem)
     float flagX = cx - size * 0.1f + noteHeadR * 1.3f;
     float flagY = cy + size * 0.2f - stemH;
     sf::ConvexShape flag;
@@ -2210,7 +2162,6 @@ void ContentBrowser::DrawAudioIcon(sf::RenderWindow &window, sf::Color color,
     flag.setFillColor(sf::Color(color.r, color.g, color.b, 180));
     window.draw(flag);
 
-    // Sound wave arcs (small lines to the right)
     for (int i = 1; i <= 2; ++i)
     {
         float arcX = cx + size * 0.3f + i * 4.f;
@@ -2225,7 +2176,6 @@ void ContentBrowser::DrawAudioIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawFontIcon(sf::RenderWindow &window, sf::Color color,
                                   float cx, float cy, float size) const
 {
-    // Large "Aa" text
     sf::Text fontText;
     fontText.setFont(m_Font);
     fontText.setCharacterSize(static_cast<unsigned int>(size * 1.0f));
@@ -2236,7 +2186,6 @@ void ContentBrowser::DrawFontIcon(sf::RenderWindow &window, sf::Color color,
     fontText.setPosition(cx - bounds.width / 2.f - bounds.left, cy - bounds.height / 2.f - bounds.top);
     window.draw(fontText);
 
-    // Underline decoration
     sf::RectangleShape underline({bounds.width + 6.f, 2.f});
     underline.setPosition(cx - bounds.width / 2.f - 3.f, cy + bounds.height / 2.f + 3.f);
     underline.setFillColor(sf::Color(color.r, color.g, color.b, 120));
@@ -2246,11 +2195,9 @@ void ContentBrowser::DrawFontIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawImageIcon(sf::RenderWindow &window, sf::Color color,
                                    float cx, float cy, float size) const
 {
-    // Mountain/landscape icon (photo symbol)
     float w = size * 1.2f;
     float h = size * 0.85f;
 
-    // Frame
     sf::RectangleShape frame({w, h});
     frame.setPosition(cx - w / 2.f, cy - h / 2.f);
     frame.setFillColor(sf::Color(color.r, color.g, color.b, 40));
@@ -2258,7 +2205,6 @@ void ContentBrowser::DrawImageIcon(sf::RenderWindow &window, sf::Color color,
     frame.setOutlineThickness(1.5f);
     window.draw(frame);
 
-    // Mountain silhouette
     sf::ConvexShape mountain;
     mountain.setPointCount(5);
     float baseY = cy + h / 2.f - 2.f;
@@ -2270,7 +2216,6 @@ void ContentBrowser::DrawImageIcon(sf::RenderWindow &window, sf::Color color,
     mountain.setFillColor(sf::Color(color.r, color.g, color.b, 100));
     window.draw(mountain);
 
-    // Sun circle (top-right)
     sf::CircleShape sun(size * 0.1f);
     sun.setOrigin(size * 0.1f, size * 0.1f);
     sun.setPosition(cx + w / 2.f - size * 0.35f, cy - h / 2.f + size * 0.25f);
@@ -2281,7 +2226,6 @@ void ContentBrowser::DrawImageIcon(sf::RenderWindow &window, sf::Color color,
 void ContentBrowser::DrawUnknownIcon(sf::RenderWindow &window, sf::Color color,
                                      float cx, float cy, float size) const
 {
-    // Generic document with dog-ear
     float w = size * 0.85f;
     float h = size * 1.1f;
     float ear = size * 0.25f;
@@ -2298,7 +2242,6 @@ void ContentBrowser::DrawUnknownIcon(sf::RenderWindow &window, sf::Color color,
     doc.setOutlineThickness(1.5f);
     window.draw(doc);
 
-    // Dog-ear fold
     sf::ConvexShape fold;
     fold.setPointCount(3);
     fold.setPoint(0, {cx + w / 2.f - ear, cy - h / 2.f});
@@ -2309,7 +2252,6 @@ void ContentBrowser::DrawUnknownIcon(sf::RenderWindow &window, sf::Color color,
     fold.setOutlineThickness(1.f);
     window.draw(fold);
 
-    // Content lines
     for (int i = 0; i < 3; ++i)
     {
         float lineW = w * (0.5f - i * 0.08f);
@@ -2337,7 +2279,6 @@ void ContentBrowser::DrawExtensionBadge(sf::RenderWindow &window, const std::str
     float badgeX = cardRight - badgeW;
     float badgeY = cardBottom - badgeH + 2.f;
 
-    // Badge background
     DrawRoundedRect(window, badgeX, badgeY, badgeW, badgeH, 3.f,
                     sf::Color(color.r, color.g, color.b, 200));
 
@@ -2381,13 +2322,12 @@ std::set<AssetType> ContentBrowser::GetFolderContentTypes(const std::string &fol
         if (ec) break;
         if (entry.is_directory(ec))
         {
-            // Don't add folder type as a content indicator
             ec.clear();
             continue;
         }
         AssetType t = TypeFromFile(entry.path().string());
         types.insert(t);
-        if (types.size() >= 5) break; // Cap at 5 dots max
+        if (types.size() >= 5) break;
     }
 
     return types;
