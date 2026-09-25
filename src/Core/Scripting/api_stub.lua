@@ -634,4 +634,27 @@ function UI_SetOutline(id, r, g, b, a, thickness) end
 ---Sets whether a Button element is disabled. Disabled buttons cannot be hovered or clicked and use the disabled color.
 ---@param id string The ID of the button.
 ---@param disabled boolean True to disable, false to enable.
-function UI_SetDisabled(id, disabled) end
+function UI_SetDisabled(id, disabled) end
+
+---@class RaycastResult
+---@field hit boolean
+---@field entity Entity
+---@field pointX number
+---@field pointY number
+---@field normalX number
+---@field normalY number
+---@field distance number
+RaycastResult = {}
+
+---@class Physics
+Physics = {}
+
+---Casts a ray into the scene and returns the closest hit
+---@param startX number
+---@param startY number
+---@param dirX number
+---@param dirY number
+---@param distance number
+---@param channel? integer
+---@return RaycastResult
+function Physics.Raycast(startX, startY, dirX, dirY, distance, channel) end

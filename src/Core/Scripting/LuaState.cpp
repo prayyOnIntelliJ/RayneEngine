@@ -1,9 +1,10 @@
-﻿#include "LuaState.h"
+#include "LuaState.h"
 
 #include <iostream>
 
 #include "../ECS/Components.h"
 #include "../ECS/Registry.h"
+#include "../ECS/PhysicsSystem.h"
 #include "../Input/InputManager.h"
 #include "../Math/MathR.h"
 #include "../Resources/ResourceManager.h"
@@ -453,6 +454,7 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
 
+    PhysicsSystem::RegisterLua(s_Lua, registry);
 }
 
 sol::state &LuaState::GetLua() { return s_Lua; }

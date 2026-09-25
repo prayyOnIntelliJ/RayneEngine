@@ -101,6 +101,8 @@ add_executable(RayneEngine
         src/Core/Scenes/SceneSerializer.h
         src/Core/UI/UIManager.cpp
         src/Core/UI/UIManager.h
+        src/Core/ECS/PhysicsSystem.cpp
+        src/Core/ECS/PhysicsSystem.h
 )
 
 target_link_libraries(RayneEngine
@@ -210,6 +212,8 @@ add_executable(RayneGame
         src/Core/Scenes/SceneSerializer.h
         src/Core/UI/UIManager.cpp
         src/Core/UI/UIManager.h
+        src/Core/ECS/PhysicsSystem.cpp
+        src/Core/ECS/PhysicsSystem.h
 )
 
 target_link_libraries(RayneGame PRIVATE
