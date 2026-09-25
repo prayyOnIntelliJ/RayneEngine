@@ -47,22 +47,25 @@ public:
     template<typename... Components, typename Func>
     void ForEach(Func &&func)
     {
-        for (Entity entity: GetView<Components...>())
-            func(entity, GetComponent<Components>(entity)...);
+        auto view = GetView<Components...>();
+        auto pools = std::make_tuple(GetPool<Components>().get()...);
+        for (Entity entity : view)
+            func(entity, std::get<Pool<Components>*>(pools)->Get(entity)...);
     }
 
 private:
     template<typename T>
-    std::shared_ptr<Pool<T> > GetPool()
+    std::shared_ptr<Pool<T>> GetPool()
     {
         const auto typeIndex = std::type_index(typeid(T));
-
-        if (m_ComponentPools.find(typeIndex) == m_ComponentPools.end())
+        auto it = m_ComponentPools.find(typeIndex);
+        if (it == m_ComponentPools.end())
         {
-            m_ComponentPools[typeIndex] = std::make_shared<Pool<T> >();
+            auto pool = std::make_shared<Pool<T>>();
+            m_ComponentPools[typeIndex] = pool;
+            return pool;
         }
-
-        return std::static_pointer_cast<Pool<T> >(m_ComponentPools[typeIndex]);
+        return std::static_pointer_cast<Pool<T>>(it->second);
     }
 };
 

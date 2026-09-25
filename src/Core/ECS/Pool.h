@@ -33,7 +33,7 @@ public:
         if (Has(e)) return Get(e);
 
         entityToIndex[e] = data.size();
-        data.push_back(component);
+        data.push_back(std::move(component));
         entities.push_back(e);
 
         return data.back();
@@ -46,11 +46,12 @@ public:
         size_t indexToRemove = entityToIndex[e];
         size_t lastIndex = data.size() - 1;
 
-        data[indexToRemove] = data[lastIndex];
-        entities[indexToRemove] = entities[lastIndex];
-
-        const Entity entityThatMoved = entities[lastIndex];
-        entityToIndex[entityThatMoved] = indexToRemove;
+        if (indexToRemove != lastIndex)
+        {
+            data[indexToRemove] = std::move(data[lastIndex]);
+            entities[indexToRemove] = entities[lastIndex];
+            entityToIndex[entities[indexToRemove]] = indexToRemove;
+        }
 
         data.pop_back();
         entities.pop_back();
