@@ -180,15 +180,6 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
     std::filesystem::path projRoot = FindProjectRoot();
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, (projRoot / "assets").string());
-#ifdef _WIN32
-    if (!std::filesystem::exists(projRoot / "CMakeLists.txt"))
-    {
-        SetPathReadOnly(projRoot / "engine_content", true);
-        SetPathReadOnly(projRoot / "templates", true);
-        if (std::filesystem::exists(projRoot / "assets" / "scripting"))
-            SetPathReadOnly(projRoot / "assets" / "scripting", true);
-    }
-#endif
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         this->LoadFromJson(path);
