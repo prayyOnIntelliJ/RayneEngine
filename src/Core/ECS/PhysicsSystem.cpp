@@ -60,7 +60,6 @@ RaycastResult PhysicsSystem::Raycast(Registry& registry, float startX, float sta
     closest.hit = false;
     closest.distance = distance;
 
-    // Normalize direction
     float len = std::sqrt(dirX * dirX + dirY * dirY);
     if (len > 0.0f) {
         dirX /= len;
@@ -69,7 +68,6 @@ RaycastResult PhysicsSystem::Raycast(Registry& registry, float startX, float sta
         return closest;
     }
 
-    // We check against all entities that have a Transform and a Collision component
     registry.ForEach<TransformComponent, CollisionComponent>(
         [&](Entity e, TransformComponent& t, CollisionComponent& col) {
             if (channel != -1 && col.channel != channel) return;
@@ -84,7 +82,7 @@ RaycastResult PhysicsSystem::Raycast(Registry& registry, float startX, float sta
                 w = s.size.x;
                 h = s.size.y;
             } else {
-                return; // No size to collide against
+                return;
             }
 
             float hit_t = 0.0f;
