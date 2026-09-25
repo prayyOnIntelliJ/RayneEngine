@@ -28,15 +28,12 @@ public:
                 if (m_Tasks[i].callback.valid()) {
                     cb = std::move(m_Tasks[i].callback);
                 }
-                // Swap-and-pop: O(1) removal instead of O(n) erase
                 if (i < m_Tasks.size() - 1) {
                     m_Tasks[i] = std::move(m_Tasks.back());
                 }
                 m_Tasks.pop_back();
-                // Execute callback after removal to handle re-entrant After() calls
                 if (cb.valid()) cb();
                 if (m_Tasks.empty()) break;
-                // Don't increment i, re-check the swapped element
             } else {
                 ++i;
             }

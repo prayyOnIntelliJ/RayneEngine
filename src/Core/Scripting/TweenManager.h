@@ -52,7 +52,6 @@ public:
             }
             
             if (task.elapsed >= task.duration) {
-                // Swap-and-pop: O(1) removal
                 if (i < m_Tasks.size() - 1) {
                     m_Tasks[i] = std::move(m_Tasks.back());
                 }
