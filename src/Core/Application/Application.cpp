@@ -154,7 +154,7 @@ void Application::RunSplashSequence()
 {
     SplashScreen splash(m_RenderWindow);
     splash.Init(
-        std::string(ENGINE_ASSET_PATH) + "/window/splash.jpg",
+        std::string(ENGINE_ASSET_PATH) + "/window/rayne_icon.png",
         std::string(ENGINE_ASSET_PATH) + "/fonts/Merriweather.ttf",
         m_ProjectName,
 #ifdef RAYNE_STANDALONE
