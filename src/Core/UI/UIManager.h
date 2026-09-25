@@ -188,6 +188,10 @@ private:
     std::shared_ptr<sf::Font> m_DefaultFont;
     std::string m_LastClickedButton;
     std::string m_CurrentUIPath;
+    bool m_SortDirty = true;
+    std::vector<UIElement*> m_SortedUpdateOrder;
+    std::vector<const UIElement*> m_SortedRenderOrder;
+    void RebuildSortedCaches();
 };
 
 #endif

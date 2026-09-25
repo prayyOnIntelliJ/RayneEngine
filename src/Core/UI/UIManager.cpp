@@ -162,13 +162,10 @@ void UIManager::Init(std::shared_ptr<sf::Font> defaultFont) { m_DefaultFont = de
 
 void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool mouseReleased)
 {
-    std::vector<UIElement *> sortedElements;
-    sortedElements.reserve(m_Elements.size());
-    for (auto &el: m_Elements) sortedElements.push_back(&el);
-
-    std::stable_sort(sortedElements.begin(), sortedElements.end(), [](const UIElement *a, const UIElement *b) {
-        return a->zIndex > b->zIndex;
-    });
+    if (m_SortDirty) {
+        RebuildSortedCaches();
+    }
+    auto& sortedElements = m_SortedUpdateOrder;
 
     bool buttonHit = false;
     
@@ -270,13 +267,10 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
 
 void UIManager::Render(sf::RenderWindow &window)
 {
-    std::vector<const UIElement *> sortedElements;
-    sortedElements.reserve(m_Elements.size());
-    for (const auto &el: m_Elements) sortedElements.push_back(&el);
-
-    std::stable_sort(sortedElements.begin(), sortedElements.end(), [](const UIElement *a, const UIElement *b) {
-        return a->zIndex < b->zIndex;
-    });
+    if (m_SortDirty) {
+        RebuildSortedCaches();
+    }
+    const auto& sortedElements = m_SortedRenderOrder;
 
     for (const auto *el: sortedElements)
     {
@@ -689,6 +683,7 @@ void UIManager::Load(const std::string &path)
         el.UpdateDrawables();
         m_Elements.push_back(el);
     }
+    m_SortDirty = true;
 }
 
 
@@ -708,12 +703,14 @@ UIElement *UIManager::CreateElement(const std::string &id, UIElementType type)
     }
     el.UpdateDrawables();
     m_Elements.push_back(el);
+    m_SortDirty = true;
     return &m_Elements.back();
 }
 
 void UIManager::RemoveElement(const std::string &id)
 {
     std::erase_if(m_Elements, [&](const UIElement &e) { return e.id == id; });
+    m_SortDirty = true;
 }
 
 UIElement *UIManager::GetElement(const std::string &id)
@@ -764,7 +761,7 @@ void UIManager::SetColor(const std::string &id, int r, int g, int b, int a)
     }
 }
 
-void UIManager::SetZIndex(const std::string &id, int z) { if (auto *el = GetElement(id)) { el->zIndex = z; } }
+void UIManager::SetZIndex(const std::string &id, int z) { if (auto *el = GetElement(id)) { el->zIndex = z; m_SortDirty = true; } }
 
 int UIManager::GetZIndex(const std::string &id)
 {
@@ -917,3 +914,20 @@ bool UIManager::IsButtonHovered(const std::string &id)
     return false;
 }
 
+
+void UIManager::RebuildSortedCaches()
+{
+    m_SortedUpdateOrder.clear();
+    m_SortedUpdateOrder.reserve(m_Elements.size());
+    for (auto &el: m_Elements) m_SortedUpdateOrder.push_back(&el);
+    std::stable_sort(m_SortedUpdateOrder.begin(), m_SortedUpdateOrder.end(), [](const UIElement *a, const UIElement *b) {
+        return a->zIndex > b->zIndex;
+    });
+    m_SortedRenderOrder.clear();
+    m_SortedRenderOrder.reserve(m_Elements.size());
+    for (const auto &el: m_Elements) m_SortedRenderOrder.push_back(&el);
+    std::stable_sort(m_SortedRenderOrder.begin(), m_SortedRenderOrder.end(), [](const UIElement *a, const UIElement *b) {
+        return a->zIndex < b->zIndex;
+    });
+    m_SortDirty = false;
+}
