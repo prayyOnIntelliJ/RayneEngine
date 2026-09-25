@@ -47,7 +47,36 @@ static std::string OpenImageFileDialog(HWND hwnd)
     }
     return "";
 }
+
+static bool OpenColorPickerDialog(sf::Color &ioColor, HWND hwnd = nullptr)
+{
+    static COLORREF customColors[16] = {0};
+    CHOOSECOLORA cc;
+    ZeroMemory(&cc, sizeof(cc));
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hwnd;
+    cc.lpCustColors = customColors;
+    cc.rgbResult = RGB(ioColor.r, ioColor.g, ioColor.b);
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+
+    if (ChooseColorA(&cc))
+    {
+        ioColor.r = GetRValue(cc.rgbResult);
+        ioColor.g = GetGValue(cc.rgbResult);
+        ioColor.b = GetBValue(cc.rgbResult);
+        return true;
+    }
+    return false;
+}
 #endif
+
+static std::string FormatFloat(float value, int precision = 2)
+{
+    if (std::abs(value) < 1e-6f) value = 0.0f;
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.*f", precision, value);
+    return std::string(buf);
+}
 
 static std::shared_ptr<sf::Texture> LoadTextureRobust(const std::string &path)
 {
@@ -1266,6 +1295,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string colorHeader = (m_SelectedElement->type == UIElementType::Image) ? "TINT COLOR" : "BG COLOR";
         y += 6.f;
         y = DrawSectionHeader(window, colorHeader, sf::Color(200, 200, 255), px, y);
+        y = DrawColorPickerRow(window, "Color", m_SelectedElement->color, "pick_color_main", px, y);
 
         std::string rDisplay = (m_ActiveField == EditField::ColorR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(m_SelectedElement->color.r));
         y = DrawEditableRow(window, "R", rDisplay, "edit_r", px, y);
@@ -1282,6 +1312,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 
         y += 6.f;
         y = DrawSectionHeader(window, "OUTLINE", sf::Color(180, 180, 180), px, y);
+        y = DrawColorPickerRow(window, "Outline Col", m_SelectedElement->outlineColor, "pick_color_outline", px, y);
         std::string outRDisplay = (m_ActiveField == EditField::OutlineR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::OutlineR ? "|" : std::to_string(m_SelectedElement->outlineColor.r));
         y = DrawEditableRow(window, "Outline R", outRDisplay, "edit_outline_r", px, y);
         std::string outGDisplay = (m_ActiveField == EditField::OutlineG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::OutlineG ? "|" : std::to_string(m_SelectedElement->outlineColor.g));
@@ -1333,13 +1364,14 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 
             std::string lsDisplay = (m_ActiveField == EditField::LetterSpacing && !m_ActiveInputText.empty())
                                         ? m_ActiveInputText + "|"
-                                        : (m_ActiveField == EditField::LetterSpacing ? "|" : std::to_string(m_SelectedElement->letterSpacing).substr(0,4));
+                                        : (m_ActiveField == EditField::LetterSpacing ? "|" : FormatFloat(m_SelectedElement->letterSpacing, 2));
             y = DrawEditableRow(window, "Ltr Spacing", lsDisplay, "edit_letterspacing", px, y);
             std::string lineDisplay = (m_ActiveField == EditField::LineSpacing && !m_ActiveInputText.empty())
                                           ? m_ActiveInputText + "|"
-                                          : (m_ActiveField == EditField::LineSpacing ? "|" : std::to_string(m_SelectedElement->lineSpacing).substr(0,4));
+                                          : (m_ActiveField == EditField::LineSpacing ? "|" : FormatFloat(m_SelectedElement->lineSpacing, 2));
             y = DrawEditableRow(window, "Line Spacing", lineDisplay, "edit_linespacing", px, y);
 
+            y = DrawColorPickerRow(window, "TxtOut Col", m_SelectedElement->textOutlineColor, "pick_color_textoutline", px, y);
             std::string toRDisplay = (m_ActiveField == EditField::TextOutlineR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextOutlineR ? "|" : std::to_string(m_SelectedElement->textOutlineColor.r));
             y = DrawEditableRow(window, "TxtOut R", toRDisplay, "edit_textoutline_r", px, y);
             std::string toGDisplay = (m_ActiveField == EditField::TextOutlineG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextOutlineG ? "|" : std::to_string(m_SelectedElement->textOutlineColor.g));
@@ -1355,6 +1387,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
             y = DrawEditableRow(window, "Offset Y", tyDisplay, "edit_textoffset_y", px, y);
         }
 
+        y = DrawColorPickerRow(window, "Text Col", m_SelectedElement->textColor, "pick_color_text", px, y);
         std::string tcRDisplay = (m_ActiveField == EditField::TextColorR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextColorR ? "|" : std::to_string(m_SelectedElement->textColor.r));
         y = DrawEditableRow(window, "Text R", tcRDisplay, "edit_textcolor_r", px, y);
         std::string tcGDisplay = (m_ActiveField == EditField::TextColorG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextColorG ? "|" : std::to_string(m_SelectedElement->textColor.g));
@@ -1368,6 +1401,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 10.f;
         y = DrawSectionHeader(window, "INPUT FIELD STYLE", sf::Color(100, 220, 255), px, y);
 
+        y = DrawColorPickerRow(window, "Bg Col", m_SelectedElement->normalColor, "pick_color_normal", px, y);
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
         y = DrawEditableRow(window, "Bg R", nrDisplay, "edit_normalr", px, y);
         std::string ngDisplay = (m_ActiveField == EditField::NormalG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalG ? "|" : std::to_string(m_SelectedElement->normalColor.g));
@@ -1375,6 +1409,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string nbDisplay = (m_ActiveField == EditField::NormalB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalB ? "|" : std::to_string(m_SelectedElement->normalColor.b));
         y = DrawEditableRow(window, "Bg B", nbDisplay, "edit_normalb", px, y);
 
+        y = DrawColorPickerRow(window, "Focus Col", m_SelectedElement->pressedColor, "pick_color_pressed", px, y);
         std::string prDisplay = (m_ActiveField == EditField::PressedR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedR ? "|" : std::to_string(m_SelectedElement->pressedColor.r));
         y = DrawEditableRow(window, "Focus R", prDisplay, "edit_pressedr", px, y);
         std::string pgDisplay = (m_ActiveField == EditField::PressedG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedG ? "|" : std::to_string(m_SelectedElement->pressedColor.g));
@@ -1382,6 +1417,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string pbDisplay = (m_ActiveField == EditField::PressedB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedB ? "|" : std::to_string(m_SelectedElement->pressedColor.b));
         y = DrawEditableRow(window, "Focus B", pbDisplay, "edit_pressedb", px, y);
 
+        y = DrawColorPickerRow(window, "Border Col", m_SelectedElement->borderColor, "pick_color_border", px, y);
         std::string brDisplay = (m_ActiveField == EditField::BorderR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderR ? "|" : std::to_string(m_SelectedElement->borderColor.r));
         y = DrawEditableRow(window, "Border R", brDisplay, "edit_borderr", px, y);
         std::string bgDisplay = (m_ActiveField == EditField::BorderG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderG ? "|" : std::to_string(m_SelectedElement->borderColor.g));
@@ -1402,6 +1438,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawTextureSlot(window, "Pressed Tex", m_SelectedElement->pressedTexturePath, "edit_pressedtexturepath", "clear_pressedtexture", "browse_pressedtexture", px, y);
         y += 4.f;
 
+        y = DrawColorPickerRow(window, "Normal Col", m_SelectedElement->normalColor, "pick_color_normal", px, y);
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
         y = DrawEditableRow(window, "Normal R", nrDisplay, "edit_normalr", px, y);
         std::string ngDisplay = (m_ActiveField == EditField::NormalG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalG ? "|" : std::to_string(m_SelectedElement->normalColor.g));
@@ -1409,6 +1446,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string nbDisplay = (m_ActiveField == EditField::NormalB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalB ? "|" : std::to_string(m_SelectedElement->normalColor.b));
         y = DrawEditableRow(window, "Normal B", nbDisplay, "edit_normalb", px, y);
 
+        y = DrawColorPickerRow(window, "Hover Col", m_SelectedElement->hoverColor, "pick_color_hover", px, y);
         std::string hrDisplay = (m_ActiveField == EditField::HoverR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::HoverR ? "|" : std::to_string(m_SelectedElement->hoverColor.r));
         y = DrawEditableRow(window, "Hover R", hrDisplay, "edit_hoverr", px, y);
         std::string hgDisplay = (m_ActiveField == EditField::HoverG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::HoverG ? "|" : std::to_string(m_SelectedElement->hoverColor.g));
@@ -1416,6 +1454,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string hbDisplay = (m_ActiveField == EditField::HoverB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::HoverB ? "|" : std::to_string(m_SelectedElement->hoverColor.b));
         y = DrawEditableRow(window, "Hover B", hbDisplay, "edit_hoverb", px, y);
 
+        y = DrawColorPickerRow(window, "Pressed Col", m_SelectedElement->pressedColor, "pick_color_pressed", px, y);
         std::string prDisplay = (m_ActiveField == EditField::PressedR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedR ? "|" : std::to_string(m_SelectedElement->pressedColor.r));
         y = DrawEditableRow(window, "Pressed R", prDisplay, "edit_pressedr", px, y);
         std::string pgDisplay = (m_ActiveField == EditField::PressedG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedG ? "|" : std::to_string(m_SelectedElement->pressedColor.g));
@@ -1423,6 +1462,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string pbDisplay = (m_ActiveField == EditField::PressedB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::PressedB ? "|" : std::to_string(m_SelectedElement->pressedColor.b));
         y = DrawEditableRow(window, "Pressed B", pbDisplay, "edit_pressedb", px, y);
 
+        y = DrawColorPickerRow(window, "Border Col", m_SelectedElement->borderColor, "pick_color_border", px, y);
         std::string brDisplay = (m_ActiveField == EditField::BorderR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderR ? "|" : std::to_string(m_SelectedElement->borderColor.r));
         y = DrawEditableRow(window, "Border R", brDisplay, "edit_borderr", px, y);
         std::string bgDisplay = (m_ActiveField == EditField::BorderG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderG ? "|" : std::to_string(m_SelectedElement->borderColor.g));
@@ -1458,6 +1498,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawTextureSlot(window, "Checked", m_SelectedElement->checkedTexturePath, "edit_checkedtexturepath", "clear_checkedtexture", "browse_checkedtexture", px, y);
 
         y += 6.f;
+        y = DrawColorPickerRow(window, "Box Col", m_SelectedElement->normalColor, "pick_color_normal", px, y);
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
         y = DrawEditableRow(window, "Box R", nrDisplay, "edit_normalr", px, y);
         std::string ngDisplay = (m_ActiveField == EditField::NormalG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalG ? "|" : std::to_string(m_SelectedElement->normalColor.g));
@@ -1465,6 +1506,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string nbDisplay = (m_ActiveField == EditField::NormalB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalB ? "|" : std::to_string(m_SelectedElement->normalColor.b));
         y = DrawEditableRow(window, "Box B", nbDisplay, "edit_normalb", px, y);
 
+        y = DrawColorPickerRow(window, "Check Col", m_SelectedElement->textColor, "pick_color_text", px, y);
         std::string tcRDisplay = (m_ActiveField == EditField::TextColorR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextColorR ? "|" : std::to_string(m_SelectedElement->textColor.r));
         y = DrawEditableRow(window, "Check R", tcRDisplay, "edit_textcolor_r", px, y);
         std::string tcGDisplay = (m_ActiveField == EditField::TextColorG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextColorG ? "|" : std::to_string(m_SelectedElement->textColor.g));
@@ -1472,6 +1514,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string tcBDisplay = (m_ActiveField == EditField::TextColorB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::TextColorB ? "|" : std::to_string(m_SelectedElement->textColor.b));
         y = DrawEditableRow(window, "Check B", tcBDisplay, "edit_textcolor_b", px, y);
 
+        y = DrawColorPickerRow(window, "Border Col", m_SelectedElement->borderColor, "pick_color_border", px, y);
         std::string brDisplay = (m_ActiveField == EditField::BorderR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderR ? "|" : std::to_string(m_SelectedElement->borderColor.r));
         y = DrawEditableRow(window, "Border R", brDisplay, "edit_borderr", px, y);
         std::string bgDisplay = (m_ActiveField == EditField::BorderG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::BorderG ? "|" : std::to_string(m_SelectedElement->borderColor.g));
@@ -1487,16 +1530,17 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 10.f;
         y = DrawSectionHeader(window, "SLIDER", sf::Color(100, 200, 255), px, y);
 
-        std::string svDisplay = (m_ActiveField == EditField::SliderValue && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderValue ? "|" : std::to_string(m_SelectedElement->sliderValue));
+        std::string svDisplay = (m_ActiveField == EditField::SliderValue && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderValue ? "|" : FormatFloat(m_SelectedElement->sliderValue, 2));
         y = DrawEditableRow(window, "Value", svDisplay, "edit_slidervalue", px, y);
-        std::string smDisplay = (m_ActiveField == EditField::SliderMin && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderMin ? "|" : std::to_string(m_SelectedElement->sliderMin));
+        std::string smDisplay = (m_ActiveField == EditField::SliderMin && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderMin ? "|" : FormatFloat(m_SelectedElement->sliderMin, 2));
         y = DrawEditableRow(window, "Min", smDisplay, "edit_slidermin", px, y);
-        std::string smaxDisplay = (m_ActiveField == EditField::SliderMax && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderMax ? "|" : std::to_string(m_SelectedElement->sliderMax));
+        std::string smaxDisplay = (m_ActiveField == EditField::SliderMax && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::SliderMax ? "|" : FormatFloat(m_SelectedElement->sliderMax, 2));
         y = DrawEditableRow(window, "Max", smaxDisplay, "edit_slidermax", px, y);
 
         y = DrawTextureSlot(window, "Track", m_SelectedElement->texturePath, "edit_texturepath", "clear_texture", "browse_texture", px, y);
         y = DrawTextureSlot(window, "Knob", m_SelectedElement->knobTexturePath, "edit_knobtexturepath", "clear_knobtexture", "browse_knobtexture", px, y);
 
+        y = DrawColorPickerRow(window, "Track Col", m_SelectedElement->color, "pick_color_main", px, y);
         std::string rDisplay = (m_ActiveField == EditField::ColorR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(m_SelectedElement->color.r));
         y = DrawEditableRow(window, "Track R", rDisplay, "edit_r", px, y);
         std::string gDisplay = (m_ActiveField == EditField::ColorG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorG ? "|" : std::to_string(m_SelectedElement->color.g));
@@ -1504,6 +1548,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string bDisplay = (m_ActiveField == EditField::ColorB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_SelectedElement->color.b));
         y = DrawEditableRow(window, "Track B", bDisplay, "edit_b", px, y);
 
+        y = DrawColorPickerRow(window, "Knob Col", m_SelectedElement->normalColor, "pick_color_normal", px, y);
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
         y = DrawEditableRow(window, "Knob R", nrDisplay, "edit_normalr", px, y);
         std::string ngDisplay = (m_ActiveField == EditField::NormalG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalG ? "|" : std::to_string(m_SelectedElement->normalColor.g));
@@ -1517,14 +1562,15 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         y += 10.f;
         y = DrawSectionHeader(window, "PROGRESS BAR", sf::Color(255, 100, 255), px, y);
 
-        std::string pvDisplay = (m_ActiveField == EditField::ProgressValue && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ProgressValue ? "|" : std::to_string(m_SelectedElement->progressValue));
+        std::string pvDisplay = (m_ActiveField == EditField::ProgressValue && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ProgressValue ? "|" : FormatFloat(m_SelectedElement->progressValue, 2));
         y = DrawEditableRow(window, "Progress", pvDisplay, "edit_progressvalue", px, y);
-        std::string pmaxDisplay = (m_ActiveField == EditField::ProgressMax && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ProgressMax ? "|" : std::to_string(m_SelectedElement->progressMax));
+        std::string pmaxDisplay = (m_ActiveField == EditField::ProgressMax && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ProgressMax ? "|" : FormatFloat(m_SelectedElement->progressMax, 2));
         y = DrawEditableRow(window, "Max", pmaxDisplay, "edit_progressmax", px, y);
 
         y = DrawTextureSlot(window, "Background", m_SelectedElement->texturePath, "edit_texturepath", "clear_texture", "browse_texture", px, y);
         y = DrawTextureSlot(window, "Fill", m_SelectedElement->fillTexturePath, "edit_filltexturepath", "clear_filltexture", "browse_filltexture", px, y);
 
+        y = DrawColorPickerRow(window, "Track Col", m_SelectedElement->color, "pick_color_main", px, y);
         std::string rDisplay = (m_ActiveField == EditField::ColorR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(m_SelectedElement->color.r));
         y = DrawEditableRow(window, "Track R", rDisplay, "edit_r", px, y);
         std::string gDisplay = (m_ActiveField == EditField::ColorG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorG ? "|" : std::to_string(m_SelectedElement->color.g));
@@ -1532,6 +1578,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         std::string bDisplay = (m_ActiveField == EditField::ColorB && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_SelectedElement->color.b));
         y = DrawEditableRow(window, "Track B", bDisplay, "edit_b", px, y);
 
+        y = DrawColorPickerRow(window, "Fill Col", m_SelectedElement->normalColor, "pick_color_normal", px, y);
         std::string nrDisplay = (m_ActiveField == EditField::NormalR && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalR ? "|" : std::to_string(m_SelectedElement->normalColor.r));
         y = DrawEditableRow(window, "Fill R", nrDisplay, "edit_normalr", px, y);
         std::string ngDisplay = (m_ActiveField == EditField::NormalG && !m_ActiveInputText.empty()) ? m_ActiveInputText + "|" : (m_ActiveField == EditField::NormalG ? "|" : std::to_string(m_SelectedElement->normalColor.g));
@@ -1921,12 +1968,12 @@ void UIEditorScene::HandleAction(const std::string &action)
     else if (action == "edit_letterspacing")
     {
         m_ActiveField = EditField::LetterSpacing;
-        m_ActiveInputText = std::to_string(m_SelectedElement->letterSpacing);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->letterSpacing, 2);
     }
     else if (action == "edit_linespacing")
     {
         m_ActiveField = EditField::LineSpacing;
-        m_ActiveInputText = std::to_string(m_SelectedElement->lineSpacing);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->lineSpacing, 2);
     }
     else if (action == "align_left")
     {
@@ -2267,17 +2314,17 @@ void UIEditorScene::HandleAction(const std::string &action)
     else if (action == "edit_slidervalue")
     {
         m_ActiveField = EditField::SliderValue;
-        m_ActiveInputText = std::to_string(m_SelectedElement->sliderValue);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->sliderValue, 2);
     }
     else if (action == "edit_slidermin")
     {
         m_ActiveField = EditField::SliderMin;
-        m_ActiveInputText = std::to_string(m_SelectedElement->sliderMin);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->sliderMin, 2);
     }
     else if (action == "edit_slidermax")
     {
         m_ActiveField = EditField::SliderMax;
-        m_ActiveInputText = std::to_string(m_SelectedElement->sliderMax);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->sliderMax, 2);
     }
     else if (action == "edit_knobtexturepath")
     {
@@ -2287,12 +2334,116 @@ void UIEditorScene::HandleAction(const std::string &action)
     else if (action == "edit_progressvalue")
     {
         m_ActiveField = EditField::ProgressValue;
-        m_ActiveInputText = std::to_string(m_SelectedElement->progressValue);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->progressValue, 2);
     }
     else if (action == "edit_progressmax")
     {
         m_ActiveField = EditField::ProgressMax;
-        m_ActiveInputText = std::to_string(m_SelectedElement->progressMax);
+        m_ActiveInputText = FormatFloat(m_SelectedElement->progressMax, 2);
+    }
+    else if (action == "pick_color_main")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->color, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_outline")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->outlineColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_textoutline")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->textOutlineColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_text")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->textColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_normal")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->normalColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_hover")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->hoverColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_pressed")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->pressedColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
+    }
+    else if (action == "pick_color_border")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_SelectedElement->borderColor, hwnd))
+            {
+                m_SelectedElement->UpdateDrawables();
+            }
+#endif
+        }
     }
     else if (action == "edit_filltexturepath")
     {
@@ -2569,6 +2720,50 @@ float UIEditorScene::DrawTextureSlot(sf::RenderWindow &window, const std::string
     }
 
     return y + rowH;
+}
+
+float UIEditorScene::DrawColorPickerRow(sf::RenderWindow &window, const std::string &label, const sf::Color &color,
+                                       const std::string &action, float x, float y)
+{
+    const float rowH = 22.f;
+    if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
+        return y + rowH;
+
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(11);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(label);
+    keyText.setPosition(x + 10.f + 4.f, y + 4.f);
+    window.draw(keyText);
+
+    const float valX = x + InspectorWidth * 0.44f;
+    const float pickBtnW = 46.f;
+    const float swatchW = InspectorWidth - InspectorWidth * 0.44f - 14.f - pickBtnW - 4.f;
+
+    const sf::FloatRect swatchRect(valX, y + 1.f, swatchW, 20.f);
+    const bool swatchHov = swatchRect.contains(m_MouseScreenPos);
+    sf::RectangleShape swatch({swatchRect.width, swatchRect.height});
+    swatch.setPosition(swatchRect.left, swatchRect.top);
+    swatch.setFillColor(color);
+    swatch.setOutlineColor(swatchHov ? C_ACCENT : C_BORDER);
+    swatch.setOutlineThickness(swatchHov ? 2.f : 1.f);
+    window.draw(swatch);
+    m_InspectorHitboxes.push_back({swatchRect, action});
+
+    const sf::FloatRect btnRect(valX + swatchW + 4.f, y + 1.f, pickBtnW, 20.f);
+    const bool btnHov = btnRect.contains(m_MouseScreenPos);
+    DrawPill(window, btnRect, btnHov ? C_BG_ELEVATED : C_BG_INPUT, btnHov ? C_ACCENT : C_BORDER_LIGHT);
+    sf::Text btnText;
+    btnText.setFont(*m_Font);
+    btnText.setCharacterSize(10);
+    btnText.setFillColor(btnHov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+    btnText.setString("Pick");
+    btnText.setPosition(btnRect.left + (btnRect.width - btnText.getLocalBounds().width) / 2.f, btnRect.top + 3.f);
+    window.draw(btnText);
+    m_InspectorHitboxes.push_back({btnRect, action});
+
+    return y + rowH + 2.f;
 }
 
 float UIEditorScene::DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action,

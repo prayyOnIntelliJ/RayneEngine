@@ -17,11 +17,45 @@
 #include <SFML/Graphics/ConvexShape.hpp>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <commdlg.h>
 #include <shellapi.h>
 #undef CreateWindow
+#pragma comment(lib, "comdlg32.lib")
+
+static bool OpenColorPickerDialog(sf::Color &ioColor, HWND hwnd = nullptr)
+{
+    static COLORREF customColors[16] = {0};
+    CHOOSECOLORA cc;
+    ZeroMemory(&cc, sizeof(cc));
+    cc.lStructSize = sizeof(cc);
+    cc.hwndOwner = hwnd;
+    cc.lpCustColors = customColors;
+    cc.rgbResult = RGB(ioColor.r, ioColor.g, ioColor.b);
+    cc.Flags = CC_FULLOPEN | CC_RGBINIT;
+
+    if (ChooseColorA(&cc))
+    {
+        ioColor.r = GetRValue(cc.rgbResult);
+        ioColor.g = GetGValue(cc.rgbResult);
+        ioColor.b = GetBValue(cc.rgbResult);
+        return true;
+    }
+    return false;
+}
 #endif
+
+static std::string FormatFloat(float value, int precision = 2)
+{
+    if (std::abs(value) < 1e-6f) value = 0.0f;
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.*f", precision, value);
+    return std::string(buf);
+}
 
 static sf::Vector2f RotatePoint(sf::Vector2f point, sf::Vector2f center, float angleDegrees);
 
@@ -2247,21 +2281,21 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                  ? m_ActiveInputText + "|"
                                  : (m_ActiveField == EditField::Rotation
                                         ? "|"
-                                        : std::to_string(m_Selected->rotation));
+                                        : FormatFloat(m_Selected->rotation, 2));
     y = DrawEditableRow(window, "Rotation", rotDisplay, "edit_rot", panelX, y);
 
     std::string sxDisplay = (m_ActiveField == EditField::ScaleX && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::ScaleX
                                        ? "|"
-                                       : std::to_string(m_Selected->scaleX));
+                                       : FormatFloat(m_Selected->scaleX, 2));
     y = DrawEditableRow(window, "Scale X", sxDisplay, "edit_scalex", panelX, y);
 
     std::string syDisplay = (m_ActiveField == EditField::ScaleY && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::ScaleY
                                        ? "|"
-                                       : std::to_string(m_Selected->scaleY));
+                                       : FormatFloat(m_Selected->scaleY, 2));
     y = DrawEditableRow(window, "Scale Y", syDisplay, "edit_scaley", panelX, y);
 
 
@@ -2285,12 +2319,32 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (!m_Selected->previewTexture)
     {
-        sf::RectangleShape colorSwatch({InspectorWidth - InspectorPad * 2, 22.f});
+        const float totalW = InspectorWidth - InspectorPad * 2;
+        const float pickBtnW = 75.f;
+        const float swatchW = totalW - pickBtnW - 6.f;
+
+        const sf::FloatRect swatchRect(panelX + InspectorPad, y, swatchW, 22.f);
+        const bool swatchHov = swatchRect.contains(m_MouseScreenPos);
+        sf::RectangleShape colorSwatch({swatchW, 22.f});
         colorSwatch.setFillColor(m_Selected->color);
-        colorSwatch.setOutlineColor(C_BORDER_LIGHT);
-        colorSwatch.setOutlineThickness(1.f);
-        colorSwatch.setPosition(panelX + InspectorPad, y);
+        colorSwatch.setOutlineColor(swatchHov ? C_ACCENT : C_BORDER_LIGHT);
+        colorSwatch.setOutlineThickness(swatchHov ? 2.f : 1.f);
+        colorSwatch.setPosition(swatchRect.left, swatchRect.top);
         window.draw(colorSwatch);
+        m_InspectorButtons.push_back({swatchRect, "pick_color"});
+
+        const sf::FloatRect btnRect(panelX + InspectorPad + swatchW + 6.f, y, pickBtnW, 22.f);
+        const bool btnHov = btnRect.contains(m_MouseScreenPos);
+        DrawPill(window, btnRect, btnHov ? C_BG_ELEVATED : C_BG_INPUT, btnHov ? C_ACCENT : C_BORDER_LIGHT);
+        sf::Text btnText;
+        btnText.setFont(*m_Font);
+        btnText.setCharacterSize(11);
+        btnText.setFillColor(btnHov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        btnText.setString("Pick Color");
+        btnText.setPosition(btnRect.left + (btnRect.width - btnText.getLocalBounds().width) / 2.f, btnRect.top + 4.f);
+        window.draw(btnText);
+        m_InspectorButtons.push_back({btnRect, "pick_color"});
+
         y += 28.f;
     }
 
@@ -2367,8 +2421,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(m_Selected->entity);
         y = DrawSectionHeader(window, "VELOCITY", C_TEXT_SECONDARY, panelX, y);
-        y = DrawRow(window, "dX", std::to_string(vel.dx), panelX, y);
-        y = DrawRow(window, "dY", std::to_string(vel.dy), panelX, y);
+        y = DrawRow(window, "dX", FormatFloat(vel.dx, 2), panelX, y);
+        y = DrawRow(window, "dY", FormatFloat(vel.dy, 2), panelX, y);
         y += 4.f;
         y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
@@ -2873,15 +2927,15 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         } else if (btn.action == "edit_rot" && m_Selected)
         {
             m_ActiveField = EditField::Rotation;
-            m_ActiveInputText = std::to_string(m_Selected->rotation);
+            m_ActiveInputText = FormatFloat(m_Selected->rotation, 2);
         } else if (btn.action == "edit_scalex" && m_Selected)
         {
             m_ActiveField = EditField::ScaleX;
-            m_ActiveInputText = std::to_string(m_Selected->scaleX);
+            m_ActiveInputText = FormatFloat(m_Selected->scaleX, 2);
         } else if (btn.action == "edit_scaley" && m_Selected)
         {
             m_ActiveField = EditField::ScaleY;
-            m_ActiveInputText = std::to_string(m_Selected->scaleY);
+            m_ActiveInputText = FormatFloat(m_Selected->scaleY, 2);
         } else if (btn.action == "edit_w" && m_Selected)
         {
             m_ActiveField = EditField::SizeW;
@@ -2890,6 +2944,19 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::SizeH;
             m_ActiveInputText = std::to_string((int) m_Selected->shape.getSize().y);
+        } else if (btn.action == "pick_color" && m_Selected)
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(m_Selected->color, hwnd))
+            {
+                m_Selected->shape.setFillColor(m_Selected->color);
+                if (IsPolygonType(m_Selected->objectType))
+                    m_Selected->circleShape.setFillColor(m_Selected->color);
+                if (m_Selected->entity != 0 && m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
+                    m_Registry.GetComponent<RenderComponent>(m_Selected->entity).color = m_Selected->color;
+            }
+#endif
         } else if (btn.action == "edit_r" && m_Selected)
         {
             m_ActiveField = EditField::ColorR;
@@ -3807,20 +3874,24 @@ void EditorScene::DrawSettingsWindow(sf::RenderWindow &window)
         y = DrawSettingsInputField(window, "Grid Opacity (0-255)",
                                    std::to_string(m_GridOpacity),
                                    SettingsField::GridOpacityVal, contentX, y, contentW); {
+            const sf::FloatRect gridColorRect(contentX + 2.f, y + 2.f, 60.f, 20.f);
+            const bool gridHov = gridColorRect.contains(m_MouseScreenPos);
             sf::RectangleShape preview({60.f, 20.f});
             preview.setFillColor(m_GridColor);
-            preview.setOutlineColor(C_BORDER_LIGHT);
-            preview.setOutlineThickness(1.f);
-            preview.setPosition(contentX + 2.f, y + 2.f);
+            preview.setOutlineColor(gridHov ? C_ACCENT : C_BORDER_LIGHT);
+            preview.setOutlineThickness(gridHov ? 2.f : 1.f);
+            preview.setPosition(gridColorRect.left, gridColorRect.top);
             window.draw(preview);
+            m_SettingsButtons.push_back({gridColorRect, "pick_grid_color"});
+
             sf::Text colorLabel;
             colorLabel.setFont(*m_Font);
             colorLabel.setCharacterSize(11);
-            colorLabel.setFillColor(C_TEXT_MUTED);
+            colorLabel.setFillColor(gridHov ? C_TEXT_PRIMARY : C_TEXT_MUTED);
             colorLabel.setString("Grid Color (RGB " +
                                  std::to_string(m_GridColor.r) + ", " +
                                  std::to_string(m_GridColor.g) + ", " +
-                                 std::to_string(m_GridColor.b) + ")");
+                                 std::to_string(m_GridColor.b) + ") - Click to pick");
             colorLabel.setPosition(contentX + 68.f, y + 5.f);
             window.draw(colorLabel);
             y += 30.f;
@@ -4077,6 +4148,12 @@ void EditorScene::HandleSettingsClick(sf::Vector2f pos)
             m_GridOpacity = 255;
             m_SelectionOutlineColor = sf::Color(255, 220, 60);
             m_SelectionOutlineThickness = 2.f;
+        } else if (btn.action == "pick_grid_color")
+        {
+#ifdef _WIN32
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            OpenColorPickerDialog(m_GridColor, hwnd);
+#endif
         } else if (btn.action.rfind("fps_cap", 0) == 0) {} else if (btn.action.rfind("pan_button", 0) == 0) {} else if (
             btn.action.rfind("log_level", 0) == 0) {} else if (btn.action.rfind("input_", 0) == 0)
         {

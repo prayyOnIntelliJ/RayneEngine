@@ -205,6 +205,9 @@ private:
                           const std::string &action, const std::string &clearAction,
                           const std::string &browseAction, float x, float y);
 
+    float DrawColorPickerRow(sf::RenderWindow &window, const std::string &label, const sf::Color &color,
+                             const std::string &action, float x, float y);
+
     float DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,
                            float y, sf::Color fillColor, sf::Color borderColor);
 
