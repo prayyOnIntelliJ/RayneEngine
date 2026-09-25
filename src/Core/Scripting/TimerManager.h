@@ -24,13 +24,19 @@ public:
         for (size_t i = 0; i < m_Tasks.size(); ) {
             m_Tasks[i].timeLeft -= dt;
             if (m_Tasks[i].timeLeft <= 0.f) {
+                sol::function cb;
                 if (m_Tasks[i].callback.valid()) {
-                    m_Tasks[i].callback();
+                    cb = std::move(m_Tasks[i].callback);
                 }
+                // Swap-and-pop: O(1) removal instead of O(n) erase
+                if (i < m_Tasks.size() - 1) {
+                    m_Tasks[i] = std::move(m_Tasks.back());
+                }
+                m_Tasks.pop_back();
+                // Execute callback after removal to handle re-entrant After() calls
+                if (cb.valid()) cb();
                 if (m_Tasks.empty()) break;
-                if (i < m_Tasks.size() && m_Tasks[i].timeLeft <= 0.f) {
-                    m_Tasks.erase(m_Tasks.begin() + i);
-                }
+                // Don't increment i, re-check the swapped element
             } else {
                 ++i;
             }

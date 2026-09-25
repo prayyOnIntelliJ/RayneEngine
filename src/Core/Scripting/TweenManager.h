@@ -30,30 +30,35 @@ public:
     }
     
     void Update(float dt) {
-        for (auto it = m_Tasks.begin(); it != m_Tasks.end(); ) {
-            it->elapsed += dt;
-            float t = it->elapsed / it->duration;
+        for (size_t i = 0; i < m_Tasks.size(); ) {
+            auto& task = m_Tasks[i];
+            task.elapsed += dt;
+            float t = task.elapsed / task.duration;
             if (t >= 1.f) t = 1.f;
             
             float eased = t;
-            if (it->easeType == "EaseInQuad") {
+            if (task.easeType == "EaseInQuad") {
                 eased = t * t;
-            } else if (it->easeType == "EaseOutQuad") {
+            } else if (task.easeType == "EaseOutQuad") {
                 eased = t * (2.f - t);
-            } else if (it->easeType == "EaseInOutQuad") {
+            } else if (task.easeType == "EaseInOutQuad") {
                 eased = t < 0.5f ? 2.f * t * t : -1.f + (4.f - 2.f * t) * t;
             }
             
-            if (it->registry->HasComponent<TransformComponent>(it->entity)) {
-                auto& tc = it->registry->GetComponent<TransformComponent>(it->entity);
-                tc.x = it->startX + (it->targetX - it->startX) * eased;
-                tc.y = it->startY + (it->targetY - it->startY) * eased;
+            if (task.registry->HasComponent<TransformComponent>(task.entity)) {
+                auto& tc = task.registry->GetComponent<TransformComponent>(task.entity);
+                tc.x = task.startX + (task.targetX - task.startX) * eased;
+                tc.y = task.startY + (task.targetY - task.startY) * eased;
             }
             
-            if (it->elapsed >= it->duration) {
-                it = m_Tasks.erase(it);
+            if (task.elapsed >= task.duration) {
+                // Swap-and-pop: O(1) removal
+                if (i < m_Tasks.size() - 1) {
+                    m_Tasks[i] = std::move(m_Tasks.back());
+                }
+                m_Tasks.pop_back();
             } else {
-                ++it;
+                ++i;
             }
         }
     }
