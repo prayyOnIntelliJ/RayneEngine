@@ -56,7 +56,74 @@ ContentBrowser::ContentBrowser(const sf::Font &font, const std::string &rootPath
     m_RootPath = fs::canonical(rootPath, ec).string();
     if (ec) m_RootPath = rootPath;
     m_CurrentPath = m_RootPath;
+
     Refresh();
+}
+
+bool ContentBrowser::IsBuildMode() const
+{
+    if (m_ForceBuildMode.has_value()) return m_ForceBuildMode.value();
+
+    std::error_code ec;
+    fs::path root(m_RootPath);
+    fs::path projRoot = root.parent_path();
+    // If CMakeLists.txt or src exists in project root (or root), we are running in the source / dev environment
+    if (fs::exists(projRoot / "CMakeLists.txt", ec) || fs::exists(root / "CMakeLists.txt", ec)) return false;
+    if (fs::exists(projRoot / "src", ec) || fs::exists(root / "src", ec)) return false;
+
+    return true;
+}
+
+bool ContentBrowser::IsReadOnlyPath(const std::string &path) const
+{
+    // Read-only is only enforced in the build environment!
+    if (!IsBuildMode()) return false;
+
+    std::error_code ec;
+    fs::path p = fs::canonical(path, ec);
+    if (ec) p = fs::path(path);
+
+    fs::path rootP = fs::canonical(m_RootPath, ec);
+    if (ec) rootP = fs::path(m_RootPath);
+
+    fs::path scriptP = fs::canonical(rootP / "scripting", ec);
+    if (ec) scriptP = rootP / "scripting";
+
+    auto isSubOrEqual = [](const fs::path &child, const fs::path &parent) {
+        std::string cStr = child.generic_string();
+        std::string pStr = parent.generic_string();
+        if (cStr == pStr) return true;
+        if (cStr.size() > pStr.size() && cStr.compare(0, pStr.size(), pStr) == 0)
+        {
+            if (cStr[pStr.size()] == '/') return true;
+        }
+        return false;
+    };
+
+    if (isSubOrEqual(p, scriptP))
+        return true;
+
+    for (auto it = p; it != rootP && it.has_parent_path(); it = it.parent_path())
+    {
+        std::string fn = it.filename().string();
+        std::transform(fn.begin(), fn.end(), fn.begin(), ::tolower);
+        if (fn == "scripting") return true;
+    }
+
+    return false;
+}
+
+bool ContentBrowser::IsCurrentPathReadOnly() const
+{
+    return IsReadOnlyPath(m_CurrentPath);
+}
+
+bool ContentBrowser::IsIgnoredEntry(const std::string &name, const std::string &fullPath, bool isDirectory) const
+{
+    if (name.empty()) return true;
+    if (name[0] == '.') return true;
+
+    return false;
 }
 
 void ContentBrowser::Refresh()
@@ -71,15 +138,23 @@ void ContentBrowser::Refresh()
     for (const auto &entry: fs::directory_iterator(m_CurrentPath, ec))
     {
         if (ec) break;
-        ContentEntry ce;
-        ce.name = entry.path().filename().string();
-        ce.fullPath = entry.path().string();
-        ce.isDirectory = entry.is_directory(ec);
+        std::string name = entry.path().filename().string();
+        std::string fullPath = entry.path().string();
+        bool isDir = entry.is_directory(ec);
         if (ec)
         {
             ec.clear();
             continue;
         }
+
+        if (IsIgnoredEntry(name, fullPath, isDir))
+            continue;
+
+        ContentEntry ce;
+        ce.name = name;
+        ce.fullPath = fullPath;
+        ce.isDirectory = isDir;
+        ce.isReadOnly = IsReadOnlyPath(fullPath);
 
         if (!ce.isDirectory)
         {
@@ -286,6 +361,11 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         {
             if (event.key.code == sf::Keyboard::F2 && !m_SelectedPath.empty())
             {
+                if (IsReadOnlyPath(m_SelectedPath))
+                {
+                    SetStatusMessage("Cannot rename read-only asset");
+                    return;
+                }
                 m_RenameTarget = m_SelectedPath;
                 m_RenameInput = fs::path(m_SelectedPath).filename().string();
                 m_RenamePrompt = true;
@@ -293,12 +373,22 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
             }
             if (event.key.code == sf::Keyboard::Delete && !m_SelectedPath.empty())
             {
+                if (IsReadOnlyPath(m_SelectedPath))
+                {
+                    SetStatusMessage("Cannot delete read-only asset");
+                    return;
+                }
                 m_DeleteTarget = m_SelectedPath;
                 m_DeletePrompt = true;
                 return;
             }
             if (event.key.control && event.key.code == sf::Keyboard::D && !m_SelectedPath.empty())
             {
+                if (IsReadOnlyPath(m_SelectedPath))
+                {
+                    SetStatusMessage("Cannot duplicate read-only asset");
+                    return;
+                }
                 DuplicateAsset(m_SelectedPath);
                 return;
             }
@@ -365,6 +455,11 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 
         if (m_NewFolderBtnBounds.contains(mouseScreenPos))
         {
+            if (IsCurrentPathReadOnly())
+            {
+                SetStatusMessage("Cannot create folder in read-only directory");
+                return;
+            }
             m_NewFolderPrompt = true;
             m_NewFolderName = "NewFolder";
             return;
@@ -372,6 +467,11 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 
         if (m_NewScriptBtnBounds.contains(mouseScreenPos))
         {
+            if (IsCurrentPathReadOnly())
+            {
+                SetStatusMessage("Cannot create script in read-only directory");
+                return;
+            }
             m_NewScriptPrompt = true;
             m_NewScriptName = "new_script";
             return;
@@ -574,6 +674,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         }
     }
 
+    bool isReadOnlyDir = IsCurrentPathReadOnly();
     float rightX = x + width - 8.f;
 
     rightX -= 26.f;
@@ -596,36 +697,36 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
 
     rightX -= 68.f;
     m_NewScriptBtnBounds = sf::FloatRect(rightX, curY, 62.f, 22.f);
-    bool newScriptHover = m_NewScriptBtnBounds.contains(m_MousePos);
+    bool newScriptHover = m_NewScriptBtnBounds.contains(m_MousePos) && !isReadOnlyDir;
     sf::RectangleShape newScriptBtn({m_NewScriptBtnBounds.width, m_NewScriptBtnBounds.height});
     newScriptBtn.setPosition(m_NewScriptBtnBounds.left, m_NewScriptBtnBounds.top);
-    newScriptBtn.setFillColor(newScriptHover ? C_BG_ELEVATED : C_BG_INPUT);
-    newScriptBtn.setOutlineColor(newScriptHover ? C_BORDER_LIGHT : C_BORDER);
+    newScriptBtn.setFillColor(isReadOnlyDir ? C_BG_PANEL : (newScriptHover ? C_BG_ELEVATED : C_BG_INPUT));
+    newScriptBtn.setOutlineColor(isReadOnlyDir ? C_BORDER : (newScriptHover ? C_BORDER_LIGHT : C_BORDER));
     newScriptBtn.setOutlineThickness(1.f);
     window.draw(newScriptBtn);
 
     sf::Text newScriptText;
     newScriptText.setFont(m_Font);
     newScriptText.setCharacterSize(10);
-    newScriptText.setFillColor(newScriptHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+    newScriptText.setFillColor(isReadOnlyDir ? C_TEXT_MUTED : (newScriptHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY));
     newScriptText.setString("+ Script");
     newScriptText.setPosition(m_NewScriptBtnBounds.left + 8.f, m_NewScriptBtnBounds.top + 4.f);
     window.draw(newScriptText);
 
     rightX -= 64.f;
     m_NewFolderBtnBounds = sf::FloatRect(rightX, curY, 58.f, 22.f);
-    bool newFolderHover = m_NewFolderBtnBounds.contains(m_MousePos);
+    bool newFolderHover = m_NewFolderBtnBounds.contains(m_MousePos) && !isReadOnlyDir;
     sf::RectangleShape newFolderBtn({m_NewFolderBtnBounds.width, m_NewFolderBtnBounds.height});
     newFolderBtn.setPosition(m_NewFolderBtnBounds.left, m_NewFolderBtnBounds.top);
-    newFolderBtn.setFillColor(newFolderHover ? C_BG_ELEVATED : C_BG_INPUT);
-    newFolderBtn.setOutlineColor(newFolderHover ? C_BORDER_LIGHT : C_BORDER);
+    newFolderBtn.setFillColor(isReadOnlyDir ? C_BG_PANEL : (newFolderHover ? C_BG_ELEVATED : C_BG_INPUT));
+    newFolderBtn.setOutlineColor(isReadOnlyDir ? C_BORDER : (newFolderHover ? C_BORDER_LIGHT : C_BORDER));
     newFolderBtn.setOutlineThickness(1.f);
     window.draw(newFolderBtn);
 
     sf::Text newFolderText;
     newFolderText.setFont(m_Font);
     newFolderText.setCharacterSize(10);
-    newFolderText.setFillColor(newFolderHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+    newFolderText.setFillColor(isReadOnlyDir ? C_TEXT_MUTED : (newFolderHover ? C_TEXT_PRIMARY : C_TEXT_SECONDARY));
     newFolderText.setString("+ Folder");
     newFolderText.setPosition(m_NewFolderBtnBounds.left + 7.f, m_NewFolderBtnBounds.top + 4.f);
     window.draw(newFolderText);
@@ -890,9 +991,9 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             subText.setCharacterSize(8);
             subText.setFillColor(C_TEXT_MUTED);
             if (entry.isDirectory)
-                subText.setString("Folder");
+                subText.setString(entry.isReadOnly ? "Folder [RO]" : "Folder");
             else
-                subText.setString(FormatFileSize(entry.fileSize));
+                subText.setString(entry.isReadOnly ? (FormatFileSize(entry.fileSize) + " [RO]") : FormatFileSize(entry.fileSize));
             subText.setPosition(ix + (cardW - subText.getLocalBounds().width) / 2.f, drawY + 88.f);
             window.draw(subText);
         }
@@ -987,6 +1088,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             std::string infoStr = "[" + LabelForType(infoEntry->type) + "] " + infoEntry->name;
             if (!infoEntry->isDirectory)
                 infoStr += "  |  " + FormatFileSize(infoEntry->fileSize);
+            if (infoEntry->isReadOnly)
+                infoStr += "  |  [Read-Only]";
             statusText.setString(infoStr);
         } else
         {
@@ -994,6 +1097,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
             std::string countStr = std::to_string(m_FilteredEntries.size()) + " items";
             if (m_FilteredEntries.size() != m_Entries.size())
                 countStr += " (filtered from " + std::to_string(m_Entries.size()) + ")";
+            if (IsCurrentPathReadOnly())
+                countStr += "  |  [Read-Only Folder]";
             statusText.setString(countStr);
         }
     }
@@ -1008,6 +1113,9 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                                    ? AssetType::Folder
                                    : TypeFromFile(m_ContextMenuTarget);
 
+        bool targetReadOnly = IsReadOnlyPath(m_ContextMenuTarget);
+        bool currentReadOnly = IsCurrentPathReadOnly();
+
         std::vector<std::pair<std::string, std::string> > actions;
         if (!isDir)
         {
@@ -1017,15 +1125,21 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         }
         if (m_ContextMenuTarget != m_CurrentPath)
         {
-            actions.push_back({"Rename (F2)", "rename"});
-            if (!isDir) { actions.push_back({"Duplicate (Ctrl+D)", "duplicate"}); }
+            if (!targetReadOnly)
+            {
+                actions.push_back({"Rename (F2)", "rename"});
+                if (!isDir) { actions.push_back({"Duplicate (Ctrl+D)", "duplicate"}); }
+            }
             actions.push_back({"Copy Relative Path (Ctrl+C)", "copy_path"});
         }
-        actions.push_back({"New Folder", "new_folder"});
-        actions.push_back({"New Script", "new_script"});
-        actions.push_back({"New Scene", "new_scene"});
+        if (!currentReadOnly)
+        {
+            actions.push_back({"New Folder", "new_folder"});
+            actions.push_back({"New Script", "new_script"});
+            actions.push_back({"New Scene", "new_scene"});
+        }
         actions.push_back({"Reveal in Explorer", "reveal"});
-        if (m_ContextMenuTarget != m_CurrentPath && m_ContextMenuTarget != m_RootPath)
+        if (m_ContextMenuTarget != m_CurrentPath && m_ContextMenuTarget != m_RootPath && !targetReadOnly)
         {
             actions.push_back({"Delete (Del)", "delete"});
         }
@@ -1445,6 +1559,11 @@ void ContentBrowser::OpenEntry(const ContentEntry &entry)
 
 void ContentBrowser::CreateNewScript(const std::string &name)
 {
+    if (IsCurrentPathReadOnly())
+    {
+        SetStatusMessage("Cannot create script in read-only directory");
+        return;
+    }
     std::string cleanName = name;
     if (cleanName.size() > 4 && cleanName.substr(cleanName.size() - 4) == ".lua")
         cleanName = cleanName.substr(0, cleanName.size() - 4);
@@ -1474,6 +1593,11 @@ void ContentBrowser::CreateNewScript(const std::string &name)
 
 void ContentBrowser::CreateNewScene(const std::string &name)
 {
+    if (IsCurrentPathReadOnly())
+    {
+        SetStatusMessage("Cannot create scene in read-only directory");
+        return;
+    }
     std::string cleanName = name;
     if (cleanName.size() > 5 && cleanName.substr(cleanName.size() - 5) == ".json")
         cleanName = cleanName.substr(0, cleanName.size() - 5);
@@ -1495,6 +1619,11 @@ void ContentBrowser::CreateNewScene(const std::string &name)
 
 void ContentBrowser::CreateNewFolder(const std::string &name)
 {
+    if (IsCurrentPathReadOnly())
+    {
+        SetStatusMessage("Cannot create folder in read-only directory");
+        return;
+    }
     if (name.empty()) return;
     fs::path targetDir = fs::path(m_CurrentPath) / name;
     std::error_code ec;
@@ -1514,6 +1643,11 @@ void ContentBrowser::CreateNewFolder(const std::string &name)
 
 void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &newName)
 {
+    if (IsReadOnlyPath(oldPath))
+    {
+        SetStatusMessage("Cannot rename read-only asset");
+        return;
+    }
     if (newName.empty() || oldPath.empty()) return;
     std::error_code ec;
     fs::path oldP(oldPath);
@@ -1556,6 +1690,11 @@ void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &
 
 void ContentBrowser::DuplicateAsset(const std::string &path)
 {
+    if (IsReadOnlyPath(path))
+    {
+        SetStatusMessage("Cannot duplicate read-only asset");
+        return;
+    }
     std::error_code ec;
     fs::path src(path);
     if (!fs::exists(src, ec) || ec) return;
@@ -1614,7 +1753,11 @@ void ContentBrowser::RevealInExplorer(const std::string &path)
 
 void ContentBrowser::DeleteAsset(const std::string &path)
 {
-    if (path == m_RootPath || path.empty()) return;
+    if (path == m_RootPath || path.empty() || IsReadOnlyPath(path))
+    {
+        SetStatusMessage("Cannot delete read-only asset");
+        return;
+    }
     std::error_code ec;
     fs::remove_all(path, ec);
     if (!ec)

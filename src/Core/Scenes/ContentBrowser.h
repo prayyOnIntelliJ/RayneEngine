@@ -17,6 +17,7 @@
 #include "SFML/Graphics/Texture.hpp"
 
 #include <set>
+#include <optional>
 
 namespace fs = std::filesystem;
 
@@ -47,6 +48,7 @@ struct ContentEntry
     std::string fullPath;
     AssetType type;
     bool isDirectory;
+    bool isReadOnly = false;
     uintmax_t fileSize = 0;
 };
 
@@ -91,6 +93,12 @@ public:
     void RenderDragGhost(sf::RenderWindow &window);
 
     void Refresh();
+
+    bool IsReadOnlyPath(const std::string &path) const;
+    bool IsCurrentPathReadOnly() const;
+    bool IsIgnoredEntry(const std::string &name, const std::string &fullPath, bool isDirectory) const;
+    bool IsBuildMode() const;
+    void SetBuildModeOverride(std::optional<bool> overrideMode) { m_ForceBuildMode = overrideMode; }
 
     bool IsInputActive() const
     {
@@ -154,6 +162,7 @@ private:
 
     std::string m_StatusMessage;
     double m_StatusMessageTime = 0.0;
+    std::optional<bool> m_ForceBuildMode = std::nullopt;
 
     static AssetType TypeFromFile(const std::string &fullPath);
 
