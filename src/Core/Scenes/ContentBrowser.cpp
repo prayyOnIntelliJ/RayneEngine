@@ -103,7 +103,7 @@ bool ContentBrowser::IsReadOnlyPath(const std::string &path) const
     if (isSubOrEqual(p, scriptP))
         return true;
 
-    for (auto it = p; it != rootP && it.has_parent_path(); it = it.parent_path())
+    for (fs::path it = p; it != rootP && it.has_parent_path() && it != it.parent_path(); it = it.parent_path())
     {
         std::string fn = it.filename().string();
         std::transform(fn.begin(), fn.end(), fn.begin(), ::tolower);
@@ -122,6 +122,22 @@ bool ContentBrowser::IsIgnoredEntry(const std::string &name, const std::string &
 {
     if (name.empty()) return true;
     if (name[0] == '.') return true;
+
+    // In build mode, completely hide the scripting folder and all its contents
+    if (IsBuildMode())
+    {
+        std::string lowerName = name;
+        std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(), ::tolower);
+        if (lowerName == "scripting") return true;
+
+        fs::path p(fullPath);
+        for (fs::path it = p; it.has_parent_path() && it != it.parent_path(); it = it.parent_path())
+        {
+            std::string fn = it.filename().string();
+            std::transform(fn.begin(), fn.end(), fn.begin(), ::tolower);
+            if (fn == "scripting") return true;
+        }
+    }
 
     return false;
 }
@@ -1521,6 +1537,16 @@ void ContentBrowser::NavigateTo(const std::string &path)
     if (ec) return;
 
     if (canonical.find(canonicalRoot) == std::string::npos) return;
+
+    if (IsBuildMode())
+    {
+        for (fs::path it = fs::path(canonical); it != fs::path(canonicalRoot) && it.has_parent_path() && it != it.parent_path(); it = it.parent_path())
+        {
+            std::string fn = it.filename().string();
+            std::transform(fn.begin(), fn.end(), fn.begin(), ::tolower);
+            if (fn == "scripting") return;
+        }
+    }
 
     m_CurrentPath = canonical;
     m_ScrollOffset = 0.f;
