@@ -66,14 +66,12 @@ static std::filesystem::path FindProjectRoot()
     std::filesystem::path cur = std::filesystem::current_path(ec);
     std::filesystem::path appDir = GetAppDir();
 
-    // 1. If running from source (e.g. IDE or build directory), find the root with CMakeLists.txt
     if (std::filesystem::exists(cur / "CMakeLists.txt") && std::filesystem::exists(cur / "assets")) return cur;
     if (std::filesystem::exists(cur.parent_path() / "CMakeLists.txt") && std::filesystem::exists(cur.parent_path() / "assets")) return cur.parent_path();
     
     if (std::filesystem::exists(appDir / "CMakeLists.txt") && std::filesystem::exists(appDir / "assets")) return appDir;
     if (std::filesystem::exists(appDir.parent_path() / "CMakeLists.txt") && std::filesystem::exists(appDir.parent_path() / "assets")) return appDir.parent_path();
 
-    // 2. Fallback for standalone editor distribution (no CMakeLists.txt)
     if (!ec && std::filesystem::exists(cur / "assets")) return cur;
     if (std::filesystem::exists(appDir / "assets")) return appDir;
 
@@ -5011,7 +5009,6 @@ void EditorScene::ExportStandaloneGame()
         std::filesystem::path exePath;
         std::vector<std::filesystem::path> possibleExePaths;
         if (!buildDir.empty()) {
-            // Favor the freshly built executable
             possibleExePaths.push_back(buildDir / "RayneGame.exe");
             possibleExePaths.push_back(buildDir / "Release" / "RayneGame.exe");
             possibleExePaths.push_back(buildDir / "Debug" / "RayneGame.exe");
@@ -5068,7 +5065,6 @@ void EditorScene::ExportStandaloneGame()
                 }
 
 #ifdef _WIN32
-                // Mark engine_content and assets/scripting read-only in Windows Explorer for the exported game
                 SetPathReadOnly(exportDir / "engine_content", true);
                 if (std::filesystem::exists(exportDir / "assets" / "scripting"))
                     SetPathReadOnly(exportDir / "assets" / "scripting", true);
@@ -5174,7 +5170,6 @@ void EditorScene::PackageEngineZip()
 
             bool packaged = false;
 #ifdef _WIN32
-            // Mark engine_content, templates, and assets/scripting read-only in Windows Explorer for the packaged build
             SetPathReadOnly(engineExeDir / "engine_content", true);
             SetPathReadOnly(engineExeDir / "templates", true);
             if (std::filesystem::exists(engineExeDir / "assets" / "scripting"))
