@@ -80,6 +80,30 @@ static std::filesystem::path FindProjectRoot()
     return cur;
 }
 
+#ifdef _WIN32
+static void SetPathReadOnly(const std::filesystem::path& targetPath, bool recursive = true)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(targetPath, ec)) return;
+
+    DWORD attrs = GetFileAttributesA(targetPath.string().c_str());
+    if (attrs != INVALID_FILE_ATTRIBUTES) {
+        SetFileAttributesA(targetPath.string().c_str(), attrs | FILE_ATTRIBUTE_READONLY);
+    }
+
+    if (recursive && std::filesystem::is_directory(targetPath, ec))
+    {
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(targetPath, ec))
+        {
+            DWORD subAttrs = GetFileAttributesA(entry.path().string().c_str());
+            if (subAttrs != INVALID_FILE_ATTRIBUTES) {
+                SetFileAttributesA(entry.path().string().c_str(), subAttrs | FILE_ATTRIBUTE_READONLY);
+            }
+        }
+    }
+}
+#endif
+
 static std::string FormatFloat(float value, int precision = 2)
 {
     if (std::abs(value) < 1e-6f) value = 0.0f;
@@ -154,7 +178,17 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     : Scene(manager), m_Window(window), m_Registry(registry)
 {
     m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
-    m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
+    std::filesystem::path projRoot = FindProjectRoot();
+    m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, (projRoot / "assets").string());
+#ifdef _WIN32
+    if (!std::filesystem::exists(projRoot / "CMakeLists.txt"))
+    {
+        SetPathReadOnly(projRoot / "engine_content", true);
+        SetPathReadOnly(projRoot / "templates", true);
+        if (std::filesystem::exists(projRoot / "assets" / "scripting"))
+            SetPathReadOnly(projRoot / "assets" / "scripting", true);
+    }
+#endif
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         this->LoadFromJson(path);
@@ -5042,6 +5076,13 @@ void EditorScene::ExportStandaloneGame()
                     }
                 }
 
+#ifdef _WIN32
+                // Mark engine_content and assets/scripting read-only in Windows Explorer for the exported game
+                SetPathReadOnly(exportDir / "engine_content", true);
+                if (std::filesystem::exists(exportDir / "assets" / "scripting"))
+                    SetPathReadOnly(exportDir / "assets" / "scripting", true);
+#endif
+
                 std::string zipName = (m_ProjectName.empty() ? "RayneGame" : m_ProjectName) + "_Standalone.zip";
                 std::filesystem::path zipTarget = rootDir / zipName;
                 bool zipCreated = false;
@@ -5142,6 +5183,12 @@ void EditorScene::PackageEngineZip()
 
             bool packaged = false;
 #ifdef _WIN32
+            // Mark engine_content, templates, and assets/scripting read-only in Windows Explorer for the packaged build
+            SetPathReadOnly(engineExeDir / "engine_content", true);
+            SetPathReadOnly(engineExeDir / "templates", true);
+            if (std::filesystem::exists(engineExeDir / "assets" / "scripting"))
+                SetPathReadOnly(engineExeDir / "assets" / "scripting", true);
+
             std::string tarCmd = "cd /d \"" + engineExeDir.string() + "\" && tar.exe -a -cf \"" + zipTarget.string() + "\" RayneEngine.exe assets engine_content templates *.dll";
             FILE* pPipe = _popen(tarCmd.c_str(), "r");
             if (pPipe) {
