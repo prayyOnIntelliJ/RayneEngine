@@ -8,6 +8,8 @@
 #include "../Scripting/EventManager.h"
 #include "../Resources/ResourceManager.h"
 #include "../Input/InputManager.h"
+#include "../Application/Application.h"
+#include "../Audio/AudioManager.h"
 
 using json = nlohmann::json;
 
@@ -59,7 +61,8 @@ void UIElement::UpdateDrawables()
             shape.setTexture(texture.get());
         }
     }
-    else if (type == UIElementType::Panel || type == UIElementType::Image)
+    else if (type == UIElementType::Panel || type == UIElementType::Image ||
+             type == UIElementType::VerticalBox || type == UIElementType::HorizontalBox)
     {
         sf::Color c = color;
         c.a = static_cast<sf::Uint8>(std::clamp(static_cast<float>(color.a) * (opacity / 255.f), 0.f, 255.f));
@@ -161,8 +164,42 @@ void UIElement::UpdateDrawables()
 
 void UIManager::Init(std::shared_ptr<sf::Font> defaultFont) { m_DefaultFont = defaultFont; }
 
+void UIManager::ApplyLayouts()
+{
+    for (auto &container : m_Elements)
+    {
+        if (container.type != UIElementType::VerticalBox && container.type != UIElementType::HorizontalBox)
+            continue;
+
+        float currX = container.position.x + container.layoutPadding;
+        float currY = container.position.y + container.layoutPadding;
+
+        for (auto &child : m_Elements)
+        {
+            if (child.parent != container.id || child.id == container.id)
+                continue;
+
+            if (container.type == UIElementType::VerticalBox)
+            {
+                child.position.x = currX;
+                child.position.y = currY;
+                currY += child.size.y + container.layoutSpacing;
+            }
+            else if (container.type == UIElementType::HorizontalBox)
+            {
+                child.position.x = currX;
+                child.position.y = currY;
+                currX += child.size.x + container.layoutSpacing;
+            }
+            child.UpdateDrawables();
+        }
+    }
+}
+
 void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool mouseReleased)
 {
+    ApplyLayouts();
+
     if (m_SortDirty) {
         RebuildSortedCaches();
     }
@@ -177,23 +214,98 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
         if (!el->visible) continue;
         auto executeAction = [&](const std::string& action, const std::string& param, const std::string& id, const std::string& eventType) {
             if (action.empty() || action == "None") return;
-            std::string luaCode;
-            if (action == "Quit") luaCode = "Engine.Quit()";
-            else if (action == "Restart") luaCode = "Engine.RestartScene()";
-            else if (action == "TogglePause") luaCode = "Engine.TogglePause()";
-            else if (action == "SetFullscreen") luaCode = "Engine.SetFullscreen(" + param + ")";
-            else if (action == "SetTimeScale") luaCode = "Engine.SetTimeScale(" + param + ")";
-            else if (action == "TakeScreenshot") luaCode = "Engine.TakeScreenshot()";
-            else if (action == "OpenURL") luaCode = "Engine.OpenURL(\"" + param + "\")";
-            else if (action == "Log") luaCode = "Engine.Log(\"" + param + "\")";
-            else if (action == "LoadScene") luaCode = "Engine.LoadScene(\"" + param + "\")";
-            
-            if (!luaCode.empty()) {
-                try {
-                    LuaState::GetLua().safe_script(luaCode);
-                } catch (const std::exception& e) {
-                    std::cerr << "[ERROR] [UI] " << eventType << " action failed for " << id << ": " << e.what() << "\n";
+
+            if (action == "Quit") {
+                if (g_App) g_App->Quit();
+            }
+            else if (action == "Restart") {
+                if (g_App) g_App->RestartCurrentScene();
+            }
+            else if (action == "LoadScene") {
+                if (g_App) g_App->LoadScene(param);
+            }
+            else if (action == "TogglePause") {
+                if (g_App) g_App->SetPaused(!g_App->IsPaused());
+            }
+            else if (action == "Pause") {
+                if (g_App) g_App->SetPaused(true);
+            }
+            else if (action == "Resume") {
+                if (g_App) g_App->SetPaused(false);
+            }
+            else if (action == "SetFullscreen") {
+                if (g_App) g_App->SetFullscreen(param.empty() ? !g_App->IsFullscreen() : (param == "true" || param == "1"));
+            }
+            else if (action == "ToggleFullscreen") {
+                if (g_App) g_App->SetFullscreen(!g_App->IsFullscreen());
+            }
+            else if (action == "SetTimeScale") {
+                if (g_App) {
+                    try { g_App->SetTimeScale(std::stof(param)); } catch (...) { g_App->SetTimeScale(1.0f); }
                 }
+            }
+            else if (action == "TakeScreenshot") {
+                if (g_App) g_App->TakeScreenshot(param);
+            }
+            else if (action == "OpenURL") {
+                if (g_App) g_App->OpenURL(param.empty() ? "https://github.com" : param);
+            }
+            else if (action == "Log") {
+                std::cout << "[LOG] " << (param.empty() ? ("Button " + id + " clicked") : param) << "\n";
+            }
+            else if (action == "LogToScreen") {
+                if (g_App) g_App->LogToScreen(param.empty() ? ("Button " + id + " clicked") : param);
+            }
+            else if (action == "PlaySound") {
+                AudioManager::Get().PlaySound(param);
+            }
+            else if (action == "PlayMusic") {
+                AudioManager::Get().PlayMusic(param);
+            }
+            else if (action == "StopMusic") {
+                AudioManager::Get().StopMusic();
+            }
+            else if (action == "SetMasterVolume") {
+                try {
+                    float v = std::stof(param);
+                    if (g_App) g_App->SetMasterVolume(v);
+                } catch (...) {}
+            }
+            else if (action == "SetMusicVolume") {
+                try {
+                    float v = std::stof(param);
+                    if (g_App) g_App->SetMusicVolume(v);
+                } catch (...) {}
+            }
+            else if (action == "ShowFPS" || action == "ToggleFPS") {
+                if (g_App) g_App->SetShowFPSOverlay(param.empty() ? !g_App->IsFPSOverlayShown() : (param == "true" || param == "1"));
+            }
+            else if (action == "SetCursorVisible") {
+                if (g_App) g_App->SetCursorVisible(param == "true" || param == "1");
+            }
+            else if (action == "ToggleElement") {
+                UIElement* target = GetElement(param);
+                if (target) { target->visible = !target->visible; target->UpdateDrawables(); }
+            }
+            else if (action == "ShowElement") {
+                UIElement* target = GetElement(param);
+                if (target) { target->visible = true; target->UpdateDrawables(); }
+            }
+            else if (action == "HideElement") {
+                UIElement* target = GetElement(param);
+                if (target) { target->visible = false; target->UpdateDrawables(); }
+            }
+            else if (action == "ExecuteLua") {
+                try {
+                    LuaState::GetLua().safe_script(param);
+                } catch (const std::exception& e) {
+                    std::cerr << "[ERROR] [UI] ExecuteLua action failed for " << id << ": " << e.what() << "\n";
+                }
+            }
+            else {
+                try {
+                    LuaState::GetLua().safe_script(action + "(\"" + param + "\")");
+                } catch (...) {}
             }
         };
 
@@ -471,7 +583,13 @@ void UIManager::Save(const std::string &path)
         else if (el.type == UIElementType::Slider) j["type"] = "slider";
         else if (el.type == UIElementType::TextInput) j["type"] = "textinput";
         else if (el.type == UIElementType::ProgressBar) j["type"] = "progressbar";
+        else if (el.type == UIElementType::VerticalBox) j["type"] = "verticalbox";
+        else if (el.type == UIElementType::HorizontalBox) j["type"] = "horizontalbox";
         else j["type"] = "panel";
+
+        j["parent"] = el.parent;
+        j["layoutSpacing"] = el.layoutSpacing;
+        j["layoutPadding"] = el.layoutPadding;
 
         j["x"] = el.position.x;
         j["y"] = el.position.y;
@@ -581,7 +699,13 @@ void UIManager::Load(const std::string &path)
         else if (typeStr == "slider") el.type = UIElementType::Slider;
         else if (typeStr == "textinput") el.type = UIElementType::TextInput;
         else if (typeStr == "progressbar") el.type = UIElementType::ProgressBar;
+        else if (typeStr == "verticalbox") el.type = UIElementType::VerticalBox;
+        else if (typeStr == "horizontalbox") el.type = UIElementType::HorizontalBox;
         else el.type = UIElementType::Panel;
+
+        el.parent = j.value("parent", "");
+        el.layoutSpacing = j.value("layoutSpacing", 8.f);
+        el.layoutPadding = j.value("layoutPadding", 10.f);
 
         el.position = {j.value("x", 0.f), j.value("y", 0.f)};
         el.size = {j.value("width", 100.f), j.value("height", 50.f)};
@@ -707,6 +831,7 @@ void UIManager::Load(const std::string &path)
         m_Elements.push_back(el);
     }
     m_SortDirty = true;
+    ApplyLayouts();
 }
 
 

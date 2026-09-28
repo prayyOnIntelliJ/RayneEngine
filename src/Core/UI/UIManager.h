@@ -6,7 +6,7 @@
 #include <memory>
 #include <SFML/Graphics.hpp>
 
-enum class UIElementType { Text, Panel, Button, Image, Checkbox, Slider, TextInput, ProgressBar };
+enum class UIElementType { Text, Panel, Button, Image, Checkbox, Slider, TextInput, ProgressBar, VerticalBox, HorizontalBox };
 
 enum class TextAlign { Left, Center, Right };
 
@@ -18,6 +18,10 @@ struct UIElement
     sf::Vector2f size;
     sf::Color color;
     int zIndex = 0;
+
+    std::string parent = "";
+    float layoutSpacing = 8.f;
+    float layoutPadding = 10.f;
 
     std::string text;
     unsigned int characterSize = 16;
@@ -101,6 +105,8 @@ public:
     void Save(const std::string &path);
 
     void Load(const std::string &path);
+
+    void ApplyLayouts();
 
     UIElement *CreateElement(const std::string &id, UIElementType type);
 
