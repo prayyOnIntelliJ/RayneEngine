@@ -42,6 +42,7 @@ struct EditorObject
     float rotation = 0.f;
     float scaleX = 1.f;
     float scaleY = 1.f;
+    int zIndex = 0;
     std::map<std::string, ScriptComponent::Property> scriptProperties;
 };
 
@@ -212,6 +213,7 @@ private:
         None,
         Name,
         Tag,
+        ZIndex,
         TransformX,
         TransformY,
         Rotation,
@@ -232,6 +234,17 @@ private:
     std::string m_ActiveScriptProperty;
     std::string m_ActiveInputText;
     sf::FloatRect m_ActiveInputBounds;
+
+    int m_InputSelectionStart = -1;
+    int m_InputSelectionEnd = -1;
+    bool m_IsSelectingText = false;
+    bool HasTextSelection() const { return m_InputSelectionStart >= 0 && m_InputSelectionEnd >= 0 && m_InputSelectionStart != m_InputSelectionEnd; }
+    int GetSelectionMin() const { return std::min(m_InputSelectionStart, m_InputSelectionEnd); }
+    int GetSelectionMax() const { return std::max(m_InputSelectionStart, m_InputSelectionEnd); }
+    void DeleteActiveSelection();
+
+    std::string m_ActiveTooltip;
+    void DrawTooltip(sf::RenderWindow &window);
 
     float m_AutoSaveTimer = 0.f;
     float m_AutoSavePopupTimer = 0.f;
@@ -372,9 +385,13 @@ private:
     void UndoCommand();
     void RedoCommand();
 
+    void CopySelection();
+    void PasteClipboard();
+
     std::vector<std::shared_ptr<EditorCommand>> m_UndoStack;
     std::vector<std::shared_ptr<EditorCommand>> m_RedoStack;
     std::map<std::string, json> m_DragBeforeStates;
+    std::vector<json> m_ClipboardObjects;
 
     void SaveToJson(const std::string &path);
 

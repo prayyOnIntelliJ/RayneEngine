@@ -17,6 +17,7 @@
 #include "../Application/EngineVersion.h"
 #include "SFML/Window/Event.hpp"
 #include <SFML/Graphics/ConvexShape.hpp>
+#include <SFML/Window/Clipboard.hpp>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -278,6 +279,8 @@ void EditorScene::InitMenus()
     edit.items = {
         {"Settings", "settings", false, "Ctrl+,"},
         {"", "", true, ""},
+        {"Copy", "copy", false, "Ctrl+C"},
+        {"Paste", "paste", false, "Ctrl+V"},
         {"Duplicate", "duplicate", false, "Ctrl+D"},
         {"Delete", "delete", false, "Del"},
         {"", "", true, ""},
@@ -424,6 +427,12 @@ void EditorScene::HandleMenuAction(const std::string &action)
                                      : m_Selected->objectType;
             AddObject(m_Selected->shape.getPosition() + sf::Vector2f(m_GridSize, 0.f), t);
         }
+    } else if (action == "copy")
+    {
+        CopySelection();
+    } else if (action == "paste")
+    {
+        PasteClipboard();
     } else if (action == "open_ui_editor") { m_manager.SwitchSceneTo("ui_editor"); }
 }
 
@@ -481,16 +490,52 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (event.type == sf::Event::TextEntered && m_ActiveProjectSettingsField != ProjectSettingsField::None)
         {
             if (event.text.unicode == '\b') {
-                if (!m_ProjectSettingsInputText.empty()) m_ProjectSettingsInputText.pop_back();
+                if (HasTextSelection()) DeleteActiveSelection();
+                else if (!m_ProjectSettingsInputText.empty()) m_ProjectSettingsInputText.pop_back();
             } else if (event.text.unicode == '\r' || event.text.unicode == '\n') {
                 CommitActiveProjectSettingsField();
             } else if (event.text.unicode == 27) {
                 m_ActiveProjectSettingsField = ProjectSettingsField::None;
                 m_ProjectSettingsInputText.clear();
-            } else if (event.text.unicode < 128) {
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
+            } else if (event.text.unicode >= 32 && event.text.unicode < 128) {
+                if (HasTextSelection()) DeleteActiveSelection();
                 m_ProjectSettingsInputText += static_cast<char>(event.text.unicode);
             }
             return;
+        }
+
+        if (event.type == sf::Event::KeyPressed && m_ActiveProjectSettingsField != ProjectSettingsField::None)
+        {
+            const bool ctrl = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
+            if (ctrl && event.key.code == sf::Keyboard::A)
+            {
+                m_InputSelectionStart = 0;
+                m_InputSelectionEnd = (int)m_ProjectSettingsInputText.size();
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::C && HasTextSelection())
+            {
+                int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ProjectSettingsInputText.size());
+                int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ProjectSettingsInputText.size());
+                sf::Clipboard::setString(m_ProjectSettingsInputText.substr(sMin, sMax - sMin));
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::V)
+            {
+                if (HasTextSelection()) DeleteActiveSelection();
+                std::string pasteStr = sf::Clipboard::getString().toAnsiString();
+                for (char c : pasteStr) {
+                    if (c >= 32 && c < 127) m_ProjectSettingsInputText += c;
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Delete && HasTextSelection())
+            {
+                DeleteActiveSelection();
+                return;
+            }
         }
 
         if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
@@ -499,6 +544,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 m_ActiveProjectSettingsField = ProjectSettingsField::None;
                 m_ProjectSettingsInputText.clear();
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
             } else {
                 CommitActiveProjectSettingsField();
                 m_ShowProjectSettings = false;
@@ -506,9 +553,57 @@ void EditorScene::HandleEvent(const sf::Event &event)
             return;
         }
 
+        if (event.type == sf::Event::MouseMoved)
+        {
+            m_MouseScreenPos = {(float) event.mouseMove.x, (float) event.mouseMove.y};
+            if (m_IsSelectingText && m_ActiveProjectSettingsField != ProjectSettingsField::None)
+            {
+                float textStartX = m_ProjectSettingsInputBounds.left + 6.f;
+                float localX = m_MouseScreenPos.x - textStartX;
+                sf::Text t(m_ProjectSettingsInputText, *m_Font, 11);
+                int bestIdx = 0;
+                float bestDist = 1e9f;
+                for (int i = 0; i <= (int)m_ProjectSettingsInputText.size(); ++i) {
+                    float cx = t.findCharacterPos(i).x;
+                    float d = std::abs(localX - cx);
+                    if (d < bestDist) { bestDist = d; bestIdx = i; }
+                }
+                m_InputSelectionEnd = bestIdx;
+            }
+            return;
+        }
+
+        if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left)
+        {
+            m_IsSelectingText = false;
+            if (m_InputSelectionStart == m_InputSelectionEnd) {
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
+            }
+            return;
+        }
+
         if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
         {
-            HandleProjectSettingsClick({(float) event.mouseButton.x, (float) event.mouseButton.y});
+            sf::Vector2f mPos{(float) event.mouseButton.x, (float) event.mouseButton.y};
+            if (m_ActiveProjectSettingsField != ProjectSettingsField::None && m_ProjectSettingsInputBounds.contains(mPos))
+            {
+                float textStartX = m_ProjectSettingsInputBounds.left + 6.f;
+                float localX = mPos.x - textStartX;
+                sf::Text t(m_ProjectSettingsInputText, *m_Font, 11);
+                int bestIdx = 0;
+                float bestDist = 1e9f;
+                for (int i = 0; i <= (int)m_ProjectSettingsInputText.size(); ++i) {
+                    float cx = t.findCharacterPos(i).x;
+                    float d = std::abs(localX - cx);
+                    if (d < bestDist) { bestDist = d; bestIdx = i; }
+                }
+                m_InputSelectionStart = bestIdx;
+                m_InputSelectionEnd = bestIdx;
+                m_IsSelectingText = true;
+                return;
+            }
+            HandleProjectSettingsClick(mPos);
             return;
         }
 
@@ -584,6 +679,21 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseMoved)
     {
         m_MouseScreenPos = {(float) event.mouseMove.x, (float) event.mouseMove.y};
+
+        if (m_IsSelectingText && m_ActiveField != EditField::None)
+        {
+            float textStartX = m_ActiveInputBounds.left + 5.f;
+            float localX = m_MouseScreenPos.x - textStartX;
+            sf::Text t(m_ActiveInputText, *m_Font, 12);
+            int bestIdx = 0;
+            float bestDist = 1e9f;
+            for (int i = 0; i <= (int)m_ActiveInputText.size(); ++i) {
+                float cx = t.findCharacterPos(i).x;
+                float d = std::abs(localX - cx);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            m_InputSelectionEnd = bestIdx;
+        }
 
         if (m_panning)
         {
@@ -711,6 +821,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseButtonReleased)
     {
         m_MouseScreenPos = {(float) event.mouseButton.x, (float) event.mouseButton.y};
+        if (event.mouseButton.button == sf::Mouse::Left)
+        {
+            m_IsSelectingText = false;
+            if (m_InputSelectionStart == m_InputSelectionEnd) {
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
+            }
+        }
     }
 
     const bool inTopBars = m_MouseScreenPos.y < TopBarHeight;
@@ -721,6 +839,24 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
     {
+        if (m_ActiveField != EditField::None && m_ActiveInputBounds.contains(m_MouseScreenPos))
+        {
+            float textStartX = m_ActiveInputBounds.left + 5.f;
+            float localX = m_MouseScreenPos.x - textStartX;
+            sf::Text t(m_ActiveInputText, *m_Font, 12);
+            int bestIdx = 0;
+            float bestDist = 1e9f;
+            for (int i = 0; i <= (int)m_ActiveInputText.size(); ++i) {
+                float cx = t.findCharacterPos(i).x;
+                float d = std::abs(localX - cx);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            m_InputSelectionStart = bestIdx;
+            m_InputSelectionEnd = bestIdx;
+            m_IsSelectingText = true;
+            return;
+        }
+
         if (m_TabBrowserBounds.contains(m_MouseScreenPos)) {
             m_ActiveBottomPanelTab = BottomPanelTab::ContentBrowser;
             return;
@@ -818,7 +954,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::TextEntered && m_ActiveField != EditField::None)
     {
-        if (event.text.unicode == '\b') { if (!m_ActiveInputText.empty()) m_ActiveInputText.pop_back(); } else if (
+        if (event.text.unicode == '\b') {
+            if (HasTextSelection()) DeleteActiveSelection();
+            else if (!m_ActiveInputText.empty()) m_ActiveInputText.pop_back();
+        } else if (
             event.text.unicode == '\r' || event.text.unicode == '\n')
         {
             if (m_Selected && !m_ActiveInputText.empty())
@@ -962,18 +1101,34 @@ void EditorScene::HandleEvent(const sf::Event &event)
                             }
                         } catch (...) {}
                     }
+                } else if (m_ActiveField == EditField::ZIndex)
+                {
+                    try
+                    {
+                        m_Selected->zIndex = std::stoi(m_ActiveInputText);
+                        SyncToRegistry();
+                    } catch (...) {}
                 }
             }
 
             m_ActiveField = EditField::None;
             m_ActiveInputText.clear();
-        } else if (event.text.unicode < 128)
+            m_InputSelectionStart = -1;
+            m_InputSelectionEnd = -1;
+        } else if (event.text.unicode >= 32 && event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
+            if (HasTextSelection()) DeleteActiveSelection();
+
             if (m_ActiveField == EditField::Name || m_ActiveField == EditField::Tag || 
                 m_ActiveField == EditField::Script || m_ActiveField == EditField::UIText)
             {
                 m_ActiveInputText += c;
+            }
+            else if (m_ActiveField == EditField::ZIndex)
+            {
+                if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()))
+                    m_ActiveInputText += c;
             }
             else if (m_ActiveField == EditField::ScriptProperty)
             {
@@ -1006,7 +1161,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 if (std::isdigit(c))
                     m_ActiveInputText += c;
             }
-            else if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()) || (c == '.' && m_ActiveInputText.find('.') == std::string::npos))
+            else if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()))
+            {
+                m_ActiveInputText += c;
+            }
+            else if (c == '.' && m_ActiveInputText.find('.') == std::string::npos)
             {
                 m_ActiveInputText += c;
             }
@@ -1420,11 +1579,44 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::KeyPressed)
     {
-        const bool ctrl = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl);
+        const bool ctrl = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
+
+        if (m_ActiveField != EditField::None)
+        {
+            if (ctrl && event.key.code == sf::Keyboard::A)
+            {
+                m_InputSelectionStart = 0;
+                m_InputSelectionEnd = (int)m_ActiveInputText.size();
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::C && HasTextSelection())
+            {
+                int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ActiveInputText.size());
+                int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ActiveInputText.size());
+                sf::Clipboard::setString(m_ActiveInputText.substr(sMin, sMax - sMin));
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::V)
+            {
+                if (HasTextSelection()) DeleteActiveSelection();
+                std::string pasteStr = sf::Clipboard::getString().toAnsiString();
+                for (char c : pasteStr) {
+                    if (c >= 32 && c < 127) m_ActiveInputText += c;
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Delete && HasTextSelection())
+            {
+                DeleteActiveSelection();
+                return;
+            }
+        }
 
         if (ctrl && event.key.code == sf::Keyboard::S) HandleMenuAction("save");
         if (ctrl && event.key.code == sf::Keyboard::L) HandleMenuAction("load");
         if (ctrl && event.key.code == sf::Keyboard::D) HandleMenuAction("duplicate");
+        if (ctrl && event.key.code == sf::Keyboard::C) HandleMenuAction("copy");
+        if (ctrl && event.key.code == sf::Keyboard::V) HandleMenuAction("paste");
         if (ctrl && event.key.code == sf::Keyboard::Z) UndoCommand();
         if (ctrl && event.key.code == sf::Keyboard::Y) RedoCommand();
         if (ctrl && event.key.code == sf::Keyboard::Comma) HandleMenuAction("settings");
@@ -1448,6 +1640,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 m_ActiveField = EditField::None;
                 m_ActiveInputText.clear();
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
                 return;
             }
             if (m_Selected) m_Selected->selected = false;
@@ -1537,8 +1731,16 @@ void EditorScene::Render(sf::RenderWindow &window)
     window.setView(m_camera);
     DrawGrid();
 
-    for (auto &obj: m_Objects)
+    std::vector<EditorObject*> sortedObjects;
+    sortedObjects.reserve(m_Objects.size());
+    for (auto &obj: m_Objects) sortedObjects.push_back(&obj);
+    std::stable_sort(sortedObjects.begin(), sortedObjects.end(), [](const EditorObject *a, const EditorObject *b) {
+        return a->zIndex < b->zIndex;
+    });
+
+    for (auto *pObj: sortedObjects)
     {
+        auto &obj = *pObj;
         if (IsPolygonType(obj.objectType))
         {
             obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
@@ -1553,6 +1755,13 @@ void EditorScene::Render(sf::RenderWindow &window)
             obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color::Transparent);
             obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 0.f);
             window.draw(obj.shape);
+        }
+
+        if (obj.previewTexture)
+        {
+            obj.previewSprite.setTexture(*obj.previewTexture);
+            obj.previewSprite.setPosition(obj.shape.getPosition());
+            window.draw(obj.previewSprite);
         }
 
         if (m_ShowColliderOutlines)
@@ -1574,16 +1783,6 @@ void EditorScene::Render(sf::RenderWindow &window)
             idText.setString("#" + std::to_string(obj.entity));
             idText.setPosition(obj.shape.getPosition() + sf::Vector2f(2.f, 2.f));
             window.draw(idText);
-        }
-    }
-
-    for (auto &obj: m_Objects)
-    {
-        if (obj.previewTexture)
-        {
-            obj.previewSprite.setTexture(*obj.previewTexture);
-            obj.previewSprite.setPosition(obj.shape.getPosition());
-            window.draw(obj.previewSprite);
         }
     }
 
@@ -1807,6 +2006,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     }
 
     m_ContentBrowser->RenderDragGhost(window);
+    DrawTooltip(window);
 }
 
 static void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Color outline)
@@ -2217,6 +2417,7 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
 void EditorScene::DrawInspector(sf::RenderWindow &window)
 {
     m_InspectorButtons.clear();
+    m_ActiveTooltip.clear();
 
     const float panelX = m_InspectorBounds.left;
     const float panelY = m_InspectorBounds.top;
@@ -2497,6 +2698,40 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                ? m_ActiveInputText + "|"
                                : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_Selected->color.b));
     y = DrawEditableRow(window, "B", bDisplay, "edit_b", panelX, y);
+
+    std::string zDisplay = (m_ActiveField == EditField::ZIndex && !m_ActiveInputText.empty())
+                               ? m_ActiveInputText + "|"
+                               : (m_ActiveField == EditField::ZIndex ? "|" : std::to_string(m_Selected->zIndex));
+    y = DrawEditableRow(window, "Z-Index", zDisplay, "edit_z", panelX, y);
+
+    {
+        const float btnW = (InspectorWidth - InspectorPad * 2.f - 6.f) / 2.f;
+        const sf::FloatRect fwdRect(panelX + InspectorPad, y, btnW, 20.f);
+        const sf::FloatRect bwdRect(panelX + InspectorPad + btnW + 6.f, y, btnW, 20.f);
+        const bool fwdHov = fwdRect.contains(m_MouseScreenPos);
+        const bool bwdHov = bwdRect.contains(m_MouseScreenPos);
+
+        DrawPill(window, fwdRect, fwdHov ? C_BG_ELEVATED : C_BG_INPUT, fwdHov ? C_ACCENT : C_BORDER);
+        DrawPill(window, bwdRect, bwdHov ? C_BG_ELEVATED : C_BG_INPUT, bwdHov ? C_ACCENT : C_BORDER);
+
+        sf::Text fwdTxt("+ Forward", *m_Font, 10);
+        fwdTxt.setFillColor(fwdHov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        fwdTxt.setPosition(fwdRect.left + (btnW - fwdTxt.getLocalBounds().width) / 2.f, fwdRect.top + 3.f);
+        window.draw(fwdTxt);
+
+        sf::Text bwdTxt("- Backward", *m_Font, 10);
+        bwdTxt.setFillColor(bwdHov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+        bwdTxt.setPosition(bwdRect.left + (btnW - bwdTxt.getLocalBounds().width) / 2.f, bwdRect.top + 3.f);
+        window.draw(bwdTxt);
+
+        m_InspectorButtons.push_back({fwdRect, "layer_forward"});
+        m_InspectorButtons.push_back({bwdRect, "layer_backward"});
+
+        if (fwdHov) m_ActiveTooltip = "Objekt eine Ebene nach vorne verschieben (+1)";
+        if (bwdHov) m_ActiveTooltip = "Objekt eine Ebene nach hinten verschieben (-1)";
+
+        y += 24.f;
+    }
 
     y += 8.f;
 
@@ -2854,9 +3089,42 @@ float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string
     return y + 20.f;
 }
 
+static std::string GetInspectorTooltip(const std::string& key)
+{
+    if (key == "Name") return "Eindeutiger Bezeichner des Objekts";
+    if (key == "Tag") return "Kategorie-Tag fuer Skripte und Abfragen";
+    if (key == "Entity") return "Interne ECS Entity ID";
+    if (key == "Type") return "Geometrische Form oder Sprite-Typ";
+    if (key == "X") return "Horizontale Position in der Welt";
+    if (key == "Y") return "Vertikale Position in der Welt";
+    if (key == "Rotation") return "Drehwinkel des Objekts in Grad";
+    if (key == "Scale X") return "Skalierung entlang der X-Achse";
+    if (key == "Scale Y") return "Skalierung entlang der Y-Achse";
+    if (key == "W") return "Breite des Objekts in Einheiten";
+    if (key == "H") return "Hoehe des Objekts in Einheiten";
+    if (key == "Z-Index") return "Render-Ebene: Hoehere Werte liegen im Vordergrund";
+    if (key == "R") return "Rotanteil der Farbe (0-255)";
+    if (key == "G") return "Gruenanteil der Farbe (0-255)";
+    if (key == "B") return "Blauanteil der Farbe (0-255)";
+    if (key == "File") return "Zugeordnete Datei / Textur";
+    if (key == "Script") return "Zugeordnetes Lua-Skript";
+    if (key == "Channel") return "Kollisions-Kanalnummer";
+    if (key == "Solid") return "Ob das Objekt feste Kollision besitzt";
+    if (key == "Dx") return "Geschwindigkeit auf der X-Achse";
+    if (key == "Dy") return "Geschwindigkeit auf der Y-Achse";
+    return "";
+}
+
 float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
                            const std::string &val, float x, float y)
 {
+    const sf::FloatRect rowRect(x, y, InspectorWidth, 20.f);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        std::string tip = GetInspectorTooltip(key);
+        if (!tip.empty()) m_ActiveTooltip = tip;
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
@@ -2884,6 +3152,13 @@ float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
 float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &key, const std::string &val,
                                    const std::string &action, float x, float y)
 {
+    const sf::FloatRect rowRect(x, y, InspectorWidth, 22.f);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        std::string tip = GetInspectorTooltip(key);
+        if (!tip.empty()) m_ActiveTooltip = tip;
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
@@ -2896,7 +3171,6 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     const float valW = InspectorWidth - InspectorWidth * 0.44f - InspectorPad;
     const sf::FloatRect fieldRect(valX, y, valW, 20.f);
     const bool hovered = fieldRect.contains(m_MouseScreenPos);
-    const bool active = (m_InspectorButtons.size() > 0) && false;
 
     sf::Color fieldFill = hovered ? C_BG_ELEVATED : C_BG_INPUT;
     sf::Color fieldBorder = hovered ? C_ACCENT : C_BORDER;
@@ -2907,6 +3181,24 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     field.setOutlineColor(fieldBorder);
     field.setOutlineThickness(1.f);
     window.draw(field);
+
+    const bool isFieldActive = (!val.empty() && val.back() == '|');
+    if (isFieldActive)
+    {
+        m_ActiveInputBounds = fieldRect;
+        if (HasTextSelection())
+        {
+            sf::Text t(m_ActiveInputText, *m_Font, 12);
+            int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ActiveInputText.size());
+            int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ActiveInputText.size());
+            float x1 = t.findCharacterPos(sMin).x;
+            float x2 = t.findCharacterPos(sMax).x;
+            sf::RectangleShape selBox({x2 - x1, 14.f});
+            selBox.setPosition(valX + 5.f + x1, y + 3.f);
+            selBox.setFillColor(sf::Color(60, 120, 240, 140));
+            window.draw(selBox);
+        }
+    }
 
     std::string displayVal = val;
     if (!displayVal.empty() && displayVal.back() == '|')
@@ -2937,6 +3229,13 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
 float EditorScene::DrawCheckboxRow(sf::RenderWindow &window, const std::string &key, bool value,
                                     const std::string &action, float x, float y)
 {
+    const sf::FloatRect rowRect(x, y, InspectorWidth, 22.f);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        std::string tip = GetInspectorTooltip(key);
+        if (!tip.empty()) m_ActiveTooltip = tip;
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
@@ -3021,6 +3320,13 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
     const sf::FloatRect btnRect(x + InspectorPad, y + 2.f, InspectorWidth - InspectorPad * 2, 24.f);
     const bool hovered = btnRect.contains(m_MouseScreenPos);
 
+    if (hovered)
+    {
+        if (label.find("Add") != std::string::npos) m_ActiveTooltip = "Neue Komponente zum Objekt hinzufuegen";
+        else if (label.find("Remove") != std::string::npos) m_ActiveTooltip = "Komponente von diesem Objekt entfernen";
+        else if (label == "Open Script") m_ActiveTooltip = "Skript in Editor oeffnen";
+    }
+
     sf::Color fill = hovered
                          ? sf::Color(std::min(255, fillColor.r + 16),
                                      std::min(255, fillColor.g + 16),
@@ -3092,6 +3398,9 @@ float EditorScene::DrawScriptInput(sf::RenderWindow &window, float x, float y)
 void EditorScene::HandleInspectorClick(sf::Vector2f pos)
 {
     m_ActiveField = EditField::None;
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
+    m_IsSelectingText = false;
 
     for (auto &btn: m_InspectorButtons)
     {
@@ -3245,6 +3554,18 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::ColorB;
             m_ActiveInputText = std::to_string(m_Selected->color.b);
+        } else if (btn.action == "edit_z" && m_Selected)
+        {
+            m_ActiveField = EditField::ZIndex;
+            m_ActiveInputText = std::to_string(m_Selected->zIndex);
+        } else if (btn.action == "layer_forward" && m_Selected)
+        {
+            m_Selected->zIndex++;
+            SyncToRegistry();
+        } else if (btn.action == "layer_backward" && m_Selected)
+        {
+            m_Selected->zIndex--;
+            SyncToRegistry();
         } else if (btn.action == "open_script" && m_Selected && !m_Selected->scriptPath.empty())
         {
 #ifdef _WIN32
@@ -3611,6 +3932,7 @@ void EditorScene::SyncToRegistry()
             rc.size = obj.shape.getSize();
             rc.color = obj.color;
             rc.shapeType = MapToShapeType(obj.objectType);
+            rc.zIndex = obj.zIndex;
         }
 
         if (obj.previewTexture && !obj.spritePath.empty())
@@ -3648,6 +3970,7 @@ void EditorScene::SnapshotState()
         j["rotation"] = obj.rotation;
         j["scaleX"] = obj.scaleX;
         j["scaleY"] = obj.scaleY;
+        j["zIndex"] = obj.zIndex;
         j["width"] = obj.shape.getSize().x;
         j["height"] = obj.shape.getSize().y;
         j["color"] = {obj.color.r, obj.color.g, obj.color.b};
@@ -3748,6 +4071,7 @@ void EditorScene::RestoreSnapshot()
         if (j.contains("rotation")) obj.rotation = j["rotation"];
         if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
         if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
+        obj.zIndex = j.value("zIndex", 0);
         obj.shape.setRotation(obj.rotation);
         obj.shape.setScale(obj.scaleX, obj.scaleY);
         obj.shape.setFillColor(obj.color);
@@ -3779,7 +4103,7 @@ void EditorScene::RestoreSnapshot()
         t.scaleX = obj.scaleX;
         t.scaleY = obj.scaleY;
         m_Registry.AddComponent(obj.entity, t);
-        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
+        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex});
         if (!obj.tag.empty())
             m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
 
@@ -3862,9 +4186,16 @@ sf::Vector2f EditorScene::MouseWorldPos() const
 
 EditorObject *EditorScene::ObjectAt(sf::Vector2f pos)
 {
-    for (auto it = m_Objects.rbegin(); it != m_Objects.rend(); ++it)
-        if (it->shape.getGlobalBounds().contains(pos))
-            return &(*it);
+    std::vector<EditorObject*> sortedObjects;
+    sortedObjects.reserve(m_Objects.size());
+    for (auto &obj: m_Objects) sortedObjects.push_back(&obj);
+    std::stable_sort(sortedObjects.begin(), sortedObjects.end(), [](const EditorObject *a, const EditorObject *b) {
+        return a->zIndex > b->zIndex;
+    });
+
+    for (auto *obj: sortedObjects)
+        if (obj->shape.getGlobalBounds().contains(pos))
+            return obj;
     return nullptr;
 }
 
@@ -3947,10 +4278,10 @@ int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
     if (!m_Selected) return -1;
 
     sf::Vector2i zeroScreen{0, 0};
-    sf::Vector2i eightScreen{8, 0};
+    sf::Vector2i hitScreen{7, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
-    const sf::Vector2f wEight = m_Window.mapPixelToCoords(eightScreen, m_camera);
-    const float hitRadius = std::abs(wEight.x - wZero.x);
+    const sf::Vector2f wHit = m_Window.mapPixelToCoords(hitScreen,  m_camera);
+    const float hitRadius = std::abs(wHit.x - wZero.x);
 
     for (int i = 0; i < 8; ++i)
     {
@@ -3973,10 +4304,10 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     if (!m_Selected) return;
 
     sf::Vector2i zeroScreen{0, 0};
-    sf::Vector2i tenScreen{10, 0};
+    sf::Vector2i handleScreen{5, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
-    const sf::Vector2f wTen  = m_Window.mapPixelToCoords(tenScreen,  m_camera);
-    const float hw = std::abs(wTen.x - wZero.x);
+    const sf::Vector2f wHandle = m_Window.mapPixelToCoords(handleScreen, m_camera);
+    const float hw = std::abs(wHandle.x - wZero.x);
 
     sf::Vector2i fortyScreen{0, 40};
     const sf::Vector2f wForty = m_Window.mapPixelToCoords(fortyScreen, m_camera);
@@ -3992,9 +4323,9 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     
     sf::Vector2f topMid = RotatePoint(unrotatedTopMid, p, m_Selected->rotation);
 
-    static const sf::Color C_SCALE_FILL  = sf::Color(255, 255, 255, 230);
-    static const sf::Color C_SCALE_EDGE  = sf::Color(200, 200, 220, 180);
-    static const sf::Color C_SCALE_OUTL  = sf::Color(100, 90, 200, 255);
+    static const sf::Color C_SCALE_FILL  = sf::Color(80, 165, 255, 240);
+    static const sf::Color C_SCALE_EDGE  = sf::Color(120, 195, 255, 240);
+    static const sf::Color C_SCALE_OUTL  = sf::Color(25, 30, 45, 255);
 
     for (int i = 0; i < 8; ++i)
     {
@@ -4007,7 +4338,7 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
         handle.setRotation(m_Selected->rotation);
         handle.setFillColor(isCorner ? C_SCALE_FILL : C_SCALE_EDGE);
         handle.setOutlineColor(C_SCALE_OUTL);
-        handle.setOutlineThickness(hw * 0.3f);
+        handle.setOutlineThickness(std::max(1.f, hw * 0.25f));
         window.draw(handle);
     }
 
@@ -4989,6 +5320,7 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     j["rotation"] = obj.rotation;
     j["scaleX"] = obj.scaleX;
     j["scaleY"] = obj.scaleY;
+    j["zIndex"] = obj.zIndex;
     j["width"] = obj.shape.getSize().x;
     j["height"] = obj.shape.getSize().y;
 
@@ -5054,6 +5386,7 @@ void EditorScene::DeserializeObject(const json& j) {
     if (j.contains("rotation")) obj.rotation = j["rotation"];
     if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
     if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
+    obj.zIndex = j.value("zIndex", 0);
     obj.shape.setRotation(obj.rotation);
     obj.shape.setScale(obj.scaleX, obj.scaleY);
     obj.shape.setFillColor(obj.color);
@@ -5084,7 +5417,7 @@ void EditorScene::DeserializeObject(const json& j) {
     t.scaleX = obj.scaleX;
     t.scaleY = obj.scaleY;
     m_Registry.AddComponent(obj.entity, t);
-    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
+    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex});
     if (!obj.tag.empty()) {
         m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
     }
@@ -5225,6 +5558,102 @@ void EditorScene::SelectObject(EditorObject* obj, bool multi) {
 bool EditorScene::IsSelected(const EditorObject* obj) const {
     return std::find(m_SelectedObjects.begin(), m_SelectedObjects.end(), obj) != m_SelectedObjects.end();
 }
+
+void EditorScene::CopySelection() {
+    m_ClipboardObjects.clear();
+    for (auto* obj : m_SelectedObjects) {
+        if (obj) {
+            m_ClipboardObjects.push_back(SerializeObject(*obj));
+        }
+    }
+    if (m_ClipboardObjects.empty() && m_Selected) {
+        m_ClipboardObjects.push_back(SerializeObject(*m_Selected));
+    }
+}
+
+void EditorScene::PasteClipboard() {
+    if (m_ClipboardObjects.empty()) return;
+
+    ClearSelection();
+    auto macroCmd = std::make_shared<MacroCommand>();
+
+    for (const auto& item : m_ClipboardObjects) {
+        json j = item;
+        std::string newId = NextId();
+        j["id"] = newId;
+        j["x"] = j.value("x", 0.f) + m_GridSize;
+        j["y"] = j.value("y", 0.f) + m_GridSize;
+
+        DeserializeObject(j);
+        EditorObject* newObj = ObjectById(newId);
+        if (newObj) {
+            SelectObject(newObj, true);
+            macroCmd->commands.push_back(std::make_shared<ObjectStateCommand>(newId, json(nullptr), SerializeObject(*newObj)));
+        }
+    }
+
+    if (!macroCmd->commands.empty()) {
+        m_UndoStack.push_back(macroCmd);
+        m_RedoStack.clear();
+    }
+    UpdateStatusText();
+}
+
+void EditorScene::DeleteActiveSelection()
+{
+    if (!HasTextSelection()) return;
+    int sMin = GetSelectionMin();
+    int sMax = GetSelectionMax();
+
+    if (m_ActiveProjectSettingsField != ProjectSettingsField::None)
+    {
+        sMin = std::clamp(sMin, 0, (int)m_ProjectSettingsInputText.size());
+        sMax = std::clamp(sMax, 0, (int)m_ProjectSettingsInputText.size());
+        m_ProjectSettingsInputText.erase(sMin, sMax - sMin);
+    }
+    else if (m_ActiveField != EditField::None)
+    {
+        sMin = std::clamp(sMin, 0, (int)m_ActiveInputText.size());
+        sMax = std::clamp(sMax, 0, (int)m_ActiveInputText.size());
+        m_ActiveInputText.erase(sMin, sMax - sMin);
+    }
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
+}
+
+void EditorScene::DrawTooltip(sf::RenderWindow &window)
+{
+    if (m_ActiveTooltip.empty()) return;
+
+    sf::Text text;
+    text.setFont(*m_Font);
+    text.setCharacterSize(11);
+    text.setFillColor(C_TEXT_PRIMARY);
+    text.setString(m_ActiveTooltip);
+
+    sf::FloatRect tb = text.getLocalBounds();
+    const float pad = 6.f;
+    const float w = tb.width + pad * 2.f;
+    const float h = tb.height + pad * 2.f + 4.f;
+
+    sf::Vector2f pos = m_MouseScreenPos + sf::Vector2f(12.f, 16.f);
+    if (pos.x + w > window.getSize().x - 4.f)
+        pos.x = window.getSize().x - w - 4.f;
+    if (pos.y + h > window.getSize().y - 4.f)
+        pos.y = m_MouseScreenPos.y - h - 4.f;
+
+    sf::RectangleShape bg({w, h});
+    bg.setPosition(pos);
+    bg.setFillColor(sf::Color(22, 25, 32, 245));
+    bg.setOutlineColor(C_ACCENT);
+    bg.setOutlineThickness(1.f);
+
+    text.setPosition(pos.x + pad, pos.y + pad - tb.top);
+
+    window.draw(bg);
+    window.draw(text);
+}
+
 
 static std::string ResolveCMakeExecutable()
 {
@@ -5828,13 +6257,29 @@ float EditorScene::DrawProjectSettingsInputField(sf::RenderWindow &window, const
 
     sf::RectangleShape box(sf::Vector2f(inW, 22.f));
     box.setPosition(inX, y);
-    box.setFillColor(C_BG_INPUT);
-    box.setOutlineThickness(1.f);
-
     bool active = (m_ActiveProjectSettingsField == field);
-    box.setOutlineColor(active ? C_ACCENT : C_BORDER);
-
+    bool hovered = box.getGlobalBounds().contains(m_MouseScreenPos);
+    box.setFillColor(active ? C_BG_INPUT : (hovered ? sf::Color(28, 32, 40) : C_BG_INPUT));
+    box.setOutlineColor(active ? C_ACCENT : (hovered ? C_BORDER_LIGHT : C_BORDER));
+    box.setOutlineThickness(1.f);
     window.draw(box);
+
+    if (active)
+    {
+        m_ProjectSettingsInputBounds = box.getGlobalBounds();
+        if (HasTextSelection())
+        {
+            sf::Text t(m_ProjectSettingsInputText, *m_Font, 11);
+            int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ProjectSettingsInputText.size());
+            int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ProjectSettingsInputText.size());
+            float x1 = t.findCharacterPos(sMin).x;
+            float x2 = t.findCharacterPos(sMax).x;
+            sf::RectangleShape selBox({x2 - x1, 14.f});
+            selBox.setPosition(inX + 6.f + x1, y + 4.f);
+            selBox.setFillColor(sf::Color(60, 120, 240, 140));
+            window.draw(selBox);
+        }
+    }
 
     std::string display = active ? m_ProjectSettingsInputText : currentVal;
     if (active && (int)(m_FPSClock.getElapsedTime().asSeconds() * 2) % 2 == 0) display += "|";
@@ -5934,8 +6379,6 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window) {
     } else if (m_ProjectSettingsTab == 1) {
         currY += DrawProjectSettingsInputField(window, "Window Width", std::to_string(m_ProjectWindowWidth), ProjectSettingsField::WindowWidth, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Window Height", std::to_string(m_ProjectWindowHeight), ProjectSettingsField::WindowHeight, x + 20.f, currY, x + w);
-        currY += DrawProjectSettingsToggle(window, "Vertical Sync (VSync)", m_ProjectVSync, "toggle_vsync", x + 20.f, currY, x + w);
-        currY += DrawProjectSettingsInputField(window, "Target FPS (0 = Uncapped)", std::to_string(m_ProjectTargetFPS), ProjectSettingsField::TargetFPS, x + 20.f, currY, x + w);
         currY += DrawProjectSettingsToggle(window, "Fullscreen (Standalone)", m_ProjectFullscreen, "toggle_fullscreen", x + 20.f, currY, x + w);
         currY += DrawProjectSettingsInputField(window, "Clear Color (Hex)", ColorToHex(m_ProjectClearColor), ProjectSettingsField::ClearColorHex, x + 20.f, currY, x + w);
     } else if (m_ProjectSettingsTab == 2) {

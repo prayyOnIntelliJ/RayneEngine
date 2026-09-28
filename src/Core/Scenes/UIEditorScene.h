@@ -148,10 +148,25 @@ private:
         SliderMax,
         ProgressValue,
         ProgressMax,
+        LayoutSpacing,
+        LayoutPadding,
+        Parent,
     };
 
     EditField m_ActiveField = EditField::None;
     std::string m_ActiveInputText;
+    sf::FloatRect m_ActiveInputBounds;
+
+    int m_InputSelectionStart = -1;
+    int m_InputSelectionEnd = -1;
+    bool m_IsSelectingText = false;
+    bool HasTextSelection() const { return m_InputSelectionStart >= 0 && m_InputSelectionEnd >= 0 && m_InputSelectionStart != m_InputSelectionEnd; }
+    int GetSelectionMin() const { return std::min(m_InputSelectionStart, m_InputSelectionEnd); }
+    int GetSelectionMax() const { return std::max(m_InputSelectionStart, m_InputSelectionEnd); }
+    void DeleteActiveSelection();
+
+    std::string m_ActiveTooltip;
+    void DrawTooltip(sf::RenderWindow &window);
 
     std::string m_ActiveDropdown;
     sf::FloatRect m_DropdownRect;
@@ -220,6 +235,11 @@ private:
     void DeleteSelected();
 
     std::string NextId(UIElementType type);
+
+    void SelectElement(UIElement *el);
+    void CopySelection();
+    void PasteClipboard();
+    std::unique_ptr<UIElement> m_ClipboardElement;
 };
 
 #endif

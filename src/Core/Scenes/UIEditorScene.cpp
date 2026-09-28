@@ -6,6 +6,7 @@
 #include "../Resources/ResourceManager.h"
 #include "../Application/Application.h"
 #include <SFML/Window/Event.hpp>
+#include <SFML/Window/Clipboard.hpp>
 
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
@@ -123,14 +124,28 @@ struct DropdownOption {
 
 static const std::vector<DropdownOption> UTILITY_ACTIONS = {
     {"None", "", ActionParamType::None, ""},
-    {"Quit Game", "Quit", ActionParamType::None, ""},
+    {"Load Scene", "LoadScene", ActionParamType::String, "scenes/level1.json"},
     {"Restart Scene", "Restart", ActionParamType::None, ""},
+    {"Quit Game", "Quit", ActionParamType::None, ""},
+    {"Play Sound", "PlaySound", ActionParamType::String, "audio/click.wav"},
+    {"Play Music", "PlayMusic", ActionParamType::String, "audio/music.ogg"},
+    {"Stop Music", "StopMusic", ActionParamType::None, ""},
     {"Toggle Pause", "TogglePause", ActionParamType::None, ""},
+    {"Pause Game", "Pause", ActionParamType::None, ""},
+    {"Resume Game", "Resume", ActionParamType::None, ""},
     {"Set TimeScale", "SetTimeScale", ActionParamType::Float, "1.0"},
+    {"Toggle Fullscreen", "ToggleFullscreen", ActionParamType::None, ""},
     {"Set Fullscreen", "SetFullscreen", ActionParamType::Bool, "true"},
-    {"Take Screenshot", "TakeScreenshot", ActionParamType::None, ""},
+    {"Show FPS", "ShowFPS", ActionParamType::Bool, "true"},
+    {"Set Cursor Visible", "SetCursorVisible", ActionParamType::Bool, "true"},
+    {"Log To Screen", "LogToScreen", ActionParamType::String, "Button Clicked!"},
+    {"Log Message", "Log", ActionParamType::String, "Hello from UI!"},
     {"Open URL", "OpenURL", ActionParamType::String, "https://rayne3d.com"},
-    {"Log Message", "Log", ActionParamType::String, "Hello from UI!"}
+    {"Take Screenshot", "TakeScreenshot", ActionParamType::None, ""},
+    {"Toggle UI Element", "ToggleElement", ActionParamType::String, "menu_panel"},
+    {"Show UI Element", "ShowElement", ActionParamType::String, "menu_panel"},
+    {"Hide UI Element", "HideElement", ActionParamType::String, "menu_panel"},
+    {"Execute Lua", "ExecuteLua", ActionParamType::String, "print('custom action')"}
 };
 
 UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
@@ -147,7 +162,7 @@ void UIEditorScene::OnEnter()
 {
     std::cout << "[INFO] [UIEditorScene] Entered UI Editor\n";
     UpdateBounds();
-    m_SelectedElement = nullptr;
+    SelectElement(nullptr);
     if (m_ContentBrowser) m_ContentBrowser->Refresh();
 }
 
@@ -315,6 +330,28 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 }
             }
 
+            if (m_ActiveField != EditField::None && m_ActiveInputBounds.contains(m_MouseScreenPos))
+            {
+                float textStartX = m_ActiveInputBounds.left + 4.f;
+                float localX = m_MouseScreenPos.x - textStartX;
+                sf::Text t(m_ActiveInputText, *m_Font, 12);
+                int bestIdx = 0;
+                float bestDist = 1e9f;
+                for (int i = 0; i <= (int)m_ActiveInputText.size(); ++i) {
+                    float cx = t.findCharacterPos(i).x;
+                    float d = std::abs(localX - cx);
+                    if (d < bestDist) { bestDist = d; bestIdx = i; }
+                }
+                m_InputSelectionStart = bestIdx;
+                m_InputSelectionEnd = bestIdx;
+                m_IsSelectingText = true;
+                return;
+            }
+
+            m_InputSelectionStart = -1;
+            m_InputSelectionEnd = -1;
+            m_IsSelectingText = false;
+
             if (m_PaletteBounds.contains(m_MouseScreenPos))
             {
                 for (auto &btn: m_PaletteHitboxes)
@@ -354,8 +391,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 {
                     if (rect.contains(m_MouseScreenPos))
                     {
-                        m_SelectedElement = el;
-                        m_ActiveField = EditField::None;
+                        SelectElement(el);
                         return;
                     }
                 }
@@ -394,11 +430,10 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
                 if (clicked)
                 {
-                    m_SelectedElement = clicked;
+                    SelectElement(clicked);
                     m_Dragging = true;
                     m_DragOffset = m_MouseCanvasPos - clicked->position;
-                } else { m_SelectedElement = nullptr; }
-                m_ActiveField = EditField::None;
+                } else { SelectElement(nullptr); }
             }
         } else if (event.mouseButton.button == sf::Mouse::Middle || event.mouseButton.button == sf::Mouse::Right)
         {
@@ -422,6 +457,21 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                     break;
                 }
             }
+        }
+
+        if (m_IsSelectingText && m_ActiveField != EditField::None)
+        {
+            float textStartX = m_ActiveInputBounds.left + 4.f;
+            float localX = m_MouseScreenPos.x - textStartX;
+            sf::Text t(m_ActiveInputText, *m_Font, 12);
+            int bestIdx = 0;
+            float bestDist = 1e9f;
+            for (int i = 0; i <= (int)m_ActiveInputText.size(); ++i) {
+                float cx = t.findCharacterPos(i).x;
+                float d = std::abs(localX - cx);
+                if (d < bestDist) { bestDist = d; bestIdx = i; }
+            }
+            m_InputSelectionEnd = bestIdx;
         }
 
         if (m_Panning)
@@ -493,6 +543,14 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::MouseButtonReleased)
     {
+        if (event.mouseButton.button == sf::Mouse::Left)
+        {
+            m_IsSelectingText = false;
+            if (m_InputSelectionStart == m_InputSelectionEnd) {
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
+            }
+        }
         m_Dragging = false;
         m_Panning = false;
         m_Resizing = false;
@@ -672,7 +730,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                             hit->texture = tex;
                         }
                         hit->UpdateDrawables();
-                        m_SelectedElement = hit;
+                        SelectElement(hit);
                     }
                     else
                     {
@@ -699,7 +757,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                             newImg->color = sf::Color::White;
                             newImg->zIndex = maxZ + 1;
                             newImg->UpdateDrawables();
-                            m_SelectedElement = newImg;
+                            SelectElement(newImg);
                         }
                     }
                 }
@@ -716,7 +774,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                         {
                             el.font = f;
                             el.UpdateDrawables();
-                            m_SelectedElement = &el;
+                            SelectElement(&el);
                             break;
                         }
                     }
@@ -736,27 +794,106 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::KeyPressed)
     {
+        const bool ctrl = sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) || sf::Keyboard::isKeyPressed(sf::Keyboard::RControl);
+
+        if (m_ActiveField != EditField::None)
+        {
+            if (ctrl && event.key.code == sf::Keyboard::A)
+            {
+                m_InputSelectionStart = 0;
+                m_InputSelectionEnd = static_cast<int>(m_ActiveInputText.size());
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::C && HasTextSelection())
+            {
+                int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ActiveInputText.size());
+                int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ActiveInputText.size());
+                sf::Clipboard::setString(m_ActiveInputText.substr(sMin, sMax - sMin));
+                return;
+            }
+            if (ctrl && event.key.code == sf::Keyboard::V)
+            {
+                if (HasTextSelection()) DeleteActiveSelection();
+                std::string pasteStr = sf::Clipboard::getString().toAnsiString();
+                for (char c : pasteStr) {
+                    if (c >= 32 && c < 127) m_ActiveInputText += c;
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Delete && HasTextSelection())
+            {
+                DeleteActiveSelection();
+                return;
+            }
+        }
+
+        if (ctrl && event.key.code == sf::Keyboard::S)
+        {
+            HandleAction("save");
+            return;
+        }
+        if (ctrl && event.key.code == sf::Keyboard::C)
+        {
+            CopySelection();
+            return;
+        }
+        if (ctrl && event.key.code == sf::Keyboard::V)
+        {
+            PasteClipboard();
+            return;
+        }
+
         if (event.key.code == sf::Keyboard::Escape)
         {
-            m_SelectedElement = nullptr;
-            m_ActiveField = EditField::None;
-        } else if (event.key.code == sf::Keyboard::Delete && m_SelectedElement && m_ActiveField ==
-                   EditField::None) { DeleteSelected(); } else if (
-            event.key.code == sf::Keyboard::Enter && m_ActiveField != EditField::None)
+            if (m_ActiveField != EditField::None)
+            {
+                m_ActiveField = EditField::None;
+                m_ActiveInputText.clear();
+                m_InputSelectionStart = -1;
+                m_InputSelectionEnd = -1;
+            }
+            else
+            {
+                SelectElement(nullptr);
+            }
+        }
+        else if (event.key.code == sf::Keyboard::Delete && m_SelectedElement && m_ActiveField == EditField::None)
+        {
+            DeleteSelected();
+        }
+        else if (event.key.code == sf::Keyboard::Enter && m_ActiveField != EditField::None)
         {
             m_ActiveField = EditField::None;
             m_ActiveInputText.clear();
-        } else if (event.key.code == sf::Keyboard::Backspace && m_ActiveField != EditField::None && !m_ActiveInputText.
-                   empty()) { m_ActiveInputText.pop_back(); }
+            m_InputSelectionStart = -1;
+            m_InputSelectionEnd = -1;
+        }
+        else if (event.key.code == sf::Keyboard::Backspace && m_ActiveField != EditField::None)
+        {
+            if (HasTextSelection())
+            {
+                DeleteActiveSelection();
+            }
+            else if (!m_ActiveInputText.empty())
+            {
+                m_ActiveInputText.pop_back();
+            }
+        }
     }
 
     if (event.type == sf::Event::TextEntered && m_ActiveField != EditField::None && m_SelectedElement)
     {
         if (event.text.unicode == 8 || event.text.unicode == 13 || event.text.unicode == 27) return;
 
+        if (HasTextSelection())
+        {
+            DeleteActiveSelection();
+        }
+
         char c = static_cast<char>(event.text.unicode);
         if (m_ActiveField == EditField::Id || m_ActiveField == EditField::UIText || 
-            m_ActiveField == EditField::OnClickParam || m_ActiveField == EditField::OnHoverParam)
+            m_ActiveField == EditField::OnClickParam || m_ActiveField == EditField::OnHoverParam ||
+            m_ActiveField == EditField::Parent)
             m_ActiveInputText += c;
         else if (std::isdigit(c) || c == '-' || c == '.')
             m_ActiveInputText += c;
@@ -983,6 +1120,18 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         {
             try { m_SelectedElement->progressMax = std::stof(m_ActiveInputText); } catch (...) {}
         }
+        else if (m_ActiveField == EditField::LayoutSpacing)
+        {
+            try { m_SelectedElement->layoutSpacing = std::stof(m_ActiveInputText); } catch (...) {}
+        }
+        else if (m_ActiveField == EditField::LayoutPadding)
+        {
+            try { m_SelectedElement->layoutPadding = std::stof(m_ActiveInputText); } catch (...) {}
+        }
+        else if (m_ActiveField == EditField::Parent)
+        {
+            m_SelectedElement->parent = m_ActiveInputText;
+        }
 
         m_SelectedElement->UpdateDrawables();
     }
@@ -1083,6 +1232,8 @@ void UIEditorScene::Render(sf::RenderWindow &window)
         window.draw(successBar);
         window.draw(asText);
     }
+
+    DrawTooltip(window);
 }
 
 void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
@@ -1142,6 +1293,8 @@ void UIEditorScene::DrawPalette(sf::RenderWindow &window)
     drawAddBtn("Slider", "add_slider");
     drawAddBtn("Progress Bar", "add_progressbar");
     drawAddBtn("Text Input", "add_textinput");
+    drawAddBtn("Vertical Box", "add_verticalbox");
+    drawAddBtn("Horizontal Box", "add_horizontalbox");
 }
 
 void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
@@ -1199,6 +1352,7 @@ void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
 void UIEditorScene::DrawInspector(sf::RenderWindow &window)
 {
     m_InspectorHitboxes.clear();
+    m_ActiveTooltip.clear();
 
     sf::RectangleShape panel({InspectorWidth, m_InspectorBounds.height});
     panel.setFillColor(C_BG_PANEL);
@@ -1233,6 +1387,32 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::Id ? "|" : m_SelectedElement->id);
     y = DrawEditableRow(window, "ID", idDisplay, "edit_id", px, y);
+
+    std::string parentDisplay = (m_ActiveField == EditField::Parent && !m_ActiveInputText.empty())
+                                    ? m_ActiveInputText + "|"
+                                    : (m_ActiveField == EditField::Parent ? "|" : (m_SelectedElement->parent.empty() ? "(None)" : m_SelectedElement->parent));
+    y = DrawEditableRow(window, "Parent Box", parentDisplay, "edit_parent", px, y);
+    if (!m_SelectedElement->parent.empty())
+    {
+        DrawActionButton(window, "Detach Parent", "clear_parent", px + 10.f, y, C_DANGER_DIM, C_DANGER);
+        y += 30.f;
+    }
+
+    if (m_SelectedElement->type == UIElementType::VerticalBox || m_SelectedElement->type == UIElementType::HorizontalBox)
+    {
+        y += 6.f;
+        y = DrawSectionHeader(window, "BOX LAYOUT", sf::Color(120, 220, 160), px, y);
+
+        std::string spacingDisplay = (m_ActiveField == EditField::LayoutSpacing && !m_ActiveInputText.empty())
+                                         ? m_ActiveInputText + "|"
+                                         : (m_ActiveField == EditField::LayoutSpacing ? "|" : FormatFloat(m_SelectedElement->layoutSpacing, 1));
+        y = DrawEditableRow(window, "Spacing", spacingDisplay, "edit_layoutspacing", px, y);
+
+        std::string paddingDisplay = (m_ActiveField == EditField::LayoutPadding && !m_ActiveInputText.empty())
+                                         ? m_ActiveInputText + "|"
+                                         : (m_ActiveField == EditField::LayoutPadding ? "|" : FormatFloat(m_SelectedElement->layoutPadding, 1));
+        y = DrawEditableRow(window, "Padding", paddingDisplay, "edit_layoutpadding", px, y);
+    }
 
     y += 10.f;
     y = DrawSectionHeader(window, "TRANSFORM", sf::Color(100, 200, 255), px, y);
@@ -1290,7 +1470,8 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                             : std::to_string((int)m_SelectedElement->opacity));
     y = DrawEditableRow(window, "Opacity", opacityDisplay, "edit_opacity", px, y);
 
-    if (m_SelectedElement->type == UIElementType::Panel || m_SelectedElement->type == UIElementType::Image)
+    if (m_SelectedElement->type == UIElementType::Panel || m_SelectedElement->type == UIElementType::Image ||
+        m_SelectedElement->type == UIElementType::VerticalBox || m_SelectedElement->type == UIElementType::HorizontalBox)
     {
         std::string colorHeader = (m_SelectedElement->type == UIElementType::Image) ? "TINT COLOR" : "BG COLOR";
         y += 6.f;
@@ -1729,8 +1910,8 @@ void UIEditorScene::DrawResizeHandles(sf::RenderWindow &window)
     };
 
     sf::RectangleShape handle({hw * 2.f, hw * 2.f});
-    handle.setFillColor(sf::Color::White);
-    handle.setOutlineColor(sf::Color::Black);
+    handle.setFillColor(sf::Color(80, 165, 255, 240));
+    handle.setOutlineColor(sf::Color(25, 30, 45, 255));
     handle.setOutlineThickness(1.f);
 
     for (const auto &pos: positions)
@@ -1774,12 +1955,18 @@ std::string UIEditorScene::NextId(UIElementType type)
     else if (type == UIElementType::Slider) prefix = "Slider_";
     else if (type == UIElementType::ProgressBar) prefix = "ProgressBar_";
     else if (type == UIElementType::TextInput) prefix = "TextInput_";
+    else if (type == UIElementType::VerticalBox) prefix = "VBox_";
+    else if (type == UIElementType::HorizontalBox) prefix = "HBox_";
 
     return prefix + std::to_string(idCounter++);
 }
 
 void UIEditorScene::HandleAction(const std::string &action)
 {
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
+    m_IsSelectingText = false;
+
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
@@ -1803,6 +1990,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->color = sf::Color(35, 35, 55, 230);
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_text")
     {
@@ -1816,6 +2004,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->characterSize = 24;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_button")
     {
@@ -1828,6 +2017,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 90.f, m_CanvasSize.y / 2.f - 25.f};
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_image")
     {
@@ -1841,6 +2031,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->color = sf::Color::White;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_checkbox")
     {
@@ -1853,6 +2044,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 20.f, m_CanvasSize.y / 2.f - 20.f};
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_slider")
     {
@@ -1867,6 +2059,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->normalColor = sf::Color(200, 200, 210);
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_progressbar")
     {
@@ -1882,6 +2075,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->progressValue = 0.5f;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "add_textinput")
     {
@@ -1900,11 +2094,63 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->textAlign = TextAlign::Left;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
+        }
+    } else if (action == "add_verticalbox")
+    {
+        int maxZ = 0;
+        for (auto &el: UIManager::Get().GetElements()) maxZ = std::max(maxZ, el.zIndex);
+        m_SelectedElement = UIManager::Get().CreateElement(NextId(UIElementType::VerticalBox), UIElementType::VerticalBox);
+        if (m_SelectedElement)
+        {
+            m_SelectedElement->size = {220.f, 260.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 110.f, m_CanvasSize.y / 2.f - 130.f};
+            m_SelectedElement->color = sf::Color(30, 32, 40, 180);
+            m_SelectedElement->borderColor = C_ACCENT;
+            m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->layoutSpacing = 8.f;
+            m_SelectedElement->layoutPadding = 10.f;
+            m_SelectedElement->zIndex = maxZ + 1;
+            m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
+        }
+    } else if (action == "add_horizontalbox")
+    {
+        int maxZ = 0;
+        for (auto &el: UIManager::Get().GetElements()) maxZ = std::max(maxZ, el.zIndex);
+        m_SelectedElement = UIManager::Get().CreateElement(NextId(UIElementType::HorizontalBox), UIElementType::HorizontalBox);
+        if (m_SelectedElement)
+        {
+            m_SelectedElement->size = {300.f, 80.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 150.f, m_CanvasSize.y / 2.f - 40.f};
+            m_SelectedElement->color = sf::Color(30, 32, 40, 180);
+            m_SelectedElement->borderColor = C_ACCENT;
+            m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->layoutSpacing = 8.f;
+            m_SelectedElement->layoutPadding = 10.f;
+            m_SelectedElement->zIndex = maxZ + 1;
+            m_SelectedElement->UpdateDrawables();
+            SelectElement(m_SelectedElement);
         }
     } else if (action == "edit_id")
     {
         m_ActiveField = EditField::Id;
         m_ActiveInputText = m_SelectedElement->id;
+    } else if (action == "edit_parent")
+    {
+        m_ActiveField = EditField::Parent;
+        m_ActiveInputText = m_SelectedElement->parent;
+    } else if (action == "clear_parent")
+    {
+        if (m_SelectedElement) { m_SelectedElement->parent.clear(); m_SelectedElement->UpdateDrawables(); }
+    } else if (action == "edit_layoutspacing")
+    {
+        m_ActiveField = EditField::LayoutSpacing;
+        m_ActiveInputText = FormatFloat(m_SelectedElement->layoutSpacing, 1);
+    } else if (action == "edit_layoutpadding")
+    {
+        m_ActiveField = EditField::LayoutPadding;
+        m_ActiveInputText = FormatFloat(m_SelectedElement->layoutPadding, 1);
     } else if (action == "edit_x")
     {
         m_ActiveField = EditField::TransformX;
@@ -2477,12 +2723,50 @@ void UIEditorScene::HandleAction(const std::string &action)
 }
 
 
+void UIEditorScene::SelectElement(UIElement *el)
+{
+    if (m_SelectedElement != el)
+    {
+        m_InspectorScrollOffset = 0.f;
+        m_InspectorTargetScroll = 0.f;
+    }
+    m_SelectedElement = el;
+    m_ActiveField = EditField::None;
+    m_ActiveInputText.clear();
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
+    m_IsSelectingText = false;
+}
+
+void UIEditorScene::CopySelection()
+{
+    if (!m_SelectedElement) return;
+    m_ClipboardElement = std::make_unique<UIElement>(*m_SelectedElement);
+}
+
+void UIEditorScene::PasteClipboard()
+{
+    if (!m_ClipboardElement) return;
+
+    UIElement* newEl = UIManager::Get().CreateElement(NextId(m_ClipboardElement->type), m_ClipboardElement->type);
+    if (!newEl) return;
+
+    std::string newId = newEl->id;
+    *newEl = *m_ClipboardElement;
+    newEl->id = newId;
+    newEl->position += sf::Vector2f(20.f, 20.f);
+    newEl->UpdateDrawables();
+
+    SelectElement(newEl);
+}
+
 void UIEditorScene::DeleteSelected()
 {
     if (m_SelectedElement)
     {
-        UIManager::Get().RemoveElement(m_SelectedElement->id);
-        m_SelectedElement = nullptr;
+        std::string id = m_SelectedElement->id;
+        SelectElement(nullptr);
+        UIManager::Get().RemoveElement(id);
     }
 }
 
@@ -2537,8 +2821,44 @@ float UIEditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::stri
     return y + 20.f;
 }
 
+static std::string GetUIInspectorTooltip(const std::string &key)
+{
+    if (key == "Element ID" || key == "ID") return "Eindeutiger Bezeichner des UI-Elements";
+    if (key == "Type") return "Typ des UI-Elements";
+    if (key == "Parent") return "ID des uebergeordneten Elements (fuer Layouts)";
+    if (key == "X") return "Horizontale Position in Pixeln";
+    if (key == "Y") return "Vertikale Position in Pixeln";
+    if (key == "Z-Index" || key == "Z") return "Render-Ebene: Hoehere Werte werden im Vordergrund gezeichnet";
+    if (key == "Width" || key == "W") return "Breite des Elements in Pixeln";
+    if (key == "Height" || key == "H") return "Hoehe des Elements in Pixeln";
+    if (key == "Text") return "Angezeigter Text des Elements";
+    if (key == "Font Size" || key == "Char Size") return "Schriftgroesse des Textes";
+    if (key == "Spacing" || key == "Layout Spacing") return "Abstand zwischen Kind-Elementen in Layout-Boxen";
+    if (key == "Padding" || key == "Layout Padding") return "Innenabstand der Layout-Box in Pixeln";
+    if (key == "Alignment") return "Textausrichtung (Links, Mitte, Rechts)";
+    if (key == "R") return "Rotanteil der Farbe (0-255)";
+    if (key == "G") return "Gruenanteil der Farbe (0-255)";
+    if (key == "B") return "Blauanteil der Farbe (0-255)";
+    if (key == "A" || key == "Opacity") return "Transparenz/Deckkraft des Elements";
+    if (key == "Value") return "Aktueller Wert (Slider/Progress Bar)";
+    if (key == "Min") return "Minimalwert des Sliders";
+    if (key == "Max") return "Maximalwert des Sliders / Progress Bars";
+    if (key == "Checked") return "Checkbox Status (Aktiviert/Deaktiviert)";
+    if (key == "Outline Thickness" || key == "Border Thickness" || key == "Thick") return "Rahmenstaerke in Pixeln";
+    if (key == "OnClick Action" || key == "Action") return "Auszufuehrende Aktion bei Klick";
+    if (key == "Parameter") return "Parameter fuer die ausgewaehlte Aktion";
+    return "";
+}
+
 float UIEditorScene::DrawRow(sf::RenderWindow &window, const std::string &key, const std::string &val, float x, float y)
 {
+    const sf::FloatRect rowRect(x, y, InspectorWidth, 20.f);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        std::string tip = GetUIInspectorTooltip(key);
+        if (!tip.empty()) m_ActiveTooltip = tip;
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
@@ -2566,6 +2886,13 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
     if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + rowH;
 
+    const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        std::string tip = GetUIInspectorTooltip(key);
+        if (!tip.empty()) m_ActiveTooltip = tip;
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(12);
@@ -2588,6 +2915,24 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
     field.setOutlineColor(fieldBorder);
     field.setOutlineThickness(1.f);
     window.draw(field);
+
+    const bool isFieldActive = (!val.empty() && val.back() == '|');
+    if (isFieldActive)
+    {
+        m_ActiveInputBounds = fieldRect;
+        if (HasTextSelection())
+        {
+            sf::Text t(m_ActiveInputText, *m_Font, 12);
+            int sMin = std::clamp(GetSelectionMin(), 0, (int)m_ActiveInputText.size());
+            int sMax = std::clamp(GetSelectionMax(), 0, (int)m_ActiveInputText.size());
+            float x1 = t.findCharacterPos(sMin).x;
+            float x2 = t.findCharacterPos(sMax).x;
+            sf::RectangleShape selBox({x2 - x1, 14.f});
+            selBox.setPosition(valX + 4.f + x1, y + 3.f);
+            selBox.setFillColor(sf::Color(60, 120, 240, 140));
+            window.draw(selBox);
+        }
+    }
 
     std::string displayVal = val;
     if (!displayVal.empty() && displayVal.back() == '|')
@@ -2617,6 +2962,12 @@ float UIEditorScene::DrawTextureSlot(sf::RenderWindow &window, const std::string
     const float rowH = 22.f;
     if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + rowH;
+
+    const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        m_ActiveTooltip = "Textur-Pfad zuweisen, durchsuchen (..) oder zuruecksetzen (x)";
+    }
 
     sf::Text keyText;
     keyText.setFont(*m_Font);
@@ -2729,6 +3080,12 @@ float UIEditorScene::DrawColorPickerRow(sf::RenderWindow &window, const std::str
     if (y + rowH <= m_InspectorClipTop || y >= m_InspectorClipBottom)
         return y + rowH;
 
+    const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
+    if (rowRect.contains(m_MouseScreenPos))
+    {
+        m_ActiveTooltip = "Farbe bearbeiten oder Farbdialog oeffnen";
+    }
+
     sf::Text keyText;
     keyText.setFont(*m_Font);
     keyText.setCharacterSize(11);
@@ -2780,6 +3137,14 @@ float UIEditorScene::DrawActionButton(sf::RenderWindow &window, const std::strin
     r.width = t.getLocalBounds().width + 24.f;
 
     bool hov = r.contains(m_MouseScreenPos);
+    if (hov)
+    {
+        if (action == "layer_forward") m_ActiveTooltip = "Element eine Ebene nach vorne verschieben (+1)";
+        else if (action == "layer_backward") m_ActiveTooltip = "Element eine Ebene nach hinten verschieben (-1)";
+        else if (action == "delete_element") m_ActiveTooltip = "Ausgewaehltes UI-Element loeschen";
+        else if (label.find("Links") != std::string::npos || label.find("Mitte") != std::string::npos || label.find("Rechts") != std::string::npos)
+            m_ActiveTooltip = "Textausrichtung aendern";
+    }
     bool active = (fillColor != C_BG_ELEVATED);
 
     sf::Color fill = active
@@ -2819,6 +3184,9 @@ void UIEditorScene::InitMenus()
     MenuEntry edit;
     edit.label = "Edit";
     edit.items = {
+        {"Copy", "copy", false, "Ctrl+C"},
+        {"Paste", "paste", false, "Ctrl+V"},
+        {"", "", true, ""},
         {"Delete Element", "delete", false, "Del"},
         {"Deselect", "deselect", false, "Esc"},
         {"", "", true, ""},
@@ -2846,14 +3214,17 @@ void UIEditorScene::HandleMenuAction(const std::string &action)
         HandleAction("save");
     } else if (action == "quit") {
         m_Window.close();
+    } else if (action == "copy") {
+        CopySelection();
+    } else if (action == "paste") {
+        PasteClipboard();
     } else if (action == "delete") {
         DeleteSelected();
     } else if (action == "deselect") {
-        m_SelectedElement = nullptr;
-        m_ActiveField = EditField::None;
+        SelectElement(nullptr);
     } else if (action == "clear") {
         UIManager::Get().GetElements().clear();
-        m_SelectedElement = nullptr;
+        SelectElement(nullptr);
     } else if (action == "center_camera") {
         m_CanvasView.setCenter(m_CanvasSize.x / 2.f, m_CanvasSize.y / 2.f);
     } else if (action == "back") {
@@ -3025,4 +3396,53 @@ void UIEditorScene::DrawMenuBar(sf::RenderWindow &window)
 
         x += itemW;
     }
+}
+
+void UIEditorScene::DeleteActiveSelection()
+{
+    if (!HasTextSelection()) return;
+    int sMin = GetSelectionMin();
+    int sMax = GetSelectionMax();
+
+    if (m_ActiveField != EditField::None)
+    {
+        sMin = std::clamp(sMin, 0, (int)m_ActiveInputText.size());
+        sMax = std::clamp(sMax, 0, (int)m_ActiveInputText.size());
+        m_ActiveInputText.erase(sMin, sMax - sMin);
+    }
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
+}
+
+void UIEditorScene::DrawTooltip(sf::RenderWindow &window)
+{
+    if (m_ActiveTooltip.empty()) return;
+
+    sf::Text text;
+    if (m_Font) text.setFont(*m_Font);
+    text.setCharacterSize(11);
+    text.setFillColor(C_TEXT_PRIMARY);
+    text.setString(m_ActiveTooltip);
+
+    sf::FloatRect tb = text.getLocalBounds();
+    const float pad = 6.f;
+    const float w = tb.width + pad * 2.f;
+    const float h = tb.height + pad * 2.f + 4.f;
+
+    sf::Vector2f pos = m_MouseScreenPos + sf::Vector2f(12.f, 16.f);
+    if (pos.x + w > window.getSize().x - 4.f)
+        pos.x = window.getSize().x - w - 4.f;
+    if (pos.y + h > window.getSize().y - 4.f)
+        pos.y = m_MouseScreenPos.y - h - 4.f;
+
+    sf::RectangleShape bg({w, h});
+    bg.setPosition(pos);
+    bg.setFillColor(sf::Color(22, 25, 32, 245));
+    bg.setOutlineColor(C_ACCENT);
+    bg.setOutlineThickness(1.f);
+
+    text.setPosition(pos.x + pad, pos.y + pad - tb.top);
+
+    window.draw(bg);
+    window.draw(text);
 }
