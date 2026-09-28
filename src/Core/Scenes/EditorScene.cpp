@@ -2727,8 +2727,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         m_InspectorButtons.push_back({fwdRect, "layer_forward"});
         m_InspectorButtons.push_back({bwdRect, "layer_backward"});
 
-        if (fwdHov) m_ActiveTooltip = "Objekt eine Ebene nach vorne verschieben (+1)";
-        if (bwdHov) m_ActiveTooltip = "Objekt eine Ebene nach hinten verschieben (-1)";
+        if (fwdHov) m_ActiveTooltip = "Bring object forward (+1 layer)";
+        if (bwdHov) m_ActiveTooltip = "Send object backward (-1 layer)";
 
         y += 24.f;
     }
@@ -3091,27 +3091,27 @@ float EditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string
 
 static std::string GetInspectorTooltip(const std::string& key)
 {
-    if (key == "Name") return "Eindeutiger Bezeichner des Objekts";
-    if (key == "Tag") return "Kategorie-Tag fuer Skripte und Abfragen";
-    if (key == "Entity") return "Interne ECS Entity ID";
-    if (key == "Type") return "Geometrische Form oder Sprite-Typ";
-    if (key == "X") return "Horizontale Position in der Welt";
-    if (key == "Y") return "Vertikale Position in der Welt";
-    if (key == "Rotation") return "Drehwinkel des Objekts in Grad";
-    if (key == "Scale X") return "Skalierung entlang der X-Achse";
-    if (key == "Scale Y") return "Skalierung entlang der Y-Achse";
-    if (key == "W") return "Breite des Objekts in Einheiten";
-    if (key == "H") return "Hoehe des Objekts in Einheiten";
-    if (key == "Z-Index") return "Render-Ebene: Hoehere Werte liegen im Vordergrund";
-    if (key == "R") return "Rotanteil der Farbe (0-255)";
-    if (key == "G") return "Gruenanteil der Farbe (0-255)";
-    if (key == "B") return "Blauanteil der Farbe (0-255)";
-    if (key == "File") return "Zugeordnete Datei / Textur";
-    if (key == "Script") return "Zugeordnetes Lua-Skript";
-    if (key == "Channel") return "Kollisions-Kanalnummer";
-    if (key == "Solid") return "Ob das Objekt feste Kollision besitzt";
-    if (key == "Dx") return "Geschwindigkeit auf der X-Achse";
-    if (key == "Dy") return "Geschwindigkeit auf der Y-Achse";
+    if (key == "Name") return "Unique identifier of the object";
+    if (key == "Tag") return "Category tag for scripts and queries";
+    if (key == "Entity") return "Internal ECS entity ID";
+    if (key == "Type") return "Geometric shape or sprite type";
+    if (key == "X") return "Horizontal position in world units";
+    if (key == "Y") return "Vertical position in world units";
+    if (key == "Rotation") return "Rotation angle in degrees";
+    if (key == "Scale X") return "Scaling factor along X axis";
+    if (key == "Scale Y") return "Scaling factor along Y axis";
+    if (key == "W") return "Width of the object in units";
+    if (key == "H") return "Height of the object in units";
+    if (key == "Z-Index") return "Render layer: higher values render in front";
+    if (key == "R") return "Red color component (0-255)";
+    if (key == "G") return "Green color component (0-255)";
+    if (key == "B") return "Blue color component (0-255)";
+    if (key == "File") return "Assigned texture or image file";
+    if (key == "Script") return "Attached Lua script";
+    if (key == "Channel") return "Collision channel number";
+    if (key == "Solid") return "Whether object has solid collision physics";
+    if (key == "Dx") return "Velocity along X axis";
+    if (key == "Dy") return "Velocity along Y axis";
     return "";
 }
 
@@ -3322,9 +3322,9 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
 
     if (hovered)
     {
-        if (label.find("Add") != std::string::npos) m_ActiveTooltip = "Neue Komponente zum Objekt hinzufuegen";
-        else if (label.find("Remove") != std::string::npos) m_ActiveTooltip = "Komponente von diesem Objekt entfernen";
-        else if (label == "Open Script") m_ActiveTooltip = "Skript in Editor oeffnen";
+        if (label.find("Add") != std::string::npos) m_ActiveTooltip = "Add new component to this object";
+        else if (label.find("Remove") != std::string::npos) m_ActiveTooltip = "Remove component from this object";
+        else if (label == "Open Script") m_ActiveTooltip = "Open script in code editor";
     }
 
     sf::Color fill = hovered

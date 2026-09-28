@@ -2823,30 +2823,30 @@ float UIEditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::stri
 
 static std::string GetUIInspectorTooltip(const std::string &key)
 {
-    if (key == "Element ID" || key == "ID") return "Eindeutiger Bezeichner des UI-Elements";
-    if (key == "Type") return "Typ des UI-Elements";
-    if (key == "Parent") return "ID des uebergeordneten Elements (fuer Layouts)";
-    if (key == "X") return "Horizontale Position in Pixeln";
-    if (key == "Y") return "Vertikale Position in Pixeln";
-    if (key == "Z-Index" || key == "Z") return "Render-Ebene: Hoehere Werte werden im Vordergrund gezeichnet";
-    if (key == "Width" || key == "W") return "Breite des Elements in Pixeln";
-    if (key == "Height" || key == "H") return "Hoehe des Elements in Pixeln";
-    if (key == "Text") return "Angezeigter Text des Elements";
-    if (key == "Font Size" || key == "Char Size") return "Schriftgroesse des Textes";
-    if (key == "Spacing" || key == "Layout Spacing") return "Abstand zwischen Kind-Elementen in Layout-Boxen";
-    if (key == "Padding" || key == "Layout Padding") return "Innenabstand der Layout-Box in Pixeln";
-    if (key == "Alignment") return "Textausrichtung (Links, Mitte, Rechts)";
-    if (key == "R") return "Rotanteil der Farbe (0-255)";
-    if (key == "G") return "Gruenanteil der Farbe (0-255)";
-    if (key == "B") return "Blauanteil der Farbe (0-255)";
-    if (key == "A" || key == "Opacity") return "Transparenz/Deckkraft des Elements";
-    if (key == "Value") return "Aktueller Wert (Slider/Progress Bar)";
-    if (key == "Min") return "Minimalwert des Sliders";
-    if (key == "Max") return "Maximalwert des Sliders / Progress Bars";
-    if (key == "Checked") return "Checkbox Status (Aktiviert/Deaktiviert)";
-    if (key == "Outline Thickness" || key == "Border Thickness" || key == "Thick") return "Rahmenstaerke in Pixeln";
-    if (key == "OnClick Action" || key == "Action") return "Auszufuehrende Aktion bei Klick";
-    if (key == "Parameter") return "Parameter fuer die ausgewaehlte Aktion";
+    if (key == "Element ID" || key == "ID") return "Unique identifier of the UI element";
+    if (key == "Type") return "Type of the UI element";
+    if (key == "Parent") return "ID of parent element (for layout containers)";
+    if (key == "X") return "Horizontal position in pixels";
+    if (key == "Y") return "Vertical position in pixels";
+    if (key == "Z-Index" || key == "Z") return "Render layer: higher values render in front";
+    if (key == "Width" || key == "W") return "Width of the element in pixels";
+    if (key == "Height" || key == "H") return "Height of the element in pixels";
+    if (key == "Text") return "Displayed text of the element";
+    if (key == "Font Size" || key == "Char Size") return "Font size in pixels";
+    if (key == "Spacing" || key == "Layout Spacing") return "Spacing between child elements in layout boxes";
+    if (key == "Padding" || key == "Layout Padding") return "Internal padding of the layout container in pixels";
+    if (key == "Alignment") return "Text alignment (Left, Center, Right)";
+    if (key == "R") return "Red color component (0-255)";
+    if (key == "G") return "Green color component (0-255)";
+    if (key == "B") return "Blue color component (0-255)";
+    if (key == "A" || key == "Opacity") return "Element opacity / alpha transparency";
+    if (key == "Value") return "Current value (slider or progress bar)";
+    if (key == "Min") return "Minimum value of the slider";
+    if (key == "Max") return "Maximum value of the slider or progress bar";
+    if (key == "Checked") return "Checkbox state (checked / unchecked)";
+    if (key == "Outline Thickness" || key == "Border Thickness" || key == "Thick") return "Outline thickness in pixels";
+    if (key == "OnClick Action" || key == "Action") return "Action to trigger when clicked";
+    if (key == "Parameter") return "Parameter value for the selected action";
     return "";
 }
 
@@ -2966,7 +2966,7 @@ float UIEditorScene::DrawTextureSlot(sf::RenderWindow &window, const std::string
     const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
     if (rowRect.contains(m_MouseScreenPos))
     {
-        m_ActiveTooltip = "Textur-Pfad zuweisen, durchsuchen (..) oder zuruecksetzen (x)";
+        m_ActiveTooltip = "Assign texture path, browse (..) or clear (x)";
     }
 
     sf::Text keyText;
@@ -3083,7 +3083,7 @@ float UIEditorScene::DrawColorPickerRow(sf::RenderWindow &window, const std::str
     const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
     if (rowRect.contains(m_MouseScreenPos))
     {
-        m_ActiveTooltip = "Farbe bearbeiten oder Farbdialog oeffnen";
+        m_ActiveTooltip = "Edit color values or open color picker";
     }
 
     sf::Text keyText;
@@ -3139,11 +3139,12 @@ float UIEditorScene::DrawActionButton(sf::RenderWindow &window, const std::strin
     bool hov = r.contains(m_MouseScreenPos);
     if (hov)
     {
-        if (action == "layer_forward") m_ActiveTooltip = "Element eine Ebene nach vorne verschieben (+1)";
-        else if (action == "layer_backward") m_ActiveTooltip = "Element eine Ebene nach hinten verschieben (-1)";
-        else if (action == "delete_element") m_ActiveTooltip = "Ausgewaehltes UI-Element loeschen";
-        else if (label.find("Links") != std::string::npos || label.find("Mitte") != std::string::npos || label.find("Rechts") != std::string::npos)
-            m_ActiveTooltip = "Textausrichtung aendern";
+        if (action == "layer_forward") m_ActiveTooltip = "Bring element forward (+1 layer)";
+        else if (action == "layer_backward") m_ActiveTooltip = "Send element backward (-1 layer)";
+        else if (action == "delete_element") m_ActiveTooltip = "Delete selected UI element";
+        else if (label.find("Links") != std::string::npos || label.find("Mitte") != std::string::npos || label.find("Rechts") != std::string::npos ||
+                 label.find("Left") != std::string::npos || label.find("Center") != std::string::npos || label.find("Right") != std::string::npos)
+            m_ActiveTooltip = "Change text alignment";
     }
     bool active = (fillColor != C_BG_ELEVATED);
 
