@@ -192,6 +192,22 @@ function Engine.LogWarning(msg) end
 ---@param msg string The error message to print
 function Engine.LogError(msg) end
 
+---Displays an on-screen notification toast during editor play mode (hidden in standalone build).
+---@param msg string The message to display on screen
+---@param duration? number How long to display the message in seconds (default: 3.5)
+---@param r? integer Optional red color component (0-255)
+---@param g? integer Optional green color component (0-255)
+---@param b? integer Optional blue color component (0-255)
+function Engine.LogToScreen(msg, duration, r, g, b) end
+
+---Displays an on-screen notification toast during editor play mode (hidden in standalone build).
+---@param msg string The message to display on screen
+---@param duration? number How long to display the message in seconds (default: 3.5)
+---@param r? integer Optional red color component (0-255)
+---@param g? integer Optional green color component (0-255)
+---@param b? integer Optional blue color component (0-255)
+function LogToScreen(msg, duration, r, g, b) end
+
 ---Returns the current frames per second (FPS).
 ---@return number
 function Engine.GetFPS() end

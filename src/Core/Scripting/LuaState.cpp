@@ -327,6 +327,19 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     });
     s_Lua.set_function("print", engineLogFunc);
 
+    auto screenLogFunc = [](const std::string &msg, sol::optional<float> duration, sol::optional<int> r, sol::optional<int> g, sol::optional<int> b) {
+        if (g_App) {
+            float dur = duration.value_or(3.5f);
+            sf::Color col = sf::Color(45, 212, 191);
+            if (r.has_value() && g.has_value() && b.has_value()) {
+                col = sf::Color(r.value(), g.value(), b.value());
+            }
+            g_App->LogToScreen(msg, dur, col);
+        }
+    };
+    engineTable.set_function("LogToScreen", screenLogFunc);
+    s_Lua.set_function("LogToScreen", screenLogFunc);
+
     engineTable.set_function("GetFPS", []() -> float {
         return g_App ? g_App->GetFPS() : 0.f;
     });

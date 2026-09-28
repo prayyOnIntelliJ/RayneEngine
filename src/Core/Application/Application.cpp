@@ -284,8 +284,76 @@ void Application::SetIcon()
     } else { std::cout << "[WARN] [Window] Failed to load window icon from " << filePath << "\n"; }
 }
 
+void Application::LogToScreen(const std::string& msg, float duration, sf::Color color)
+{
+#ifndef RAYNE_STANDALONE
+    if (duration <= 0.f) duration = 3.5f;
+    m_ScreenLogs.push_back({msg, duration, duration, color});
+    if (m_ScreenLogs.size() > 10)
+        m_ScreenLogs.erase(m_ScreenLogs.begin());
+#endif
+}
+
+void Application::RenderScreenLogs()
+{
+    if (m_ScreenLogs.empty()) return;
+
+    auto font = ResourceManager::Get().GetFont(std::string(ENGINE_ASSET_PATH) + "/fonts/Merriweather.ttf");
+    if (!font) return;
+
+    sf::View defaultView = m_RenderWindow.getDefaultView();
+    m_RenderWindow.setView(defaultView);
+
+    float startY = 40.f;
+    float startX = 20.f;
+
+    for (const auto& log : m_ScreenLogs)
+    {
+        float alphaFactor = 1.0f;
+        if (log.remainingTime < 0.5f) {
+            alphaFactor = std::max(0.0f, log.remainingTime / 0.5f);
+        }
+
+        sf::Text text;
+        text.setFont(*font);
+        text.setCharacterSize(13);
+        text.setString(log.text);
+        text.setFillColor(sf::Color(log.color.r, log.color.g, log.color.b, static_cast<sf::Uint8>(255 * alphaFactor)));
+
+        sf::FloatRect bounds = text.getLocalBounds();
+        float pillW = bounds.width + 24.f;
+        float pillH = 26.f;
+
+        sf::RectangleShape bg({pillW, pillH});
+        bg.setPosition(startX, startY);
+        bg.setFillColor(sf::Color(20, 24, 30, static_cast<sf::Uint8>(220 * alphaFactor)));
+        bg.setOutlineColor(sf::Color(log.color.r, log.color.g, log.color.b, static_cast<sf::Uint8>(120 * alphaFactor)));
+        bg.setOutlineThickness(1.f);
+        m_RenderWindow.draw(bg);
+
+        sf::RectangleShape bar({3.f, pillH - 4.f});
+        bar.setPosition(startX + 2.f, startY + 2.f);
+        bar.setFillColor(sf::Color(log.color.r, log.color.g, log.color.b, static_cast<sf::Uint8>(255 * alphaFactor)));
+        m_RenderWindow.draw(bar);
+
+        text.setPosition(startX + 12.f, startY + 4.f);
+        m_RenderWindow.draw(text);
+
+        startY += pillH + 6.f;
+    }
+}
+
 void Application::Update(float deltaTime)
 {
+    for (auto it = m_ScreenLogs.begin(); it != m_ScreenLogs.end(); )
+    {
+        it->remainingTime -= deltaTime;
+        if (it->remainingTime <= 0.f)
+            it = m_ScreenLogs.erase(it);
+        else
+            ++it;
+    }
+
     m_SceneManager.Update(deltaTime);
 }
 
@@ -324,6 +392,10 @@ void Application::Render()
             m_RenderWindow.draw(fpsText);
         }
     }
+
+#ifndef RAYNE_STANDALONE
+    RenderScreenLogs();
+#endif
 
     m_RenderWindow.display();
 }

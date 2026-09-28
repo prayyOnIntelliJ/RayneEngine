@@ -35,6 +35,7 @@ public:
     void Quit();
     void RestartCurrentScene();
     void LoadGameScene(const std::string& sceneName);
+    void LoadScene(const std::string& sceneName) { LoadGameScene(sceneName); }
 
     void SetPaused(bool paused) { m_IsPaused = paused; }
     bool IsPaused() const { return m_IsPaused; }
@@ -50,6 +51,15 @@ public:
     std::string TakeScreenshot(const std::string& customFilename = "");
     void OpenURL(const std::string& url);
 
+    struct ScreenLogMessage {
+        std::string text;
+        float remainingTime = 3.5f;
+        float totalTime = 3.5f;
+        sf::Color color = sf::Color(45, 212, 191);
+    };
+
+    void LogToScreen(const std::string& msg, float duration = 3.5f, sf::Color color = sf::Color(45, 212, 191));
+
     float GetFPS() const { return m_CurrentFPS; }
     float GetDeltaTime() const { return m_CurrentDeltaTime; }
     void SetShowFPSOverlay(bool show) { m_ShowFPSOverlay = show; }
@@ -58,6 +68,7 @@ public:
 
 private:
     void SetIcon();
+    void RenderScreenLogs();
 
     void Update(float deltaTime);
 
@@ -87,6 +98,7 @@ private:
     float m_CurrentDeltaTime = 0.f;
     bool m_ShowFPSOverlay = false;
     bool m_IsFirstRun = false;
+    std::vector<ScreenLogMessage> m_ScreenLogs;
 
     sf::RenderWindow m_RenderWindow;
     SceneManager m_SceneManager;

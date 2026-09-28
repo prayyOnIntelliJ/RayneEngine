@@ -7,6 +7,7 @@ Export = { "speed", "enemyName", "isDead", "maxHealth" }
 
 function OnCreate()
     Engine.Log("Enemy " .. enemyName .. " spawned with " .. tostring(maxHealth) .. " HP")
+    Engine.LogToScreen("TEST")
 end
 
 function OnUpdate(dt)
