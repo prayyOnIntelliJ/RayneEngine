@@ -51,20 +51,28 @@ void AudioManager::StopAllSounds()
 
 void AudioManager::PlayMusic(const std::string &path, bool loop, float volume)
 {
-    if (!m_Music.openFromFile(path))
+    std::string resolved = ResourceManager::ResolveAssetPath(path);
+    if (!m_Music.openFromFile(resolved))
     {
-        std::cerr << "[ERROR] [AudioManager] Cannot load music file: " << path << "\n";
-        return;
+        if (resolved != path && m_Music.openFromFile(path))
+        {
+            resolved = path;
+        }
+        else
+        {
+            std::cerr << "[ERROR] [AudioManager] Cannot load music file: " << path << " (resolved: " << resolved << ")\n";
+            return;
+        }
     }
 
-    std::cout << "[INFO] [AudioManager] Playing background music: " << path << " (Loop: " << (loop ? "yes" : "no") <<
+    std::cout << "[INFO] [AudioManager] Playing background music: " << resolved << " (Loop: " << (loop ? "yes" : "no") <<
             ", Vol: " << volume << ")\n";
 
     m_MusicVolume = volume;
     m_Music.setLoop(loop);
     m_Music.setVolume(m_MusicVolume * (m_MasterVolume / 100.f));
     m_Music.play();
-    std::cout << "[AudioManager] Playing music: " << path << "\n";
+    std::cout << "[AudioManager] Playing music: " << resolved << "\n";
 }
 
 void AudioManager::StopMusic() { m_Music.stop(); }

@@ -1820,7 +1820,7 @@ AssetType ContentBrowser::TypeFromFile(const std::string &fullPath)
 
     if (e == ".lua") return AssetType::Script;
     if (e == ".png" || e == ".jpg" ||
-        e == ".jpeg" || e == ".bmp")
+        e == ".jpeg" || e == ".jfif" || e == ".bmp")
         return AssetType::Image;
     if (e == ".wav" || e == ".ogg" ||
         e == ".mp3" || e == ".flac")

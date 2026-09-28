@@ -1,6 +1,7 @@
 #include "ResourceManager.h"
 #include <fstream>
 #include <vector>
+#include <filesystem>
 #include <SFML/Graphics/Image.hpp>
 
 static int ReadJpegExifOrientation(const std::string &path)
@@ -110,24 +111,99 @@ static void ApplyExifOrientation(sf::Image &img, int orientation)
     img.create(dstW, dstH, dst.data());
 }
 
+std::string ResourceManager::ResolveAssetPath(const std::string &path)
+{
+    if (path.empty()) return "";
+
+    std::string normalized = path;
+    for (char &c : normalized)
+    {
+        if (c == '\\') c = '/';
+    }
+
+    if (std::filesystem::exists(normalized))
+    {
+        return normalized;
+    }
+
+    std::string inAssets = "assets/" + normalized;
+    if (std::filesystem::exists(inAssets))
+    {
+        return inAssets;
+    }
+
+#ifdef ASSET_PATH
+    std::string inAssetPath = std::string(ASSET_PATH) + "/" + normalized;
+    if (inAssetPath != inAssets && std::filesystem::exists(inAssetPath))
+    {
+        return inAssetPath;
+    }
+#endif
+
+    std::string inEngine = "engine_content/" + normalized;
+    if (std::filesystem::exists(inEngine))
+    {
+        return inEngine;
+    }
+
+#ifdef ENGINE_ASSET_PATH
+    std::string inEnginePath = std::string(ENGINE_ASSET_PATH) + "/" + normalized;
+    if (inEnginePath != inEngine && std::filesystem::exists(inEnginePath))
+    {
+        return inEnginePath;
+    }
+#endif
+
+    if (normalized.rfind("assets/", 0) == 0)
+    {
+        std::string stripped = normalized.substr(7);
+        if (std::filesystem::exists(stripped))
+        {
+            return stripped;
+        }
+    }
+
+    if (normalized.rfind("assets/", 0) != 0 && normalized.rfind("engine_content/", 0) != 0)
+    {
+        return "assets/" + normalized;
+    }
+
+    return normalized;
+}
+
 std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path)
 {
     auto it = m_Textures.find(path);
     if (it != m_Textures.end())
         return it->second;
 
-    std::cout << "[INFO] [ResourceManager] Loading texture from disk: " << path << "...\n";
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Textures.find(resolved);
+        if (itRes != m_Textures.end())
+        {
+            m_Textures[path] = itRes->second;
+            return itRes->second;
+        }
+    }
 
-    std::string lower = path;
+    std::cout << "[INFO] [ResourceManager] Loading texture from disk: " << resolved << "...\n";
+
+    std::string lower = resolved;
     for (char &c : lower) c = (char)std::tolower((unsigned char)c);
-    bool isJpeg = lower.size() >= 4 &&
-                  (lower.substr(lower.size() - 4) == ".jpg" ||
-                   lower.substr(lower.size() - 5) == ".jpeg");
+    bool isJpeg = (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".jpg") ||
+                  (lower.size() >= 5 && lower.substr(lower.size() - 5) == ".jpeg") ||
+                  (lower.size() >= 5 && lower.substr(lower.size() - 5) == ".jfif");
 
-    int exifOrientation = isJpeg ? ReadJpegExifOrientation(path) : 0;
+    int exifOrientation = isJpeg ? ReadJpegExifOrientation(resolved) : 0;
 
     sf::Image img;
-    bool loaded = img.loadFromFile(path);
+    bool loaded = img.loadFromFile(resolved);
+    if (!loaded && resolved != path)
+    {
+        loaded = img.loadFromFile(path);
+    }
     if (!loaded)
     {
         std::string fallback = "assets/" + path;
@@ -135,26 +211,27 @@ std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path
     }
     if (!loaded)
     {
-        std::cerr << "[ERROR] [ResourceManager] Failed to load texture: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load texture: " << path << " (resolved: " << resolved << ")\n";
         return nullptr;
     }
 
     if (exifOrientation > 1)
     {
-        std::cout << "[INFO] [ResourceManager] Applying EXIF orientation " << exifOrientation << " to: " << path << "\n";
+        std::cout << "[INFO] [ResourceManager] Applying EXIF orientation " << exifOrientation << " to: " << resolved << "\n";
         ApplyExifOrientation(img, exifOrientation);
     }
 
     auto texture = std::make_shared<sf::Texture>();
     if (!texture->loadFromImage(img))
     {
-        std::cerr << "[ERROR] [ResourceManager] Failed to create texture from image: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to create texture from image: " << resolved << "\n";
         return nullptr;
     }
 
     texture->setSmooth(false);
     m_Textures[path] = texture;
-    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << path << " (" << texture->getSize().x << "x"
+    m_Textures[resolved] = texture;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << resolved << " (" << texture->getSize().x << "x"
             << texture->getSize().y << ")\n";
     return texture;
 }
@@ -165,9 +242,24 @@ std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
     if (it != m_Fonts.end())
         return it->second;
 
-    std::cout << "[INFO] [ResourceManager] Loading font from disk: " << path << "...\n";
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Fonts.find(resolved);
+        if (itRes != m_Fonts.end())
+        {
+            m_Fonts[path] = itRes->second;
+            return itRes->second;
+        }
+    }
+
+    std::cout << "[INFO] [ResourceManager] Loading font from disk: " << resolved << "...\n";
     auto font = std::make_shared<sf::Font>();
-    bool loaded = font->loadFromFile(path);
+    bool loaded = font->loadFromFile(resolved);
+    if (!loaded && resolved != path)
+    {
+        loaded = font->loadFromFile(path);
+    }
     if (!loaded)
     {
         std::string fallback = "assets/" + path;
@@ -175,12 +267,13 @@ std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
     }
     if (!loaded)
     {
-        std::cerr << "[ERROR] [ResourceManager] Failed to load font: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load font: " << path << " (resolved: " << resolved << ")\n";
         return nullptr;
     }
 
     m_Fonts[path] = font;
-    std::cout << "[INFO] [ResourceManager] Successfully loaded font: " << path << "\n";
+    m_Fonts[resolved] = font;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded font: " << resolved << "\n";
     return font;
 }
 
@@ -190,9 +283,24 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
     if (it != m_Sounds.end())
         return it->second;
 
-    std::cout << "[INFO] [ResourceManager] Loading sound buffer from disk: " << path << "...\n";
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Sounds.find(resolved);
+        if (itRes != m_Sounds.end())
+        {
+            m_Sounds[path] = itRes->second;
+            return itRes->second;
+        }
+    }
+
+    std::cout << "[INFO] [ResourceManager] Loading sound buffer from disk: " << resolved << "...\n";
     auto buffer = std::make_shared<sf::SoundBuffer>();
-    bool loaded = buffer->loadFromFile(path);
+    bool loaded = buffer->loadFromFile(resolved);
+    if (!loaded && resolved != path)
+    {
+        loaded = buffer->loadFromFile(path);
+    }
     if (!loaded)
     {
         std::string fallback = "assets/" + path;
@@ -200,12 +308,13 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
     }
     if (!loaded)
     {
-        std::cerr << "[ERROR] [ResourceManager] Failed to load sound buffer: " << path << "\n";
+        std::cerr << "[ERROR] [ResourceManager] Failed to load sound buffer: " << path << " (resolved: " << resolved << ")\n";
         return nullptr;
     }
 
     m_Sounds[path] = buffer;
-    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << path << " (" << buffer->getDuration().
+    m_Sounds[resolved] = buffer;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << resolved << " (" << buffer->getDuration().
             asSeconds() << "s)\n";
     return buffer;
 }

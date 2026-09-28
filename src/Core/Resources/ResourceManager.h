@@ -19,6 +19,8 @@ public:
         return instance;
     }
 
+    static std::string ResolveAssetPath(const std::string &path);
+
     std::shared_ptr<sf::Texture> GetTexture(const std::string &path);
 
     std::shared_ptr<sf::Font> GetFont(const std::string &path);

@@ -26,7 +26,7 @@ static std::string OpenImageFileDialog(HWND hwnd)
     ZeroMemory(&ofn, sizeof(ofn));
     ofn.lStructSize = sizeof(ofn);
     ofn.hwndOwner = hwnd;
-    ofn.lpstrFilter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp)\0*.png;*.jpg;*.jpeg;*.bmp\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFilter = "Image Files (*.png;*.jpg;*.jpeg;*.jfif;*.bmp)\0*.png;*.jpg;*.jpeg;*.jfif;*.bmp\0All Files (*.*)\0*.*\0";
     ofn.lpstrFile = filename;
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
@@ -1603,7 +1603,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         if (clickParamType == ActionParamType::Bool) {
             y += 4.f;
             bool isParamTrue = (m_SelectedElement->onClickParam == "true");
-            DrawActionButton(window, isParamTrue ? "Yes" : "No", "clickparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
+            DrawActionButton(window, isParamTrue ? "True" : "False", "clickparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
             y += 30.f;
         } else if (clickParamType == ActionParamType::String || clickParamType == ActionParamType::Float) {
             std::string cpDisplay = (m_ActiveField == EditField::OnClickParam && !m_ActiveInputText.empty())
@@ -1623,7 +1623,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
         if (hoverParamType == ActionParamType::Bool) {
             y += 4.f;
             bool isParamTrue = (m_SelectedElement->onHoverParam == "true");
-            DrawActionButton(window, isParamTrue ? "Yes" : "No", "hoverparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
+            DrawActionButton(window, isParamTrue ? "True" : "False", "hoverparam_bool", px + 110.f, y, isParamTrue ? C_SUCCESS_DIM : C_DANGER_DIM, isParamTrue ? C_SUCCESS : C_DANGER);
             y += 30.f;
         } else if (hoverParamType == ActionParamType::String || hoverParamType == ActionParamType::Float) {
             std::string hpDisplay = (m_ActiveField == EditField::OnHoverParam && !m_ActiveInputText.empty())
