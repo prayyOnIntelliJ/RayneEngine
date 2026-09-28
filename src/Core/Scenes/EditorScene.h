@@ -42,6 +42,7 @@ struct EditorObject
     float rotation = 0.f;
     float scaleX = 1.f;
     float scaleY = 1.f;
+    std::map<std::string, ScriptComponent::Property> scriptProperties;
 };
 
 struct InspectorButton
@@ -223,10 +224,12 @@ private:
         ColorB,
         Script,
         CollisionChannel,
-        UIText
+        UIText,
+        ScriptProperty
     };
 
     EditField m_ActiveField = EditField::None;
+    std::string m_ActiveScriptProperty;
     std::string m_ActiveInputText;
     sf::FloatRect m_ActiveInputBounds;
 
@@ -425,6 +428,9 @@ private:
     float DrawRow(sf::RenderWindow &window, const std::string &key, const std::string &val, float x, float y);
 
     float DrawEditableRow(sf::RenderWindow &window, const std::string &key, const std::string &val,
+                          const std::string &action, float x, float y);
+
+    float DrawCheckboxRow(sf::RenderWindow &window, const std::string &key, bool value,
                           const std::string &action, float x, float y);
 
     float DrawAddButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,

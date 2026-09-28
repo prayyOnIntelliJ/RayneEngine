@@ -1,0 +1,181 @@
+{
+    "ui_elements": [
+        {
+            "color": [
+                74,
+                23,
+                87,
+                255
+            ],
+            "cornerRadius": 0.0,
+            "fillTexturePath": "",
+            "height": 103.08270263671875,
+            "id": "ProgressBar_1",
+            "opacity": 255.0,
+            "outlineColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "outlineThickness": 0.0,
+            "progressMax": 1.0,
+            "progressValue": 0.5,
+            "texturePath": "",
+            "type": "progressbar",
+            "visible": true,
+            "width": 877.233154296875,
+            "x": 494.58642578125,
+            "y": 169.330810546875,
+            "zIndex": 1
+        },
+        {
+            "borderColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "borderThickness": 0.0,
+            "color": [
+                80,
+                80,
+                90,
+                255
+            ],
+            "cornerRadius": 0.0,
+            "disabled": false,
+            "disabledColor": [
+                60,
+                60,
+                60,
+                180
+            ],
+            "height": 58.046356201171875,
+            "hoverColor": [
+                150,
+                150,
+                150,
+                255
+            ],
+            "id": "Slider_2",
+            "knobTexturePath": "",
+            "normalColor": [
+                200,
+                200,
+                210,
+                255
+            ],
+            "opacity": 255.0,
+            "outlineColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "outlineThickness": 0.0,
+            "pressedColor": [
+                80,
+                80,
+                80,
+                255
+            ],
+            "sliderMax": 1.0,
+            "sliderMin": 0.0,
+            "sliderValue": 0.5,
+            "texturePath": "",
+            "type": "slider",
+            "visible": true,
+            "width": 374.2301025390625,
+            "x": 801.39501953125,
+            "y": 494.0935974121094,
+            "zIndex": 2
+        },
+        {
+            "borderColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "borderThickness": 0.0,
+            "characterSize": 16,
+            "color": [
+                255,
+                255,
+                255,
+                255
+            ],
+            "cornerRadius": 0.0,
+            "disabled": false,
+            "disabledColor": [
+                60,
+                60,
+                60,
+                180
+            ],
+            "height": 50.0,
+            "hoverColor": [
+                150,
+                150,
+                150,
+                255
+            ],
+            "hoverTexturePath": "",
+            "id": "Button_3",
+            "letterSpacing": 1.0,
+            "lineSpacing": 1.0,
+            "normalColor": [
+                100,
+                100,
+                100,
+                255
+            ],
+            "onClickAction": "Log",
+            "onClickParam": "Hello from UI!",
+            "onHoverAction": "",
+            "onHoverParam": "",
+            "opacity": 255.0,
+            "outlineColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "outlineThickness": 0.0,
+            "pressedColor": [
+                80,
+                80,
+                80,
+                255
+            ],
+            "pressedTexturePath": "",
+            "text": "Button",
+            "textAlign": 0,
+            "textColor": [
+                0,
+                0,
+                0,
+                255
+            ],
+            "textOffsetX": 0.0,
+            "textOffsetY": 0.0,
+            "textOutlineColor": [
+                0,
+                0,
+                0,
+                0
+            ],
+            "textOutlineThickness": 0.0,
+            "textStyle": 0,
+            "textUpperCase": false,
+            "texturePath": "",
+            "type": "button",
+            "visible": true,
+            "width": 180.0,
+            "x": 821.0761108398438,
+            "y": 319.05908203125,
+            "zIndex": 3
+        }
+    ]
+}

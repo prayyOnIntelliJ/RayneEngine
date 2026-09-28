@@ -1,0 +1,22 @@
+{
+    "name": "game",
+    "objects": [
+        {
+            "color": [
+                254,
+                84,
+                84
+            ],
+            "height": 40.0,
+            "id": "obj_0",
+            "rotation": 0.0,
+            "scaleX": 1.0,
+            "scaleY": 1.0,
+            "tag": "",
+            "type": "rectangle",
+            "width": 40.0,
+            "x": 360.0,
+            "y": 200.0
+        }
+    ]
+}

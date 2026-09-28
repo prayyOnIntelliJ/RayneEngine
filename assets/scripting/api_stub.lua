@@ -94,6 +94,10 @@ function OnUpdate(self, dt) end
 ---@param other Entity
 function OnCollision(self, other) end
 
+---Called when a UI button is clicked
+---@param id string The ID of the clicked button
+function OnButtonClicked(id) end
+
 ---Creates a new Entity ID
 ---@return Entity
 function CreateEntity() end
@@ -175,6 +179,18 @@ function Engine.TakeScreenshot(filename) end
 ---Opens a URL or system path using the default OS handler.
 ---@param url string
 function Engine.OpenURL(url) end
+
+---Prints a highlighted message to the in-game console with a stylish teal [LOG] badge.
+---@param ... any One or more values to print
+function Engine.Log(...) end
+
+---Prints a warning message to the in-game console with an amber [WARN] badge.
+---@param msg string The warning message to print
+function Engine.LogWarning(msg) end
+
+---Prints an error message to the in-game console with a red [ERROR] badge.
+---@param msg string The error message to print
+function Engine.LogError(msg) end
 
 ---Returns the current frames per second (FPS).
 ---@return number
@@ -503,6 +519,205 @@ Mouse = {}
 --------------------------------------------------------------------------------
 -- UI Subsystem API
 --------------------------------------------------------------------------------
+
+---@class UI
+UI = {}
+
+---Called when a UI button is clicked (can be defined as a callback)
+---@type fun(id: string)|nil
+UI.OnButtonClicked = nil
+
+---Checks whether a UI button with the specified ID was clicked in the current frame.
+---@param id string The ID of the button configured in the UI Editor.
+---@return boolean True if the button was clicked, false otherwise.
+function UI.IsButtonClicked(id) end
+
+---Checks whether a UI button is currently being hovered.
+---@param id string The ID of the button.
+---@return boolean True if the mouse is over the button, false otherwise.
+function UI.IsButtonHovered(id) end
+
+---Sets the text of a UI element (Text or Button).
+---@param id string The ID of the UI element.
+---@param text string The new text to display.
+function UI.SetText(id, text) end
+
+---Gets the text of a UI element.
+---@param id string The ID of the UI element.
+---@return string The current text string.
+function UI.GetText(id) end
+
+---Sets the position of a UI element on the 1920x1080 canvas.
+---@param id string The ID of the UI element.
+---@param x number The X coordinate.
+---@param y number The Y coordinate.
+function UI.SetPosition(id, x, y) end
+
+---Sets the dimensions of a UI element.
+---@param id string The ID of the UI element.
+---@param width number The width in canvas units.
+---@param height number The height in canvas units.
+function UI.SetSize(id, width, height) end
+
+---Sets the color of a UI element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a? integer Alpha (0-255, optional, defaults to 255).
+function UI.SetColor(id, r, g, b, a) end
+
+---Sets the Z-Index (depth layer) of a UI element. Higher values draw in front.
+---@param id string The ID of the UI element.
+---@param z integer The new Z-Index value.
+function UI.SetZIndex(id, z) end
+
+---Gets the Z-Index (depth layer) of a UI element.
+---@param id string The ID of the UI element.
+---@return integer The current Z-Index value.
+function UI.GetZIndex(id) end
+
+---Sets whether a UI element is visible. Hidden elements are not drawn and cannot be interacted with.
+---@param id string The ID of the UI element.
+---@param visible boolean True to show, false to hide.
+function UI.SetVisible(id, visible) end
+
+---Gets whether a UI element is visible.
+---@param id string The ID of the UI element.
+---@return boolean True if visible, false if hidden.
+function UI.GetVisible(id) end
+
+---Sets the opacity of a UI element (affects the alpha channel).
+---@param id string The ID of the UI element.
+---@param opacity number Alpha value from 0 (fully transparent) to 255 (fully opaque).
+function UI.SetOpacity(id, opacity) end
+
+---Sets the text style of a Text or Button element using a bitmask.
+---@param id string The ID of the UI element.
+---@param style integer Bitmask: 0=Regular, 1=Bold, 2=Italic, 4=Underline, 8=StrikeThrough. Combine with bitwise OR.
+function UI.SetTextStyle(id, style) end
+
+---Sets the horizontal text alignment for a Text element.
+---@param id string The ID of the UI element.
+---@param align integer 0=Left, 1=Center, 2=Right.
+function UI.SetTextAlign(id, align) end
+
+---Sets whether the text of a Text or Button element is displayed in uppercase.
+---@param id string The ID of the UI element.
+---@param upper boolean True to force uppercase display.
+function UI.SetUpperCase(id, upper) end
+
+---Sets the character (font) size of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param size integer Font size in points.
+function UI.SetFontSize(id, size) end
+
+---Sets the letter spacing multiplier of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param spacing number Multiplier. 1.0 is default spacing.
+function UI.SetLetterSpacing(id, spacing) end
+
+---Sets the line spacing multiplier of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param spacing number Multiplier. 1.0 is default spacing.
+function UI.SetLineSpacing(id, spacing) end
+
+---Sets the outline color and thickness of the text on a Text or Button element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+---@param thickness number Outline thickness in pixels.
+function UI.SetTextOutline(id, r, g, b, a, thickness) end
+
+---Sets a manual pixel offset applied to the text position within a Text or Button element.
+---@param id string The ID of the UI element.
+---@param ox number Horizontal offset in canvas units.
+---@param oy number Vertical offset in canvas units.
+function UI.SetTextOffset(id, ox, oy) end
+
+---Sets the text fill color of a Text or Button element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+function UI.SetTextColor(id, r, g, b, a) end
+
+---Sets the outline (border) color and thickness of a Panel element.
+---@param id string The ID of the UI element.
+---@param r integer Red (0-255).
+---@param g integer Green (0-255).
+---@param b integer Blue (0-255).
+---@param a integer Alpha (0-255).
+---@param thickness number Border thickness in canvas units.
+function UI.SetOutline(id, r, g, b, a, thickness) end
+
+---Sets whether a Button element is disabled. Disabled buttons cannot be hovered or clicked and use the disabled color.
+---@param id string The ID of the button.
+---@param disabled boolean True to disable, false to enable.
+function UI.SetDisabled(id, disabled) end
+
+---Sets the texture image of an Image or Button element.
+---@param id string The ID of the UI element.
+---@param path string Path to the texture image file (assets/ prefix is optional).
+function UI.SetTexture(id, path) end
+
+---Sets the hover texture image of a Button element.
+---@param id string The ID of the button.
+---@param path string Path to the texture image file.
+function UI.SetHoverTexture(id, path) end
+
+---Sets the pressed texture image of a Button element.
+---@param id string The ID of the button.
+---@param path string Path to the texture image file.
+function UI.SetPressedTexture(id, path) end
+
+---Sets the checked texture image of a Checkbox element.
+---@param id string The ID of the checkbox.
+---@param path string Path to the texture image file.
+function UI.SetCheckedTexture(id, path) end
+
+---Sets whether a Checkbox element is checked.
+---@param id string The ID of the checkbox.
+---@param checked boolean
+function UI.SetChecked(id, checked) end
+
+---Gets whether a Checkbox element is checked.
+---@param id string The ID of the checkbox.
+---@return boolean
+function UI.GetChecked(id) end
+
+---Sets the slider value.
+---@param id string The ID of the slider.
+---@param value number
+function UI.SetSliderValue(id, value) end
+
+---Gets the slider value.
+---@param id string The ID of the slider.
+---@return number
+function UI.GetSliderValue(id) end
+
+---Sets the progress value (0.0 to 1.0).
+---@param id string The ID of the progress bar.
+---@param value number
+function UI.SetProgressValue(id, value) end
+
+---Gets the progress value.
+---@param id string The ID of the progress bar.
+---@return number
+function UI.GetProgressValue(id) end
+
+---Sets keyboard focus on a TextInput element.
+---@param id string The ID of the input element.
+---@param focused boolean
+function UI.SetFocused(id, focused) end
+
+---Gets whether a TextInput element is focused.
+---@param id string The ID of the input element.
+---@return boolean
+function UI.GetFocused(id) end
 
 ---Checks whether a UI button with the specified ID was clicked in the current frame.
 ---@param id string The ID of the button configured in the UI Editor.

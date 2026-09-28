@@ -18,9 +18,24 @@ public:
 
     void OnCollision(Entity other) const;
 
+    void OnButtonClicked(const std::string &buttonId) const;
+
     void SetEntity(Entity e);
 
     sol::environment &GetEnv() { return m_Env; }
+
+    enum class PropertyType { Unknown, Int, Float, Bool, String };
+    struct Property {
+        std::string name;
+        PropertyType type;
+        std::string stringVal;
+        float floatVal = 0.0f;
+        int intVal = 0;
+        bool boolVal = false;
+    };
+
+    std::vector<Property> GetExportedProperties();
+    void SetExportedProperty(const Property& prop);
 
     void Reload();
     void ReloadIfNeeded();
@@ -35,6 +50,7 @@ private:
     sol::function m_OnCreate;
     sol::function m_OnUpdate;
     sol::function m_OnCollision;
+    sol::function m_OnButtonClicked;
 };
 
 #endif

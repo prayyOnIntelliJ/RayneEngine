@@ -76,6 +76,20 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             }
             auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(entity);
+
+            if (j.contains("scriptProperties")) {
+                for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
+                    ScriptComponent::Property prop;
+                    prop.name = it.key();
+                    prop.type = static_cast<ScriptComponent::PropertyType>(it.value()["type"].get<int>());
+                    if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
+                    else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
+                    else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                    
+                    sc.SetExportedProperty(prop);
+                }
+            }
         }
 
         if (j.contains("camera") && j["camera"] == true) { registry.AddComponent(entity, CameraComponent{true}); }

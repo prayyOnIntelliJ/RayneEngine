@@ -12,6 +12,8 @@
 #include "../Scripting/ScriptComponent.h"
 #include "../Scripting/LuaState.h"
 #include "../Resources/ResourceManager.h"
+#include "../Audio/AudioManager.h"
+#include "../UI/UIManager.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Window/Event.hpp"
 #include <SFML/Graphics/ConvexShape.hpp>
@@ -310,6 +312,9 @@ void EditorScene::OnEnter()
         RestoreSnapshot();
         m_PlayModeSnapshot = json{};
     }
+
+    AudioManager::Get().StopAllSounds();
+    AudioManager::Get().StopMusic();
 
     std::cout << "[INFO] [EditorScene] Activated Editor Layout\n";
     UpdateBounds();
@@ -767,6 +772,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     auto &sc = m_Registry.AddComponent(target->entity, ScriptComponent(LuaState::GetLua(), drag.path));
                     sc.SetEntity(target->entity);
                     target->scriptPath = drag.path;
+                    
+                    for (const auto& prop : sc.GetExportedProperties()) {
+                        target->scriptProperties[prop.name] = prop;
+                    }
+
                     std::cout << "[INFO] [ContentBrowser] Script dropped onto Entity " << target->id << "\n";
                 }
             }
@@ -845,6 +855,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                                                        ScriptComponent(LuaState::GetLua(), fullPath));
                     sc.SetEntity(m_Selected->entity);
                     m_Selected->scriptPath = fullPath;
+                    
+                    for (const auto& prop : sc.GetExportedProperties()) {
+                        m_Selected->scriptProperties[prop.name] = prop;
+                    }
+
                     std::cout << "[INFO] [Inspector] Script assigned to entity: " << fullPath << "\n";
                 } else if (m_ActiveField == EditField::TransformX || m_ActiveField == EditField::TransformY)
                 {
@@ -929,6 +944,24 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         else m_Selected->color.b = val;
                         m_Selected->shape.setFillColor(m_Selected->color);
                     } catch (...) {}
+                } else if (m_ActiveField == EditField::ScriptProperty)
+                {
+                    auto it = m_Selected->scriptProperties.find(m_ActiveScriptProperty);
+                    if (it != m_Selected->scriptProperties.end())
+                    {
+                        auto& prop = it->second;
+                        try {
+                            if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = std::stoi(m_ActiveInputText);
+                            else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = std::stof(m_ActiveInputText);
+                            else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = (m_ActiveInputText == "true" || m_ActiveInputText == "1");
+                            else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = m_ActiveInputText;
+                            
+                            if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                            {
+                                m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(prop);
+                            }
+                        } catch (...) {}
+                    }
                 }
             }
 
@@ -937,11 +970,46 @@ void EditorScene::HandleEvent(const sf::Event &event)
         } else if (event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
-            if (m_ActiveField == EditField::Name || m_ActiveField == EditField::Tag || m_ActiveField == EditField::Script || m_ActiveField ==
-                EditField::UIText)
+            if (m_ActiveField == EditField::Name || m_ActiveField == EditField::Tag || 
+                m_ActiveField == EditField::Script || m_ActiveField == EditField::UIText)
+            {
                 m_ActiveInputText += c;
-            else if (std::isdigit(c) || c == '-')
+            }
+            else if (m_ActiveField == EditField::ScriptProperty)
+            {
+                ScriptComponent::PropertyType pType = ScriptComponent::PropertyType::String;
+                if (m_Selected)
+                {
+                    auto it = m_Selected->scriptProperties.find(m_ActiveScriptProperty);
+                    if (it != m_Selected->scriptProperties.end())
+                        pType = it->second.type;
+                }
+
+                if (pType == ScriptComponent::PropertyType::Int)
+                {
+                    if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()))
+                        m_ActiveInputText += c;
+                }
+                else if (pType == ScriptComponent::PropertyType::Float)
+                {
+                    if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()) || (c == '.' && m_ActiveInputText.find('.') == std::string::npos))
+                        m_ActiveInputText += c;
+                }
+                else
+                {
+                    m_ActiveInputText += c;
+                }
+            }
+            else if (m_ActiveField == EditField::ColorR || m_ActiveField == EditField::ColorG || 
+                     m_ActiveField == EditField::ColorB || m_ActiveField == EditField::CollisionChannel)
+            {
+                if (std::isdigit(c))
+                    m_ActiveInputText += c;
+            }
+            else if (std::isdigit(c) || (c == '-' && m_ActiveInputText.empty()) || (c == '.' && m_ActiveInputText.find('.') == std::string::npos))
+            {
                 m_ActiveInputText += c;
+            }
         }
         return;
     }
@@ -2205,7 +2273,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
                 if (lowerExt == ".lua") typeName = "Lua Script";
                 else if (lowerExt == ".json") typeName = "JSON Data";
-                else if (lowerExt == ".png" || lowerExt == ".jpg" || lowerExt == ".jpeg") typeName = "Image Asset";
+                else if (lowerExt == ".png" || lowerExt == ".jpg" || lowerExt == ".jpeg" || lowerExt == ".jfif") typeName = "Image Asset";
                 else if (lowerExt == ".wav" || lowerExt == ".ogg") typeName = "Audio Asset";
                 else if (lowerExt == ".ttf") typeName = "Font Asset";
                 else if (std::filesystem::is_directory(p, ec)) typeName = "Directory";
@@ -2538,6 +2606,15 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
+        auto &sc = m_Registry.GetComponent<ScriptComponent>(m_Selected->entity);
+        for (const auto& prop : sc.GetExportedProperties())
+        {
+            if (m_Selected->scriptProperties.find(prop.name) == m_Selected->scriptProperties.end())
+            {
+                m_Selected->scriptProperties[prop.name] = prop;
+            }
+        }
+
         y = DrawSectionHeader(window, "SCRIPT", C_TEXT_SECONDARY, panelX, y);
         std::string scriptName = m_Selected->scriptPath;
         const size_t slash = scriptName.find_last_of("/\\");
@@ -2545,6 +2622,36 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawRow(window, "File", scriptName, panelX, y);
         y = DrawRow(window, "OnCreate", "bound", panelX, y);
         y = DrawRow(window, "OnUpdate", "bound", panelX, y);
+        y += 8.f;
+        if (!m_Selected->scriptProperties.empty())
+        {
+            y = DrawSectionHeader(window, "EXPORTED VARIABLES", C_TEXT_SECONDARY, panelX, y);
+            for (auto& pair : m_Selected->scriptProperties)
+            {
+                const auto& prop = pair.second;
+                if (prop.type == ScriptComponent::PropertyType::Bool)
+                {
+                    y = DrawCheckboxRow(window, prop.name, prop.boolVal, "toggle_script_bool_" + prop.name, panelX, y);
+                }
+                else
+                {
+                    std::string valStr;
+                    if (prop.type == ScriptComponent::PropertyType::Int) valStr = std::to_string(prop.intVal);
+                    else if (prop.type == ScriptComponent::PropertyType::Float)
+                    {
+                        char buf[32];
+                        snprintf(buf, sizeof(buf), "%.2f", prop.floatVal);
+                        valStr = buf;
+                    }
+                    else if (prop.type == ScriptComponent::PropertyType::String) valStr = prop.stringVal;
+
+                    if (m_ActiveField == EditField::ScriptProperty && m_ActiveScriptProperty == prop.name)
+                        y = DrawEditableRow(window, prop.name, m_ActiveInputText + "_", "edit_script_prop_" + prop.name, panelX, y);
+                    else
+                        y = DrawEditableRow(window, prop.name, valStr, "edit_script_prop_" + prop.name, panelX, y);
+                }
+            }
+        }
         y += 4.f;
         y = DrawActionButton(window, "Open Script", "open_script", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y = DrawActionButton(window, "Remove Script", "remove_script", panelX, y, C_DANGER_DIM, C_DANGER);
@@ -2827,6 +2934,74 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     return y + 22.f;
 }
 
+float EditorScene::DrawCheckboxRow(sf::RenderWindow &window, const std::string &key, bool value,
+                                    const std::string &action, float x, float y)
+{
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(key);
+    keyText.setPosition(x + InspectorPad + 4.f, y + 3.f);
+    window.draw(keyText);
+
+    const float boxSize = 18.f;
+    const float boxX = x + InspectorWidth * 0.44f;
+    const float boxY = y + 1.f;
+    const sf::FloatRect boxRect(boxX, boxY, boxSize, boxSize);
+    const bool hovered = boxRect.contains(m_MouseScreenPos);
+
+    sf::RectangleShape box({boxSize, boxSize});
+    box.setPosition(boxX, boxY);
+    if (value)
+    {
+        box.setFillColor(hovered ? C_ACCENT_HOV : C_ACCENT);
+        box.setOutlineColor(hovered ? sf::Color(140, 240, 160) : sf::Color(80, 200, 120));
+    }
+    else
+    {
+        box.setFillColor(hovered ? C_BG_ELEVATED : C_BG_INPUT);
+        box.setOutlineColor(hovered ? C_ACCENT : C_BORDER);
+    }
+    box.setOutlineThickness(1.f);
+    window.draw(box);
+
+    if (value)
+    {
+        sf::RectangleShape stem1({6.f, 2.5f});
+        stem1.setOrigin(0.f, 1.25f);
+        stem1.setPosition(boxX + 3.5f, boxY + 9.5f);
+        stem1.setRotation(45.f);
+        stem1.setFillColor(sf::Color::White);
+        window.draw(stem1);
+
+        sf::RectangleShape stem2({10.5f, 2.5f});
+        stem2.setOrigin(0.f, 1.25f);
+        stem2.setPosition(boxX + 7.f, boxY + 13.5f);
+        stem2.setRotation(-52.f);
+        stem2.setFillColor(sf::Color::White);
+        window.draw(stem2);
+    }
+
+    sf::Text stateText;
+    stateText.setFont(*m_Font);
+    stateText.setCharacterSize(11);
+    stateText.setFillColor(value ? sf::Color(100, 220, 140) : C_TEXT_MUTED);
+    stateText.setString(value ? "true" : "false");
+    stateText.setPosition(boxX + boxSize + 8.f, y + 3.f);
+    window.draw(stateText);
+
+    const sf::FloatRect clickRect(boxX, y, boxSize + 48.f, 20.f);
+    m_InspectorButtons.push_back({clickRect, action});
+
+    sf::RectangleShape line({InspectorWidth - InspectorPad * 2, 1.f});
+    line.setFillColor(sf::Color(C_BORDER.r, C_BORDER.g, C_BORDER.b, 60));
+    line.setPosition(x + InspectorPad, y + 21.f);
+    window.draw(line);
+
+    return y + 22.f;
+}
+
 float EditorScene::DrawAddButton(sf::RenderWindow &window, const std::string &label,
                                  const std::string &action, float x, float y)
 {
@@ -2968,6 +3143,38 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::Script;
             m_ActiveInputText = "";
+        } else if (btn.action.find("toggle_script_bool_") == 0 && m_Selected)
+        {
+            m_ActiveField = EditField::None;
+            std::string propName = btn.action.substr(19);
+            auto it = m_Selected->scriptProperties.find(propName);
+            if (it != m_Selected->scriptProperties.end())
+            {
+                it->second.boolVal = !it->second.boolVal;
+                if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                {
+                    m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                }
+            }
+        } else if (btn.action.find("edit_script_prop_") == 0 && m_Selected)
+        {
+            m_ActiveField = EditField::ScriptProperty;
+            m_ActiveScriptProperty = btn.action.substr(17);
+            
+            auto it = m_Selected->scriptProperties.find(m_ActiveScriptProperty);
+            if (it != m_Selected->scriptProperties.end())
+            {
+                const auto& prop = it->second;
+                if (prop.type == ScriptComponent::PropertyType::Int) m_ActiveInputText = std::to_string(prop.intVal);
+                else if (prop.type == ScriptComponent::PropertyType::Float)
+                {
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "%.2f", prop.floatVal);
+                    m_ActiveInputText = buf;
+                }
+                else if (prop.type == ScriptComponent::PropertyType::Bool) m_ActiveInputText = prop.boolVal ? "true" : "false";
+                else if (prop.type == ScriptComponent::PropertyType::String) m_ActiveInputText = prop.stringVal;
+            }
         } else if (btn.action == "edit_script")
         {
             m_ActiveField = EditField::Script;
@@ -3205,6 +3412,23 @@ void EditorScene::SaveToJson(const std::string &path)
             std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
             std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
             j["script"] = ec ? obj.scriptPath : rel;
+
+            if (!obj.scriptProperties.empty())
+            {
+                json propsJson;
+                for (auto& pair : obj.scriptProperties)
+                {
+                    const auto& prop = pair.second;
+                    json pJson;
+                    pJson["type"] = static_cast<int>(prop.type);
+                    if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
+                    else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
+                    propsJson[pair.first] = pJson;
+                }
+                j["scriptProperties"] = propsJson;
+            }
         }
 
         if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) { j["camera"] = true; }
@@ -3326,6 +3550,27 @@ void EditorScene::LoadFromJson(const std::string &path)
             auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(obj.entity);
             obj.scriptPath = sp;
+
+            // 1. Populate defaults from script
+            for (const auto& prop : sc.GetExportedProperties()) {
+                obj.scriptProperties[prop.name] = prop;
+            }
+
+            // 2. Override with saved properties
+            if (j.contains("scriptProperties")) {
+                for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
+                    ScriptComponent::Property prop;
+                    prop.name = it.key();
+                    prop.type = static_cast<ScriptComponent::PropertyType>(it.value()["type"].get<int>());
+                    if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
+                    else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
+                    else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                    
+                    obj.scriptProperties[prop.name] = prop;
+                    sc.SetExportedProperty(prop);
+                }
+            }
         }
 
         if (j.contains("camera")) { m_Registry.AddComponent(obj.entity, CameraComponent{true}); }
@@ -3429,6 +3674,23 @@ void EditorScene::SnapshotState()
             std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
             std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
             j["script"] = ec ? obj.scriptPath : rel;
+
+            if (!obj.scriptProperties.empty())
+            {
+                json propsJson;
+                for (const auto& pair : obj.scriptProperties)
+                {
+                    const auto& prop = pair.second;
+                    json pJson;
+                    pJson["type"] = static_cast<int>(prop.type);
+                    if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
+                    else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
+                    propsJson[pair.first] = pJson;
+                }
+                j["scriptProperties"] = propsJson;
+            }
         }
 
         if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity))
@@ -3544,6 +3806,27 @@ void EditorScene::RestoreSnapshot()
             auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(obj.entity);
             obj.scriptPath = sp;
+
+            // 1. Populate defaults from script
+            for (const auto& prop : sc.GetExportedProperties()) {
+                obj.scriptProperties[prop.name] = prop;
+            }
+
+            // 2. Override with saved snapshot properties
+            if (j.contains("scriptProperties")) {
+                for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
+                    ScriptComponent::Property prop;
+                    prop.name = it.key();
+                    prop.type = static_cast<ScriptComponent::PropertyType>(it.value()["type"].get<int>());
+                    if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
+                    else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
+                    else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                    
+                    obj.scriptProperties[prop.name] = prop;
+                    sc.SetExportedProperty(prop);
+                }
+            }
         }
 
         if (j.contains("camera"))
@@ -4730,6 +5013,23 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
         std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
         std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
         j["script"] = ec ? obj.scriptPath : rel;
+
+        if (!obj.scriptProperties.empty())
+        {
+            json propsJson;
+            for (const auto& pair : obj.scriptProperties)
+            {
+                const auto& prop = pair.second;
+                json pJson;
+                pJson["type"] = static_cast<int>(prop.type);
+                if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
+                else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
+                else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
+                else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
+                propsJson[pair.first] = pJson;
+            }
+            j["scriptProperties"] = propsJson;
+        }
     }
 
     if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) { j["camera"] = true; }
@@ -4812,6 +5112,27 @@ void EditorScene::DeserializeObject(const json& j) {
         auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
         sc.SetEntity(obj.entity);
         obj.scriptPath = sp;
+
+        // 1. Populate defaults from script
+        for (const auto& prop : sc.GetExportedProperties()) {
+            obj.scriptProperties[prop.name] = prop;
+        }
+
+        // 2. Override with saved properties
+        if (j.contains("scriptProperties")) {
+            for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
+                ScriptComponent::Property prop;
+                prop.name = it.key();
+                prop.type = static_cast<ScriptComponent::PropertyType>(it.value()["type"].get<int>());
+                if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
+                else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
+                else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
+                else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                
+                obj.scriptProperties[prop.name] = prop;
+                sc.SetExportedProperty(prop);
+            }
+        }
     }
 
     if (j.contains("camera")) { m_Registry.AddComponent(obj.entity, CameraComponent{true}); }
@@ -4935,6 +5256,10 @@ void EditorScene::ExportStandaloneGame()
     SyncToRegistry();
     SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
     SaveProjectSettings();
+    if (!UIManager::Get().GetElements().empty()) {
+        std::string uiSavePath = std::string(ASSET_PATH) + "/" + m_SceneSavePath.substr(0, m_SceneSavePath.find_last_of('.')) + "_ui.json";
+        UIManager::Get().Save(uiSavePath);
+    }
     ConsolePanel::AddLogGlobal("[INFO] Auto-saved scene and project settings before build.", false);
     ConsolePanel::AddLogGlobal("Starting standalone game build and export...", false);
     
@@ -5035,15 +5360,34 @@ void EditorScene::ExportStandaloneGame()
                 std::filesystem::copy_file(exePath, exportDir / outExeName, std::filesystem::copy_options::overwrite_existing);
 
                 updateStatus("Copying assets...", 80.0f);
-                std::filesystem::path srcAssets = std::filesystem::exists(rootDir / "assets") ? (rootDir / "assets") : (appDir / "assets");
-                if (std::filesystem::exists(srcAssets)) {
-                    std::filesystem::copy(srcAssets, exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                std::error_code ec;
+                if (std::filesystem::exists(rootDir / "assets")) {
+                    std::filesystem::copy(rootDir / "assets", exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+                if (std::filesystem::exists(appDir / "assets") && !std::filesystem::equivalent(appDir / "assets", rootDir / "assets", ec)) {
+                    std::filesystem::copy(appDir / "assets", exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                    std::filesystem::copy(appDir / "assets", rootDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+                auto cwdAssets = std::filesystem::current_path() / "assets";
+                if (std::filesystem::exists(cwdAssets) &&
+                    (!std::filesystem::exists(rootDir / "assets") || !std::filesystem::equivalent(cwdAssets, rootDir / "assets", ec)) &&
+                    (!std::filesystem::exists(appDir / "assets") || !std::filesystem::equivalent(cwdAssets, appDir / "assets", ec))) {
+                    std::filesystem::copy(cwdAssets, exportDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                    std::filesystem::copy(cwdAssets, rootDir / "assets", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
                 
                 updateStatus("Copying engine_content...", 90.0f);
-                std::filesystem::path srcEngine = std::filesystem::exists(rootDir / "engine_content") ? (rootDir / "engine_content") : (appDir / "engine_content");
-                if (std::filesystem::exists(srcEngine)) {
-                    std::filesystem::copy(srcEngine, exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                if (std::filesystem::exists(rootDir / "engine_content")) {
+                    std::filesystem::copy(rootDir / "engine_content", exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+                if (std::filesystem::exists(appDir / "engine_content") && !std::filesystem::equivalent(appDir / "engine_content", rootDir / "engine_content", ec)) {
+                    std::filesystem::copy(appDir / "engine_content", exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
+                }
+                auto cwdEngine = std::filesystem::current_path() / "engine_content";
+                if (std::filesystem::exists(cwdEngine) &&
+                    (!std::filesystem::exists(rootDir / "engine_content") || !std::filesystem::equivalent(cwdEngine, rootDir / "engine_content", ec)) &&
+                    (!std::filesystem::exists(appDir / "engine_content") || !std::filesystem::equivalent(cwdEngine, appDir / "engine_content", ec))) {
+                    std::filesystem::copy(cwdEngine, exportDir / "engine_content", std::filesystem::copy_options::recursive | std::filesystem::copy_options::overwrite_existing);
                 }
 
                 std::vector<std::filesystem::path> dllSearchDirs = {
