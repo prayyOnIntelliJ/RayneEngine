@@ -20,6 +20,16 @@ static const sf::Color C_DANGER = sf::Color(241, 104, 94);
 static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
 static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
 
+static const sf::Color C_LUA_LOG = sf::Color(45, 212, 191);          // Vibrant Teal / Aqua (#2DD4BF)
+static const sf::Color C_LUA_LOG_BG = sf::Color(45, 212, 191, 26);   // Subtle row highlight glow
+static const sf::Color C_LUA_LOG_TEXT = sf::Color(153, 246, 228);    // Luminous cyan-white text (#99F6E4)
+static const sf::Color C_WARN = sf::Color(251, 191, 36);             // Amber / Gold (#FBBF24)
+static const sf::Color C_WARN_BG = sf::Color(251, 191, 36, 18);
+static const sf::Color C_WARN_TEXT = sf::Color(254, 240, 138);
+static const sf::Color C_ERROR_BG = sf::Color(241, 104, 94, 22);
+static const sf::Color C_ERROR_TEXT = sf::Color(254, 202, 202);
+static const sf::Color C_CMD = sf::Color(167, 139, 250);             // Violet (#A78BFA)
+
 ConsoleRedirector::ConsoleRedirector(std::ostream& stream, std::function<void(const std::string&, bool)> callback, bool isError)
     : m_Stream(stream), m_Callback(std::move(callback)), m_IsError(isError)
 {
@@ -499,10 +509,158 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
     {
         if (currentY + lh > 0 && currentY < logAreaHeight)
         {
-            logText.setString(msg.text);
-            logText.setFillColor(msg.isError ? C_DANGER : C_TEXT_PRIMARY);
-            logText.setPosition(10.f, currentY);
-            window.draw(logText);
+            if (msg.text.empty())
+            {
+                currentY += lh;
+                continue;
+            }
+
+            const bool isError = msg.isError || (msg.text.rfind("[ERROR]", 0) == 0);
+            const bool isWarn = (msg.text.rfind("[WARN]", 0) == 0 || msg.text.rfind("[WARNING]", 0) == 0);
+            const bool isLuaLog = (msg.text.rfind("[LOG]", 0) == 0 || msg.text.rfind("[LUA]", 0) == 0 || msg.text.rfind("[SCRIPT]", 0) == 0);
+            const bool isCmd = (msg.text.rfind(">", 0) == 0);
+
+            if (isLuaLog)
+            {
+                // Subtle row glow
+                sf::RectangleShape rowBg({width, lh});
+                rowBg.setPosition(0.f, currentY);
+                rowBg.setFillColor(C_LUA_LOG_BG);
+                window.draw(rowBg);
+
+                // Left accent bar
+                sf::RectangleShape indicator({3.f, lh - 2.f});
+                indicator.setPosition(2.f, currentY + 1.f);
+                indicator.setFillColor(C_LUA_LOG);
+                window.draw(indicator);
+
+                std::string tag = "LOG";
+                size_t prefixLen = 5;
+                if (msg.text.rfind("[LUA]", 0) == 0) { tag = "LUA"; prefixLen = 5; }
+                else if (msg.text.rfind("[SCRIPT]", 0) == 0) { tag = "SCRIPT"; prefixLen = 8; }
+
+                std::string content = (msg.text.size() > prefixLen && msg.text[prefixLen] == ' ')
+                    ? msg.text.substr(prefixLen + 1)
+                    : (msg.text.size() > prefixLen ? msg.text.substr(prefixLen) : "");
+
+                // Tag badge
+                sf::Text tagText;
+                tagText.setFont(m_Font);
+                tagText.setCharacterSize(10);
+                tagText.setStyle(sf::Text::Bold);
+                tagText.setString(tag);
+                tagText.setFillColor(sf::Color(15, 23, 42));
+
+                float tagW = tagText.getLocalBounds().width + 10.f;
+                sf::RectangleShape tagBg({tagW, 14.f});
+                tagBg.setPosition(8.f, currentY + 2.f);
+                tagBg.setFillColor(C_LUA_LOG);
+                window.draw(tagBg);
+
+                tagText.setPosition(13.f, currentY + 1.f);
+                window.draw(tagText);
+
+                // Highlighted message text
+                logText.setString(content);
+                logText.setFillColor(C_LUA_LOG_TEXT);
+                logText.setPosition(8.f + tagW + 6.f, currentY);
+                window.draw(logText);
+            }
+            else if (isError)
+            {
+                // Row glow & indicator
+                sf::RectangleShape rowBg({width, lh});
+                rowBg.setPosition(0.f, currentY);
+                rowBg.setFillColor(C_ERROR_BG);
+                window.draw(rowBg);
+
+                sf::RectangleShape indicator({3.f, lh - 2.f});
+                indicator.setPosition(2.f, currentY + 1.f);
+                indicator.setFillColor(C_DANGER);
+                window.draw(indicator);
+
+                if (msg.text.rfind("[ERROR]", 0) == 0)
+                {
+                    std::string content = (msg.text.size() > 7 && msg.text[7] == ' ') ? msg.text.substr(8) : (msg.text.size() > 7 ? msg.text.substr(7) : "");
+                    sf::Text tagText;
+                    tagText.setFont(m_Font);
+                    tagText.setCharacterSize(10);
+                    tagText.setStyle(sf::Text::Bold);
+                    tagText.setString("ERROR");
+                    tagText.setFillColor(sf::Color(15, 23, 42));
+
+                    float tagW = tagText.getLocalBounds().width + 10.f;
+                    sf::RectangleShape tagBg({tagW, 14.f});
+                    tagBg.setPosition(8.f, currentY + 2.f);
+                    tagBg.setFillColor(C_DANGER);
+                    window.draw(tagBg);
+
+                    tagText.setPosition(13.f, currentY + 1.f);
+                    window.draw(tagText);
+
+                    logText.setString(content);
+                    logText.setFillColor(C_ERROR_TEXT);
+                    logText.setPosition(8.f + tagW + 6.f, currentY);
+                    window.draw(logText);
+                }
+                else
+                {
+                    logText.setString(msg.text);
+                    logText.setFillColor(C_DANGER);
+                    logText.setPosition(10.f, currentY);
+                    window.draw(logText);
+                }
+            }
+            else if (isWarn)
+            {
+                sf::RectangleShape rowBg({width, lh});
+                rowBg.setPosition(0.f, currentY);
+                rowBg.setFillColor(C_WARN_BG);
+                window.draw(rowBg);
+
+                sf::RectangleShape indicator({3.f, lh - 2.f});
+                indicator.setPosition(2.f, currentY + 1.f);
+                indicator.setFillColor(C_WARN);
+                window.draw(indicator);
+
+                size_t prefixLen = (msg.text.rfind("[WARNING]", 0) == 0) ? 9 : 6;
+                std::string content = (msg.text.size() > prefixLen && msg.text[prefixLen] == ' ') ? msg.text.substr(prefixLen + 1) : msg.text.substr(prefixLen);
+
+                sf::Text tagText;
+                tagText.setFont(m_Font);
+                tagText.setCharacterSize(10);
+                tagText.setStyle(sf::Text::Bold);
+                tagText.setString("WARN");
+                tagText.setFillColor(sf::Color(15, 23, 42));
+
+                float tagW = tagText.getLocalBounds().width + 10.f;
+                sf::RectangleShape tagBg({tagW, 14.f});
+                tagBg.setPosition(8.f, currentY + 2.f);
+                tagBg.setFillColor(C_WARN);
+                window.draw(tagBg);
+
+                tagText.setPosition(13.f, currentY + 1.f);
+                window.draw(tagText);
+
+                logText.setString(content);
+                logText.setFillColor(C_WARN_TEXT);
+                logText.setPosition(8.f + tagW + 6.f, currentY);
+                window.draw(logText);
+            }
+            else if (isCmd)
+            {
+                logText.setString(msg.text);
+                logText.setFillColor(C_CMD);
+                logText.setPosition(10.f, currentY);
+                window.draw(logText);
+            }
+            else
+            {
+                logText.setString(msg.text);
+                logText.setFillColor(C_TEXT_PRIMARY);
+                logText.setPosition(10.f, currentY);
+                window.draw(logText);
+            }
         }
         
         currentY += lh;

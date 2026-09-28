@@ -243,6 +243,9 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     engineTable.set_function("RestartScene", []() {
         if (g_App) g_App->RestartCurrentScene();
     });
+    engineTable.set_function("RestartCurrentScene", []() {
+        if (g_App) g_App->RestartCurrentScene();
+    });
     engineTable.set_function("LoadScene", [loadSceneCallback](const std::string &sceneName) {
         if (g_App) g_App->LoadGameScene(sceneName);
         else if (loadSceneCallback) loadSceneCallback(sceneName);
@@ -252,6 +255,9 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         if (g_App) g_App->SetPaused(paused);
     });
     engineTable.set_function("IsPaused", []() -> bool {
+        return g_App ? g_App->IsPaused() : false;
+    });
+    engineTable.set_function("GetPaused", []() -> bool {
         return g_App ? g_App->IsPaused() : false;
     });
     engineTable.set_function("TogglePause", []() {
@@ -283,6 +289,43 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     engineTable.set_function("OpenURL", [](const std::string &url) {
         if (g_App) g_App->OpenURL(url);
     });
+
+    auto engineLogFunc = [](sol::variadic_args va) {
+        std::string fullMsg;
+        for (auto v : va) {
+            if (!fullMsg.empty()) fullMsg += "  ";
+            sol::object obj = v;
+            if (obj.is<std::string>()) {
+                fullMsg += obj.as<std::string>();
+            } else if (obj.is<bool>()) {
+                fullMsg += (obj.as<bool>() ? "true" : "false");
+            } else if (obj.is<int>()) {
+                fullMsg += std::to_string(obj.as<int>());
+            } else if (obj.is<double>()) {
+                char buf[64];
+                snprintf(buf, sizeof(buf), "%g", obj.as<double>());
+                fullMsg += buf;
+            } else if (obj.is<sol::nil_t>()) {
+                fullMsg += "nil";
+            } else {
+                sol::state_view sv(obj.lua_state());
+                sol::function tostringFunc = sv["tostring"];
+                if (tostringFunc.valid()) {
+                    sol::protected_function_result res = tostringFunc(obj);
+                    if (res.valid()) fullMsg += res.get<std::string>();
+                }
+            }
+        }
+        std::cout << "[LOG] " << fullMsg << "\n";
+    };
+    engineTable.set_function("Log", engineLogFunc);
+    engineTable.set_function("LogWarning", [](const std::string &msg) {
+        std::cout << "[WARN] " << msg << "\n";
+    });
+    engineTable.set_function("LogError", [](const std::string &msg) {
+        std::cerr << "[ERROR] " << msg << "\n";
+    });
+    s_Lua.set_function("print", engineLogFunc);
 
     engineTable.set_function("GetFPS", []() -> float {
         return g_App ? g_App->GetFPS() : 0.f;
@@ -319,136 +362,145 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     std::cout << "[INFO] [Lua] Registering UI Manager bindings...\n";
 
-    s_Lua.set_function("UI_SetText", [](const std::string &id, const std::string &text) {
+    sol::table uiTable = s_Lua.create_named_table("UI");
+    uiTable["OnButtonClicked"] = sol::nil;
+
+    auto regUI = [&](const std::string &name, auto func) {
+        uiTable.set_function(name, func);
+        s_Lua.set_function("UI_" + name, func);
+    };
+
+    regUI("SetText", [](const std::string &id, const std::string &text) {
         UIManager::Get().SetText(id, text);
     });
 
-    s_Lua.set_function("UI_GetText", [](const std::string &id) -> std::string { return UIManager::Get().GetText(id); });
+    regUI("GetText", [](const std::string &id) -> std::string { return UIManager::Get().GetText(id); });
 
-    s_Lua.set_function("UI_SetPosition", [](const std::string &id, float x, float y) {
+    regUI("SetPosition", [](const std::string &id, float x, float y) {
         UIManager::Get().SetPosition(id, x, y);
     });
 
-    s_Lua.set_function("UI_SetSize",
-                       [](const std::string &id, float w, float h) { UIManager::Get().SetSize(id, w, h); });
+    regUI("SetSize", [](const std::string &id, float w, float h) {
+        UIManager::Get().SetSize(id, w, h);
+    });
 
-    s_Lua.set_function("UI_SetColor", [](const std::string &id, int r, int g, int b, int a) {
+    regUI("SetColor", [](const std::string &id, int r, int g, int b, int a) {
         UIManager::Get().SetColor(id, r, g, b, a);
     });
 
-    s_Lua.set_function("UI_SetZIndex", [](const std::string &id, int z) { UIManager::Get().SetZIndex(id, z); });
+    regUI("SetZIndex", [](const std::string &id, int z) { UIManager::Get().SetZIndex(id, z); });
 
-    s_Lua.set_function("UI_GetZIndex", [](const std::string &id) -> int { return UIManager::Get().GetZIndex(id); });
+    regUI("GetZIndex", [](const std::string &id) -> int { return UIManager::Get().GetZIndex(id); });
 
-    s_Lua.set_function("UI_IsButtonClicked", [](const std::string &id) -> bool {
+    regUI("IsButtonClicked", [](const std::string &id) -> bool {
         return UIManager::Get().IsButtonClicked(id);
     });
 
-    s_Lua.set_function("UI_IsButtonHovered", [](const std::string &id) -> bool {
+    regUI("IsButtonHovered", [](const std::string &id) -> bool {
         return UIManager::Get().IsButtonHovered(id);
     });
 
-    s_Lua.set_function("UI_SetVisible", [](const std::string &id, bool visible) {
+    regUI("SetVisible", [](const std::string &id, bool visible) {
         UIManager::Get().SetVisible(id, visible);
     });
 
-    s_Lua.set_function("UI_GetVisible", [](const std::string &id) -> bool {
+    regUI("GetVisible", [](const std::string &id) -> bool {
         return UIManager::Get().GetVisible(id);
     });
 
-    s_Lua.set_function("UI_SetOpacity", [](const std::string &id, float opacity) {
+    regUI("SetOpacity", [](const std::string &id, float opacity) {
         UIManager::Get().SetOpacity(id, opacity);
     });
 
-    s_Lua.set_function("UI_SetTextStyle", [](const std::string &id, int style) {
+    regUI("SetTextStyle", [](const std::string &id, int style) {
         UIManager::Get().SetTextStyle(id, style);
     });
 
-    s_Lua.set_function("UI_SetTextAlign", [](const std::string &id, int align) {
+    regUI("SetTextAlign", [](const std::string &id, int align) {
         UIManager::Get().SetTextAlign(id, align);
     });
 
-    s_Lua.set_function("UI_SetUpperCase", [](const std::string &id, bool upper) {
+    regUI("SetUpperCase", [](const std::string &id, bool upper) {
         UIManager::Get().SetUpperCase(id, upper);
     });
 
-    s_Lua.set_function("UI_SetFontSize", [](const std::string &id, int size) {
+    regUI("SetFontSize", [](const std::string &id, int size) {
         UIManager::Get().SetFontSize(id, size);
     });
 
-    s_Lua.set_function("UI_SetLetterSpacing", [](const std::string &id, float spacing) {
+    regUI("SetLetterSpacing", [](const std::string &id, float spacing) {
         UIManager::Get().SetLetterSpacing(id, spacing);
     });
 
-    s_Lua.set_function("UI_SetLineSpacing", [](const std::string &id, float spacing) {
+    regUI("SetLineSpacing", [](const std::string &id, float spacing) {
         UIManager::Get().SetLineSpacing(id, spacing);
     });
 
-    s_Lua.set_function("UI_SetTextOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
+    regUI("SetTextOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
         UIManager::Get().SetTextOutline(id, r, g, b, a, thickness);
     });
 
-    s_Lua.set_function("UI_SetTextOffset", [](const std::string &id, float ox, float oy) {
+    regUI("SetTextOffset", [](const std::string &id, float ox, float oy) {
         UIManager::Get().SetTextOffset(id, ox, oy);
     });
 
-    s_Lua.set_function("UI_SetTextColor", [](const std::string &id, int r, int g, int b, int a) {
+    regUI("SetTextColor", [](const std::string &id, int r, int g, int b, int a) {
         UIManager::Get().SetTextColor(id, r, g, b, a);
     });
 
-    s_Lua.set_function("UI_SetOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
+    regUI("SetOutline", [](const std::string &id, int r, int g, int b, int a, float thickness) {
         UIManager::Get().SetOutline(id, r, g, b, a, thickness);
     });
 
-    s_Lua.set_function("UI_SetDisabled", [](const std::string &id, bool disabled) {
+    regUI("SetDisabled", [](const std::string &id, bool disabled) {
         UIManager::Get().SetDisabled(id, disabled);
     });
 
-    s_Lua.set_function("UI_SetTexture", [](const std::string &id, const std::string &path) {
+    regUI("SetTexture", [](const std::string &id, const std::string &path) {
         UIManager::Get().SetTexture(id, path);
     });
 
-    s_Lua.set_function("UI_SetHoverTexture", [](const std::string &id, const std::string &path) {
+    regUI("SetHoverTexture", [](const std::string &id, const std::string &path) {
         UIManager::Get().SetHoverTexture(id, path);
     });
 
-    s_Lua.set_function("UI_SetPressedTexture", [](const std::string &id, const std::string &path) {
+    regUI("SetPressedTexture", [](const std::string &id, const std::string &path) {
         UIManager::Get().SetPressedTexture(id, path);
     });
 
-    s_Lua.set_function("UI_SetCheckedTexture", [](const std::string &id, const std::string &path) {
+    regUI("SetCheckedTexture", [](const std::string &id, const std::string &path) {
         UIManager::Get().SetCheckedTexture(id, path);
     });
 
-    s_Lua.set_function("UI_SetChecked", [](const std::string &id, bool checked) {
+    regUI("SetChecked", [](const std::string &id, bool checked) {
         UIManager::Get().SetChecked(id, checked);
     });
 
-    s_Lua.set_function("UI_GetChecked", [](const std::string &id) -> bool {
+    regUI("GetChecked", [](const std::string &id) -> bool {
         return UIManager::Get().GetChecked(id);
     });
 
-    s_Lua.set_function("UI_SetSliderValue", [](const std::string &id, float value) {
+    regUI("SetSliderValue", [](const std::string &id, float value) {
         UIManager::Get().SetSliderValue(id, value);
     });
 
-    s_Lua.set_function("UI_GetSliderValue", [](const std::string &id) -> float {
+    regUI("GetSliderValue", [](const std::string &id) -> float {
         return UIManager::Get().GetSliderValue(id);
     });
 
-    s_Lua.set_function("UI_SetProgressValue", [](const std::string &id, float value) {
+    regUI("SetProgressValue", [](const std::string &id, float value) {
         UIManager::Get().SetProgressValue(id, value);
     });
 
-    s_Lua.set_function("UI_GetProgressValue", [](const std::string &id) -> float {
+    regUI("GetProgressValue", [](const std::string &id) -> float {
         return UIManager::Get().GetProgressValue(id);
     });
     
-    s_Lua.set_function("UI_SetFocused", [](const std::string &id, bool focused) {
+    regUI("SetFocused", [](const std::string &id, bool focused) {
         UIManager::Get().SetFocused(id, focused);
     });
     
-    s_Lua.set_function("UI_GetFocused", [](const std::string &id) -> bool {
+    regUI("GetFocused", [](const std::string &id) -> bool {
         return UIManager::Get().GetFocused(id);
     });
 
