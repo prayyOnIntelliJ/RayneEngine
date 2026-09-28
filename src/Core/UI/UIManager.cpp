@@ -5,6 +5,7 @@
 #include <chrono>
 #include <nlohmann/json.hpp>
 #include "../Scripting/LuaState.h"
+#include "../Scripting/EventManager.h"
 #include "../Resources/ResourceManager.h"
 #include "../Input/InputManager.h"
 
@@ -178,13 +179,14 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             if (action.empty() || action == "None") return;
             std::string luaCode;
             if (action == "Quit") luaCode = "Engine.Quit()";
-            else if (action == "Restart") luaCode = "Engine.RestartCurrentScene()";
-            else if (action == "TogglePause") luaCode = "Engine.SetPaused(not Engine.GetPaused())";
+            else if (action == "Restart") luaCode = "Engine.RestartScene()";
+            else if (action == "TogglePause") luaCode = "Engine.TogglePause()";
             else if (action == "SetFullscreen") luaCode = "Engine.SetFullscreen(" + param + ")";
             else if (action == "SetTimeScale") luaCode = "Engine.SetTimeScale(" + param + ")";
             else if (action == "TakeScreenshot") luaCode = "Engine.TakeScreenshot()";
             else if (action == "OpenURL") luaCode = "Engine.OpenURL(\"" + param + "\")";
             else if (action == "Log") luaCode = "Engine.Log(\"" + param + "\")";
+            else if (action == "LoadScene") luaCode = "Engine.LoadScene(\"" + param + "\")";
             
             if (!luaCode.empty()) {
                 try {
@@ -236,6 +238,27 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
                     m_LastClickedButton = el->id;
                     if (el->type == UIElementType::Checkbox) el->isChecked = !el->isChecked;
                     executeAction(el->onClickAction, el->onClickParam, el->id, "Click");
+                    EventManager::Get().FireButtonClick(el->id);
+                    try {
+                        sol::state &lua = LuaState::GetLua();
+                        sol::object uiObj = lua["UI"];
+                        if (uiObj.is<sol::table>())
+                        {
+                            sol::object cb = uiObj.as<sol::table>()["OnButtonClicked"];
+                            if (cb.is<sol::protected_function>())
+                            {
+                                sol::protected_function pfn = cb.as<sol::protected_function>();
+                                auto res = pfn(el->id);
+                                if (!res.valid())
+                                {
+                                    sol::error err = res;
+                                    std::cerr << "[ERROR] [Lua] UI.OnButtonClicked error: " << err.what() << "\n";
+                                }
+                            }
+                        }
+                    } catch (const std::exception &e) {
+                        std::cerr << "[ERROR] [UI] Button click callback exception: " << e.what() << "\n";
+                    }
                 }
                 el->isPressed = false;
             }

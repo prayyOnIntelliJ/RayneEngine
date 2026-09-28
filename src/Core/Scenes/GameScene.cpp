@@ -9,6 +9,7 @@
 #include "../Scripting/ScriptComponent.h"
 #include "../Scripting/TimerManager.h"
 #include "../Scripting/TweenManager.h"
+#include "../Audio/AudioManager.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -49,6 +50,12 @@ void GameScene::OnEnter()
             m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
     });
 
+    EventManager::Get().SubscribeButtonClick([this](const std::string &buttonId) {
+        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity, ScriptComponent &sc) {
+            sc.OnButtonClicked(buttonId);
+        });
+    });
+
     std::cout << "[INFO] [GameScene] Firing OnCreate() for all active scripts...\n";
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
 }
@@ -59,7 +66,19 @@ void GameScene::OnExit()
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();
     EventManager::Get().Clear();
-    std::cout << "[INFO] [GameScene] Stopping simulation, clearing collision state.\n";
+
+    AudioManager::Get().StopAllSounds();
+    AudioManager::Get().StopMusic();
+
+    if (g_App)
+    {
+        g_App->SetPaused(false);
+        g_App->SetTimeScale(1.0f);
+        g_App->SetCursorVisible(true);
+    }
+    UIManager::Get().ClearClickedButton();
+
+    std::cout << "[INFO] [GameScene] Stopping simulation, stopping audio, clearing collision state.\n";
 }
 
 void GameScene::CheckCollisions()
@@ -202,6 +221,20 @@ void GameScene::Update(float deltaTime)
     }
 #endif
 
+    sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
+    uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
+
+    sf::Vector2i pixelPos = sf::Mouse::getPosition(m_Window);
+    sf::Vector2f mousePos = m_Window.mapPixelToCoords(pixelPos, uiView);
+
+    bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
+    static bool wasClicked = false;
+    bool justClicked = mouseClicked && !wasClicked;
+    bool justReleased = !mouseClicked && wasClicked;
+    wasClicked = mouseClicked;
+
+    UIManager::Get().Update(deltaTime, mousePos, justClicked, justReleased);
+
     m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
 
     if (!isPaused)
@@ -214,30 +247,14 @@ void GameScene::Update(float deltaTime)
     m_Registry.ForEach<TransformComponent, CameraComponent>(
         [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.x, t.y); } });
 
-    bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
-    static bool wasClicked = false;
-    bool justClicked = mouseClicked && !wasClicked;
-    bool justReleased = !mouseClicked && wasClicked;
-    wasClicked = mouseClicked;
-
     UIManager::Get().ClearClickedButton();
 }
 
 void GameScene::Render(sf::RenderWindow &window)
 {
-    static bool wasClicked = false;
-    bool mouseClicked = sf::Mouse::isButtonPressed(sf::Mouse::Left);
-    bool justClicked = mouseClicked && !wasClicked;
-    bool justReleased = !mouseClicked && wasClicked;
-    wasClicked = mouseClicked;
-
     sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
     uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
 
-    sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
-    sf::Vector2f mousePos = window.mapPixelToCoords(pixelPos, uiView);
-
-    UIManager::Get().Update(0.016f, mousePos, justClicked, justReleased);
     window.setView(m_Camera);
 
     m_Registry.ForEach<TransformComponent, RenderComponent>(

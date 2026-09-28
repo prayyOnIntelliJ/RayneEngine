@@ -394,7 +394,15 @@ void Application::RestartCurrentScene()
 void Application::LoadGameScene(const std::string& sceneName)
 {
     if (sceneName.empty()) return;
-    m_CurrentSceneName = sceneName;
+
+    std::string cleanName = sceneName;
+    for (char &c : cleanName) if (c == '\\') c = '/';
+    if (cleanName.rfind("assets/", 0) == 0) cleanName = cleanName.substr(7);
+    if (cleanName.rfind("scenes/", 0) == 0) cleanName = cleanName.substr(7);
+    if (cleanName.size() >= 5 && cleanName.substr(cleanName.size() - 5) == ".json")
+        cleanName = cleanName.substr(0, cleanName.size() - 5);
+
+    m_CurrentSceneName = cleanName;
     m_IsPaused = false;
     m_TimeScale = 1.0f;
 
@@ -411,7 +419,7 @@ void Application::LoadGameScene(const std::string& sceneName)
             m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
     });
 
-    std::string scenePath = std::string(ASSET_PATH) + "/scenes/" + sceneName + ".json";
+    std::string scenePath = ResourceManager::ResolveAssetPath("scenes/" + cleanName + ".json");
     if (std::filesystem::exists(scenePath))
     {
         SceneSerializer::LoadIntoRegistry(m_Registry, scenePath);
@@ -421,7 +429,7 @@ void Application::LoadGameScene(const std::string& sceneName)
         std::cout << "[WARN] [Application] Scene file not found: " << scenePath << "\n";
     }
 
-    std::string uiPath = std::string(ASSET_PATH) + "/scenes/" + sceneName + "_ui.json";
+    std::string uiPath = ResourceManager::ResolveAssetPath("scenes/" + cleanName + "_ui.json");
     UIManager::Get().SetCurrentUIPath(uiPath);
     if (std::filesystem::exists(uiPath))
     {

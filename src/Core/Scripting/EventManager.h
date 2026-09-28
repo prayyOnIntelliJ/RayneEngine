@@ -1,6 +1,8 @@
 #ifndef RAYNEENGINE_EVENTMANAGER_H
 #define RAYNEENGINE_EVENTMANAGER_H
 #include <functional>
+#include <string>
+#include <vector>
 
 #include "../ECS/Entity.h"
 
@@ -23,12 +25,17 @@ public:
 
     void FireCollision(Entity a, Entity b);
 
+    void SubscribeButtonClick(std::function<void(const std::string &)> callback);
+
+    void FireButtonClick(const std::string &buttonId);
+
     void Clear();
 
 private:
     EventManager() = default;
 
     std::vector<std::function<void(CollisionEvent)> > m_CollisionCallbacks;
+    std::vector<std::function<void(const std::string &)> > m_ButtonClickCallbacks;
 };
 
 #endif
