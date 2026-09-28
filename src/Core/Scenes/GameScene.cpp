@@ -257,58 +257,76 @@ void GameScene::Render(sf::RenderWindow &window)
 
     window.setView(m_Camera);
 
+    struct RenderEntry {
+        Entity e;
+        TransformComponent t;
+        RenderComponent r;
+    };
+    std::vector<RenderEntry> renderEntries;
     m_Registry.ForEach<TransformComponent, RenderComponent>(
         [&](Entity e, TransformComponent &t, RenderComponent &r) {
-            if (m_Registry.HasComponent<SpriteComponent>(e))
-            {
-                auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
-                sc.sprite.setPosition(t.x, t.y);
-                sc.sprite.setRotation(t.rotation);
-                
-                float baseScaleX = 1.f, baseScaleY = 1.f;
-                if (sc.texture) {
-                    auto texSize = sc.texture->getSize();
-                    if (texSize.x > 0 && texSize.y > 0) {
-                        baseScaleX = sc.size.x / static_cast<float>(texSize.x);
-                        baseScaleY = sc.size.y / static_cast<float>(texSize.y);
-                    }
-                }
-                sc.sprite.setScale(baseScaleX * t.scaleX, baseScaleY * t.scaleY);
-                
-                window.draw(sc.sprite);
-            } else
-            {
-                if (r.shapeType == ShapeType::Rectangle)
-                {
-                    sf::RectangleShape shape(r.size);
-                    shape.setPosition(t.x, t.y);
-                    shape.setRotation(t.rotation);
-                    shape.setScale(t.scaleX, t.scaleY);
-                    shape.setFillColor(r.color);
-                    window.draw(shape);
-                } else
-                {
-                    sf::CircleShape circle;
-                    switch (r.shapeType)
-                    {
-                        case ShapeType::Triangle: circle.setPointCount(3);
-                            break;
-                        case ShapeType::Pentagon: circle.setPointCount(5);
-                            break;
-                        case ShapeType::Hexagon: circle.setPointCount(6);
-                            break;
-                        case ShapeType::Circle: default: circle.setPointCount(30);
-                            break;
-                    }
-                    circle.setRadius(r.size.x / 2.f);
-                    circle.setPosition(t.x, t.y);
-                    circle.setRotation(t.rotation);
-                    circle.setScale(t.scaleX, t.scaleY);
-                    circle.setFillColor(r.color);
-                    window.draw(circle);
+            renderEntries.push_back({e, t, r});
+        });
+    std::stable_sort(renderEntries.begin(), renderEntries.end(), [](const RenderEntry &a, const RenderEntry &b) {
+        return a.r.zIndex < b.r.zIndex;
+    });
+
+    for (const auto &entry : renderEntries)
+    {
+        Entity e = entry.e;
+        const auto &t = entry.t;
+        const auto &r = entry.r;
+
+        if (m_Registry.HasComponent<SpriteComponent>(e))
+        {
+            auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
+            sc.sprite.setPosition(t.x, t.y);
+            sc.sprite.setRotation(t.rotation);
+            
+            float baseScaleX = 1.f, baseScaleY = 1.f;
+            if (sc.texture) {
+                auto texSize = sc.texture->getSize();
+                if (texSize.x > 0 && texSize.y > 0) {
+                    baseScaleX = sc.size.x / static_cast<float>(texSize.x);
+                    baseScaleY = sc.size.y / static_cast<float>(texSize.y);
                 }
             }
-        });
+            sc.sprite.setScale(baseScaleX * t.scaleX, baseScaleY * t.scaleY);
+            
+            window.draw(sc.sprite);
+        } else
+        {
+            if (r.shapeType == ShapeType::Rectangle)
+            {
+                sf::RectangleShape shape(r.size);
+                shape.setPosition(t.x, t.y);
+                shape.setRotation(t.rotation);
+                shape.setScale(t.scaleX, t.scaleY);
+                shape.setFillColor(r.color);
+                window.draw(shape);
+            } else
+            {
+                sf::CircleShape circle;
+                switch (r.shapeType)
+                {
+                    case ShapeType::Triangle: circle.setPointCount(3);
+                        break;
+                    case ShapeType::Pentagon: circle.setPointCount(5);
+                        break;
+                    case ShapeType::Hexagon: circle.setPointCount(6);
+                        break;
+                    case ShapeType::Circle: default: circle.setPointCount(30);
+                        break;
+                }
+                circle.setRadius(r.size.x / 2.f);
+                circle.setPosition(t.x, t.y);
+                circle.setRotation(t.rotation);
+                circle.setScale(t.scaleX, t.scaleY);
+                circle.setFillColor(r.color);
+                window.draw(circle);
+            }
+        }
+    }
 
     window.setView(uiView);
     UIManager::Get().Render(window);

@@ -29,6 +29,7 @@ struct RenderComponent
     sf::Color color;
     sf::Vector2f size;
     ShapeType shapeType = ShapeType::Rectangle;
+    int zIndex = 0;
 };
 
 struct SpriteComponent

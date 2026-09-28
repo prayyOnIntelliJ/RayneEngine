@@ -43,7 +43,8 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
         else if (typeStr == "pentagon") shapeType = ShapeType::Pentagon;
         else if (typeStr == "hexagon") shapeType = ShapeType::Hexagon;
 
-        registry.AddComponent(entity, RenderComponent{color, size, shapeType});
+        int zIndex = j.value("zIndex", 0);
+        registry.AddComponent(entity, RenderComponent{color, size, shapeType, zIndex});
 
         if (j.contains("sprite"))
         {
