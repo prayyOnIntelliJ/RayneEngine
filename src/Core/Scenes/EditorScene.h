@@ -53,6 +53,7 @@ struct EditorObject
     std::shared_ptr<sf::Texture> previewTexture;
     sf::Sprite previewSprite;
     int zIndex = 0;
+    std::string templatePath = "";
     std::map<std::string, ScriptComponent::Property> scriptProperties;
 };
 
@@ -209,6 +210,15 @@ private:
     bool IsDescendantOf(const std::string& childId, const std::string& ancestorId) const;
     std::vector<EditorObject*> GetChildren(const std::string& parentId);
     void SetParent(const std::string& childId, const std::string& newParentId, bool keepWorldTransform = true);
+
+    void SaveAsTemplate(EditorObject *obj, const std::string &name = "");
+    void ApplyToTemplate(EditorObject *obj);
+    EditorObject* InstantiateTemplateOnCanvas(const std::string &templatePath, sf::Vector2f pos);
+
+    bool m_ShowSaveTemplatePrompt = false;
+    std::string m_SaveTemplateInputName;
+    std::string m_SaveTemplateTargetId;
+    void DrawSaveTemplateModal(sf::RenderWindow &window);
 
     bool m_HasUnsavedChanges = false;
     void SetDirty(bool dirty = true);

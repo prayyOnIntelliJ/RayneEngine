@@ -559,6 +559,84 @@ void EditorScene::HandleEvent(const sf::Event &event)
         return;
     }
 
+    if (m_ShowSaveTemplatePrompt)
+    {
+        if (event.type == sf::Event::KeyPressed)
+        {
+            if (event.key.code == sf::Keyboard::Escape)
+            {
+                m_ShowSaveTemplatePrompt = false;
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Enter)
+            {
+                if (!m_SaveTemplateInputName.empty())
+                {
+                    SaveAsTemplate(ObjectById(m_SaveTemplateTargetId), m_SaveTemplateInputName);
+                }
+                m_ShowSaveTemplatePrompt = false;
+                return;
+            }
+        }
+        else if (event.type == sf::Event::TextEntered)
+        {
+            if (event.text.unicode == 8)
+            {
+                if (!m_SaveTemplateInputName.empty())
+                    m_SaveTemplateInputName.pop_back();
+            }
+            else if (event.text.unicode >= 32 && event.text.unicode < 127)
+            {
+                char c = static_cast<char>(event.text.unicode);
+                if (std::isalnum(c) || c == '_' || c == '-')
+                {
+                    m_SaveTemplateInputName += c;
+                }
+            }
+            return;
+        }
+        else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            float pW = 400.f;
+            float pH = 180.f;
+            float pX = (m_Window.getSize().x - pW) / 2.f;
+            float pY = (m_Window.getSize().y - pH) / 2.f;
+
+            float btnW = 90.f;
+            float btnH = 28.f;
+            float btnY = pY + pH - 45.f;
+            float btnSaveX = pX + pW - 20.f - btnW * 2.f - 10.f;
+            float btnCancelX = pX + pW - 20.f - btnW;
+
+            sf::FloatRect saveBounds(btnSaveX, btnY, btnW, btnH);
+            sf::FloatRect cancelBounds(btnCancelX, btnY, btnW, btnH);
+            sf::Vector2f mPos((float)event.mouseButton.x, (float)event.mouseButton.y);
+
+            if (saveBounds.contains(mPos))
+            {
+                if (!m_SaveTemplateInputName.empty())
+                {
+                    SaveAsTemplate(ObjectById(m_SaveTemplateTargetId), m_SaveTemplateInputName);
+                }
+                m_ShowSaveTemplatePrompt = false;
+            }
+            else if (cancelBounds.contains(mPos))
+            {
+                m_ShowSaveTemplatePrompt = false;
+            }
+            else
+            {
+                sf::FloatRect panelBounds(pX, pY, pW, pH);
+                if (!panelBounds.contains(mPos))
+                {
+                    m_ShowSaveTemplatePrompt = false;
+                }
+            }
+            return;
+        }
+        return;
+    }
+
     if (m_ShowProjectSettings)
     {
         if (event.type == sf::Event::TextEntered && m_ActiveProjectSettingsField != ProjectSettingsField::None)
@@ -1033,8 +1111,32 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         target->scriptProperties[prop.name] = prop;
                     }
 
-                    std::cout << "[INFO] [ContentBrowser] Script dropped onto Entity " << target->id << "\n";
                 }
+            }
+        }
+        else if (drag.type == AssetType::Template)
+        {
+            if (inInspector && m_Selected)
+            {
+                for (auto &pair : m_Selected->scriptProperties)
+                {
+                    if (pair.second.type == ScriptComponent::PropertyType::Template)
+                    {
+                        pair.second.stringVal = drag.path;
+                        if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                        {
+                            m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                        }
+                        SetDirty(true);
+                        std::cout << "[INFO] [ContentBrowser] Assigned template to property " << pair.first << "\n";
+                        break;
+                    }
+                }
+            }
+            else if (!inBrowser && !inTopBars && !inTabs)
+            {
+                sf::Vector2f dropPos = MouseWorldPos();
+                InstantiateTemplateOnCanvas(drag.path, dropPos);
             }
         }
 
@@ -1207,7 +1309,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                             if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = std::stoi(m_ActiveInputText);
                             else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = std::stof(m_ActiveInputText);
                             else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = (m_ActiveInputText == "true" || m_ActiveInputText == "1");
-                            else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = m_ActiveInputText;
+                            else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = m_ActiveInputText;
                             
                             if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
                             {
@@ -1526,6 +1628,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
                             if (!newObj.spritePath.empty()) ApplySpriteToObject(newObj, newObj.spritePath);
                         }
                         m_Objects.push_back(std::move(newObj));
+                    } else if (action == "save_template" && m_ContextObject)
+                    {
+                        SaveAsTemplate(m_ContextObject, "");
                     }
                     break;
                 }
@@ -2166,6 +2271,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     if (m_ShowSettings) DrawSettingsWindow(window);
     if (m_ShowProjectSettings) DrawProjectSettingsWindow(window);
     if (m_ShowBuildPopup) DrawBuildPopup(window);
+    if (m_ShowSaveTemplatePrompt) DrawSaveTemplateModal(window);
 
     if (m_ContentBrowser->HasDraggedAsset() &&
         m_ContentBrowser->GetDraggedAsset().type == AssetType::Image)
@@ -2677,6 +2783,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
                 if (lowerExt == ".lua") typeName = "Lua Script";
                 else if (lowerExt == ".json") typeName = "JSON Data";
+                else if (lowerExt == ".template") typeName = "Template";
                 else if (lowerExt == ".png" || lowerExt == ".jpg" || lowerExt == ".jpeg" || lowerExt == ".jfif") typeName = "Image Asset";
                 else if (lowerExt == ".wav" || lowerExt == ".ogg") typeName = "Audio Asset";
                 else if (lowerExt == ".ttf") typeName = "Font Asset";
@@ -2735,7 +2842,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
                         y += previewH + 20.f;
                     }
-                } else if (typeName == "Lua Script" || typeName == "JSON Data")
+                } else if (typeName == "Lua Script" || typeName == "JSON Data" || typeName == "Template")
                 {
                     y += 10.f;
                     y = DrawSectionHeader(window, "FILE CONTENT", sf::Color(150, 220, 150), panelX, y);
@@ -2806,6 +2913,18 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     if (!m_Selected->parentId.empty())
     {
         y = DrawActionButton(window, "Detach Parent", "detach_parent", panelX, y, C_DANGER_DIM, C_DANGER);
+    }
+
+    if (!m_Selected->templatePath.empty())
+    {
+        std::filesystem::path tp(m_Selected->templatePath);
+        y = DrawRow(window, "Template", tp.filename().string(), panelX, y);
+        y = DrawActionButton(window, "Apply to Template", "apply_template", panelX, y, sf::Color(30, 80, 140), sf::Color(70, 140, 240));
+        y = DrawActionButton(window, "Unlink Template", "unlink_template", panelX, y, C_DANGER_DIM, C_DANGER);
+    }
+    else
+    {
+        y = DrawActionButton(window, "Save as Template", "save_as_template", panelX, y, sf::Color(40, 60, 90), sf::Color(80, 120, 180));
     }
 
     y += 8.f;
@@ -3106,6 +3225,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                         valStr = buf;
                     }
                     else if (prop.type == ScriptComponent::PropertyType::String) valStr = prop.stringVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Template) valStr = prop.stringVal.empty() ? "(drag .template or click)" : std::filesystem::path(prop.stringVal).filename().string();
 
                     if (m_ActiveField == EditField::ScriptProperty && m_ActiveScriptProperty == prop.name)
                         y = DrawEditableRow(window, prop.name, m_ActiveInputText + "_", "edit_script_prop_" + prop.name, panelX, y);
@@ -3253,7 +3373,10 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             sf::Text nameText;
             nameText.setFont(*m_Font);
             nameText.setCharacterSize(12);
-            nameText.setFillColor(isSelected ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+            if (!obj->templatePath.empty())
+                nameText.setFillColor(isSelected ? sf::Color(140, 210, 255) : sf::Color(100, 180, 240));
+            else
+                nameText.setFillColor(isSelected ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
             nameText.setString(obj->id);
             nameText.setPosition(panelX + (hasChildren ? 38.f : 34.f) + indent, y + 4.f);
             window.draw(nameText);
@@ -3327,11 +3450,12 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
     {
         m_ContextHitboxes.clear();
         const float itemH = 28.f;
-        const float menuW = 120.f;
+        const float menuW = 140.f;
 
         std::vector<std::pair<std::string, std::string> > actions = {
             {"Rename", "rename"},
             {"Duplicate", "duplicate"},
+            {"Save as Template", "save_template"},
             {"Delete", "delete"}
         };
 
@@ -3835,7 +3959,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                     m_ActiveInputText = buf;
                 }
                 else if (prop.type == ScriptComponent::PropertyType::Bool) m_ActiveInputText = prop.boolVal ? "true" : "false";
-                else if (prop.type == ScriptComponent::PropertyType::String) m_ActiveInputText = prop.stringVal;
+                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) m_ActiveInputText = prop.stringVal;
             }
         } else if (btn.action == "edit_script")
         {
@@ -3936,6 +4060,17 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         } else if (btn.action == "change_sprite" && m_Selected)
         {
             std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
+        } else if (btn.action == "save_as_template" && m_Selected)
+        {
+            SaveAsTemplate(m_Selected, "");
+        } else if (btn.action == "apply_template" && m_Selected)
+        {
+            ApplyToTemplate(m_Selected);
+        } else if (btn.action == "unlink_template" && m_Selected)
+        {
+            m_Selected->templatePath.clear();
+            SetDirty(true);
+            UpdateStatusText();
         }
         break;
     }
@@ -4350,6 +4485,16 @@ void EditorScene::LoadFromJson(const std::string &path)
             ApplySpriteToObject(obj, sp);
         }
 
+        if (j.contains("template"))
+        {
+            std::string tp = j["template"].get<std::string>();
+            std::filesystem::path p(tp);
+            if (!p.is_absolute()) {
+                tp = (std::filesystem::path(ASSET_PATH) / p).string();
+            }
+            obj.templatePath = tp;
+        }
+
         if (j.contains("velocity"))
             m_Registry.AddComponent(obj.entity, VelocityComponent{
                                         j["velocity"]["dx"], j["velocity"]["dy"]
@@ -4380,7 +4525,7 @@ void EditorScene::LoadFromJson(const std::string &path)
                     if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
                     else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
                     else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                    else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
                     
                     obj.scriptProperties[prop.name] = prop;
                     sc.SetExportedProperty(prop);
@@ -4498,6 +4643,15 @@ void EditorScene::SnapshotState()
             j["sprite"] = ec ? obj.spritePath : rel;
         }
 
+        if (!obj.templatePath.empty())
+        {
+            std::error_code ec;
+            std::filesystem::path p(obj.templatePath);
+            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
+            j["template"] = ec ? obj.templatePath : rel;
+        }
+
         if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity))
         {
             auto &vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
@@ -4523,7 +4677,7 @@ void EditorScene::SnapshotState()
                     if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
                     else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
                     else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
-                    else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
+                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) pJson["value"] = prop.stringVal;
                     propsJson[pair.first] = pJson;
                 }
                 j["scriptProperties"] = propsJson;
@@ -4635,6 +4789,16 @@ void EditorScene::RestoreSnapshot()
             ApplySpriteToObject(obj, sp);
         }
 
+        if (j.contains("template"))
+        {
+            std::string tp = j["template"].get<std::string>();
+            std::filesystem::path p(tp);
+            if (!p.is_absolute()) {
+                tp = (std::filesystem::path(ASSET_PATH) / p).string();
+            }
+            obj.templatePath = tp;
+        }
+
         if (j.contains("velocity"))
             m_Registry.AddComponent(obj.entity, VelocityComponent{
                 j["velocity"]["dx"], j["velocity"]["dy"]
@@ -4664,7 +4828,7 @@ void EditorScene::RestoreSnapshot()
                     if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
                     else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
                     else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                    else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
                     
                     obj.scriptProperties[prop.name] = prop;
                     sc.SetExportedProperty(prop);
@@ -6105,6 +6269,14 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
         j["sprite"] = ec ? obj.spritePath : rel;
     }
 
+    if (!obj.templatePath.empty()) {
+        std::error_code ec;
+        std::filesystem::path p(obj.templatePath);
+        std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+        std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
+        j["template"] = ec ? obj.templatePath : rel;
+    }
+
     if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity)) {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
         j["velocity"] = {{"dx", vel.dx}, {"dy", vel.dy}};
@@ -6128,7 +6300,7 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
                 if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
                 else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
                 else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
-                else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
+                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) pJson["value"] = prop.stringVal;
                 propsJson[pair.first] = pJson;
             }
             j["scriptProperties"] = propsJson;
@@ -6209,6 +6381,15 @@ void EditorScene::DeserializeObject(const json& j) {
         ApplySpriteToObject(obj, sp);
     }
 
+    if (j.contains("template")) {
+        std::string tp = j["template"].get<std::string>();
+        std::filesystem::path p(tp);
+        if (!p.is_absolute()) {
+            tp = (std::filesystem::path(ASSET_PATH) / p).string();
+        }
+        obj.templatePath = tp;
+    }
+
     if (j.contains("velocity"))
         m_Registry.AddComponent(obj.entity, VelocityComponent{
                                     j["velocity"]["dx"], j["velocity"]["dy"]
@@ -6238,7 +6419,7 @@ void EditorScene::DeserializeObject(const json& j) {
                 if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
                 else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
                 else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = it.value()["value"].get<std::string>();
+                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
                 
                 obj.scriptProperties[prop.name] = prop;
                 sc.SetExportedProperty(prop);
@@ -7234,4 +7415,307 @@ void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos) {
         }
     }
     CommitActiveProjectSettingsField();
+}
+
+void EditorScene::SaveAsTemplate(EditorObject *obj, const std::string &name)
+{
+    if (!obj) return;
+
+    if (name.empty())
+    {
+        m_SaveTemplateTargetId = obj->id;
+        m_SaveTemplateInputName = obj->id;
+        m_ShowSaveTemplatePrompt = true;
+        return;
+    }
+
+    std::string cleanName = name;
+    if (cleanName.size() > 9 && cleanName.substr(cleanName.size() - 9) == ".template")
+    {
+        cleanName = cleanName.substr(0, cleanName.size() - 9);
+    }
+
+    std::filesystem::path templateDir = std::filesystem::path(ASSET_PATH) / "templates";
+    std::error_code ec;
+    std::filesystem::create_directories(templateDir, ec);
+
+    std::filesystem::path targetFile = templateDir / (cleanName + ".template");
+
+    std::vector<EditorObject*> hierarchy;
+    std::vector<EditorObject*> queue = { obj };
+    while (!queue.empty())
+    {
+        EditorObject* curr = queue.front();
+        queue.erase(queue.begin());
+        hierarchy.push_back(curr);
+        for (EditorObject* child : GetChildren(curr->id))
+        {
+            queue.push_back(child);
+        }
+    }
+
+    json data;
+    data["name"] = cleanName;
+    data["objects"] = json::array();
+
+    for (size_t i = 0; i < hierarchy.size(); ++i)
+    {
+        EditorObject* item = hierarchy[i];
+        json j = SerializeObject(*item);
+        if (i == 0)
+        {
+            j["parent"] = "";
+            j["x"] = 0.f;
+            j["y"] = 0.f;
+        }
+        data["objects"].push_back(j);
+    }
+
+    std::ofstream out(targetFile);
+    if (!out.is_open())
+    {
+        std::cerr << "[ERROR] [EditorScene] Could not open template file for writing: " << targetFile << "\n";
+        return;
+    }
+    out << data.dump(4);
+    out.close();
+
+    obj->templatePath = targetFile.generic_string();
+    if (m_ContentBrowser)
+    {
+        m_ContentBrowser->Refresh();
+    }
+    SetDirty(true);
+    UpdateStatusText();
+    std::cout << "[INFO] [EditorScene] Saved template: " << targetFile << "\n";
+}
+
+void EditorScene::ApplyToTemplate(EditorObject *obj)
+{
+    if (!obj || obj->templatePath.empty()) return;
+
+    std::filesystem::path targetFile(obj->templatePath);
+    if (!targetFile.is_absolute())
+    {
+        targetFile = std::filesystem::path(ASSET_PATH) / targetFile;
+    }
+
+    std::vector<EditorObject*> hierarchy;
+    std::vector<EditorObject*> queue = { obj };
+    while (!queue.empty())
+    {
+        EditorObject* curr = queue.front();
+        queue.erase(queue.begin());
+        hierarchy.push_back(curr);
+        for (EditorObject* child : GetChildren(curr->id))
+        {
+            queue.push_back(child);
+        }
+    }
+
+    json data;
+    data["name"] = targetFile.stem().string();
+    data["objects"] = json::array();
+
+    for (size_t i = 0; i < hierarchy.size(); ++i)
+    {
+        EditorObject* item = hierarchy[i];
+        json j = SerializeObject(*item);
+        if (i == 0)
+        {
+            j["parent"] = "";
+            j["x"] = 0.f;
+            j["y"] = 0.f;
+        }
+        data["objects"].push_back(j);
+    }
+
+    std::ofstream out(targetFile);
+    if (!out.is_open())
+    {
+        std::cerr << "[ERROR] [EditorScene] Could not open template file for writing: " << targetFile << "\n";
+        return;
+    }
+    out << data.dump(4);
+    out.close();
+
+    if (m_ContentBrowser)
+    {
+        m_ContentBrowser->Refresh();
+    }
+    std::cout << "[INFO] [EditorScene] Applied changes to template: " << targetFile << "\n";
+}
+
+EditorObject* EditorScene::InstantiateTemplateOnCanvas(const std::string &templatePath, sf::Vector2f pos)
+{
+    std::filesystem::path tp(templatePath);
+    if (!tp.is_absolute())
+    {
+        tp = std::filesystem::path(ASSET_PATH) / tp;
+    }
+
+    std::ifstream file(tp);
+    if (!file.is_open())
+    {
+        std::cerr << "[ERROR] [EditorScene] Failed to open template file: " << tp << "\n";
+        return nullptr;
+    }
+
+    json data;
+    try {
+        data = json::parse(file);
+    } catch (const std::exception &e) {
+        std::cerr << "[ERROR] [EditorScene] JSON parse error: " << e.what() << "\n";
+        return nullptr;
+    }
+
+    if (!data.contains("objects") || !data["objects"].is_array() || data["objects"].empty())
+    {
+        std::cerr << "[ERROR] [EditorScene] Template contains no objects: " << tp << "\n";
+        return nullptr;
+    }
+
+    std::unordered_map<std::string, std::string> oldToNewId;
+    std::vector<std::string> newIds;
+    EditorObject* rootObj = nullptr;
+
+    for (const auto &item : data["objects"])
+    {
+        std::string oldId = item.value("id", "");
+        std::string newId = NextId();
+        if (!oldId.empty()) {
+            oldToNewId[oldId] = newId;
+        }
+        newIds.push_back(newId);
+    }
+
+    auto macroCmd = std::make_shared<MacroCommand>();
+
+    for (size_t i = 0; i < data["objects"].size(); ++i)
+    {
+        json j = data["objects"][i];
+        std::string newId = newIds[i];
+        j["id"] = newId;
+
+        std::string oldParent = j.value("parent", "");
+        if (i == 0 || oldParent.empty())
+        {
+            j["parent"] = "";
+            j["x"] = pos.x;
+            j["y"] = pos.y;
+            j["template"] = templatePath;
+        }
+        else
+        {
+            if (oldToNewId.find(oldParent) != oldToNewId.end()) {
+                j["parent"] = oldToNewId[oldParent];
+            }
+        }
+
+        DeserializeObject(j);
+        EditorObject* newObj = ObjectById(newId);
+        if (newObj)
+        {
+            if (i == 0) rootObj = newObj;
+            macroCmd->commands.push_back(std::make_shared<ObjectStateCommand>(newId, json(nullptr), SerializeObject(*newObj)));
+        }
+    }
+
+    if (!macroCmd->commands.empty())
+    {
+        m_UndoStack.push_back(macroCmd);
+        m_RedoStack.clear();
+    }
+
+    ClearSelection();
+    if (rootObj)
+    {
+        SelectObject(rootObj, false);
+    }
+
+    UpdateWorldTransforms();
+    SetDirty(true);
+    UpdateStatusText();
+    return rootObj;
+}
+
+void EditorScene::DrawSaveTemplateModal(sf::RenderWindow &window)
+{
+    if (!m_ShowSaveTemplatePrompt) return;
+
+    sf::RectangleShape bg(sf::Vector2f(window.getSize().x, window.getSize().y));
+    bg.setFillColor(sf::Color(0, 0, 0, 150));
+    window.draw(bg);
+
+    float pW = 400.f;
+    float pH = 180.f;
+    float pX = (window.getSize().x - pW) / 2.f;
+    float pY = (window.getSize().y - pH) / 2.f;
+
+    sf::RectangleShape panel(sf::Vector2f(pW, pH));
+    panel.setPosition(pX, pY);
+    panel.setFillColor(C_BG_PANEL);
+    panel.setOutlineColor(C_BORDER);
+    panel.setOutlineThickness(1.f);
+    window.draw(panel);
+
+    sf::Text header("Save as Template", *m_Font, 16);
+    header.setPosition(pX + 20.f, pY + 20.f);
+    header.setFillColor(C_TEXT_PRIMARY);
+    window.draw(header);
+
+    sf::Text label("Template Name:", *m_Font, 12);
+    label.setPosition(pX + 20.f, pY + 55.f);
+    label.setFillColor(C_TEXT_SECONDARY);
+    window.draw(label);
+
+    float inputW = pW - 40.f;
+    float inputH = 32.f;
+    sf::RectangleShape inputBox(sf::Vector2f(inputW, inputH));
+    inputBox.setPosition(pX + 20.f, pY + 75.f);
+    inputBox.setFillColor(C_BG_INPUT);
+    inputBox.setOutlineColor(C_ACCENT);
+    inputBox.setOutlineThickness(1.5f);
+    window.draw(inputBox);
+
+    sf::Text inputText(m_SaveTemplateInputName + "|", *m_Font, 13);
+    inputText.setPosition(pX + 28.f, pY + 82.f);
+    inputText.setFillColor(C_TEXT_PRIMARY);
+    window.draw(inputText);
+
+    float btnW = 90.f;
+    float btnH = 28.f;
+    float btnY = pY + pH - 45.f;
+    float btnSaveX = pX + pW - 20.f - btnW * 2.f - 10.f;
+    float btnCancelX = pX + pW - 20.f - btnW;
+
+    sf::Vector2f mPos = {(float)sf::Mouse::getPosition(window).x, (float)sf::Mouse::getPosition(window).y};
+
+    // Save Button
+    sf::RectangleShape btnSave(sf::Vector2f(btnW, btnH));
+    btnSave.setPosition(btnSaveX, btnY);
+    bool hoverSave = btnSave.getGlobalBounds().contains(mPos);
+    btnSave.setFillColor(hoverSave ? C_ACCENT_HOV : C_ACCENT);
+    window.draw(btnSave);
+
+    sf::Text saveText("Save", *m_Font, 12);
+    sf::FloatRect stBounds = saveText.getLocalBounds();
+    saveText.setPosition(btnSaveX + (btnW - stBounds.width) / 2.f, btnY + (btnH - stBounds.height) / 2.f - 2.f);
+    saveText.setFillColor(sf::Color::White);
+    window.draw(saveText);
+
+    // Cancel Button
+    sf::RectangleShape btnCancel(sf::Vector2f(btnW, btnH));
+    btnCancel.setPosition(btnCancelX, btnY);
+    bool hoverCancel = btnCancel.getGlobalBounds().contains(mPos);
+    btnCancel.setFillColor(hoverCancel ? C_BG_ELEVATED : C_BG_INPUT);
+    btnCancel.setOutlineColor(C_BORDER);
+    btnCancel.setOutlineThickness(1.f);
+    window.draw(btnCancel);
+
+    sf::Text cancelText("Cancel", *m_Font, 12);
+    sf::FloatRect ctBounds = cancelText.getLocalBounds();
+    cancelText.setPosition(btnCancelX + (btnW - ctBounds.width) / 2.f, btnY + (btnH - ctBounds.height) / 2.f - 2.f);
+    cancelText.setFillColor(C_TEXT_SECONDARY);
+    window.draw(cancelText);
 }

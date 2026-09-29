@@ -222,6 +222,7 @@ void ContentBrowser::UpdateFilteredEntries()
         if (m_CurrentFilter == AssetFilter::Scripts && entry.type != AssetType::Script && !entry.isDirectory) continue;
         if (m_CurrentFilter == AssetFilter::Audio && entry.type != AssetType::Audio && !entry.isDirectory) continue;
         if (m_CurrentFilter == AssetFilter::Scenes && entry.type != AssetType::Scene && !entry.isDirectory) continue;
+        if (m_CurrentFilter == AssetFilter::Templates && entry.type != AssetType::Template && !entry.isDirectory) continue;
 
         if (!q.empty())
         {
@@ -392,6 +393,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
                     return;
                 }
                 m_DeleteTarget = m_SelectedPath;
+                CheckTemplateReferences(m_DeleteTarget);
                 m_DeletePrompt = true;
                 return;
             }
@@ -801,10 +803,11 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         {"Sprites", AssetFilter::Images, 52.f},
         {"Scripts", AssetFilter::Scripts, 50.f},
         {"Audio", AssetFilter::Audio, 46.f},
-        {"Scenes", AssetFilter::Scenes, 48.f}
+        {"Scenes", AssetFilter::Scenes, 48.f},
+        {"Templates", AssetFilter::Templates, 64.f}
     };
 
-    for (int i = 4; i >= 0; --i)
+    for (int i = 5; i >= 0; --i)
     {
         rightX -= (filters[i].w + 4.f);
         if (rightX < curX + 10.f) break;
@@ -1382,8 +1385,8 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         title.setString("Delete Item? (Enter to delete, Esc to cancel)");
 
         const float titleW = title.getLocalBounds().width;
-        const float modalW = std::max(380.f, titleW + 36.f);
-        const float modalH = 88.f;
+        const float modalW = std::max(420.f, titleW + 36.f);
+        const float modalH = m_DeleteWarningMessage.empty() ? 88.f : 108.f;
         const float modalX = x + (width - modalW) / 2.f;
         const float modalY = y + (height - modalH) / 2.f;
 
@@ -1395,7 +1398,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         sf::RectangleShape modalBg({modalW, modalH});
         modalBg.setPosition(modalX, modalY);
         modalBg.setFillColor(C_BG_ELEVATED);
-        modalBg.setOutlineColor(C_DANGER);
+        modalBg.setOutlineColor(m_DeleteWarningMessage.empty() ? C_DANGER : sf::Color(251, 191, 36));
         modalBg.setOutlineThickness(1.5f);
         window.draw(modalBg);
 
@@ -1413,12 +1416,24 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         info.setPosition(modalX + 14.f, modalY + 38.f);
         window.draw(info);
 
+        if (!m_DeleteWarningMessage.empty())
+        {
+            sf::Text warnText;
+            warnText.setFont(m_Font);
+            warnText.setCharacterSize(10);
+            warnText.setStyle(sf::Text::Bold);
+            warnText.setFillColor(sf::Color(251, 191, 36));
+            warnText.setString(m_DeleteWarningMessage);
+            warnText.setPosition(modalX + 14.f, modalY + 60.f);
+            window.draw(warnText);
+        }
+
         sf::Text sub;
         sub.setFont(m_Font);
         sub.setCharacterSize(9);
         sub.setFillColor(C_TEXT_SECONDARY);
         sub.setString("This action cannot be undone.");
-        sub.setPosition(modalX + 14.f, modalY + 62.f);
+        sub.setPosition(modalX + 14.f, modalY + (m_DeleteWarningMessage.empty() ? 62.f : 84.f));
         window.draw(sub);
     }
 
@@ -1780,6 +1795,55 @@ void ContentBrowser::DeleteAsset(const std::string &path)
     } else { SetStatusMessage("Delete failed: " + ec.message()); }
 }
 
+void ContentBrowser::CheckTemplateReferences(const std::string &path)
+{
+    m_DeleteWarningMessage.clear();
+    if (fs::path(path).extension() != ".template") return;
+
+    std::string filename = fs::path(path).filename().string();
+    std::string stem = fs::path(path).stem().string();
+
+    std::vector<std::string> references;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(m_RootPath, ec); it != fs::recursive_directory_iterator(); ++it)
+    {
+        if (ec) break;
+        if (it->is_regular_file())
+        {
+            std::string ext = it->path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == ".json" || ext == ".lua")
+            {
+                std::ifstream f(it->path());
+                if (f.is_open())
+                {
+                    std::string line;
+                    while (std::getline(f, line))
+                    {
+                        if (line.find(filename) != std::string::npos || line.find(stem + ".template") != std::string::npos)
+                        {
+                            references.push_back(it->path().filename().string());
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (!references.empty())
+    {
+        std::string refList;
+        for (size_t i = 0; i < references.size() && i < 3; ++i)
+        {
+            if (i > 0) refList += ", ";
+            refList += references[i];
+        }
+        if (references.size() > 3) refList += " (+" + std::to_string(references.size() - 3) + " more)";
+        m_DeleteWarningMessage = "WARNING: Referenced in: " + refList + "!";
+    }
+}
+
 void ContentBrowser::HandleContextMenuAction(const std::string &action)
 {
     if (action == "open")
@@ -1815,6 +1879,7 @@ void ContentBrowser::HandleContextMenuAction(const std::string &action)
     } else if (action == "reveal") { RevealInExplorer(m_ContextMenuTarget); } else if (action == "delete")
     {
         m_DeleteTarget = m_ContextMenuTarget;
+        CheckTemplateReferences(m_DeleteTarget);
         m_DeletePrompt = true;
     }
 }
@@ -1825,6 +1890,7 @@ AssetType ContentBrowser::TypeFromFile(const std::string &fullPath)
     std::transform(e.begin(), e.end(), e.begin(), ::tolower);
 
     if (e == ".lua") return AssetType::Script;
+    if (e == ".template") return AssetType::Template;
     if (e == ".png" || e == ".jpg" ||
         e == ".jpeg" || e == ".jfif" || e == ".bmp")
         return AssetType::Image;
@@ -1865,6 +1931,7 @@ sf::Color ContentBrowser::ColorForType(AssetType type)
         case AssetType::Script: return sf::Color(100, 215, 130);
         case AssetType::Scene: return sf::Color(90, 170, 255);
         case AssetType::UIScene: return sf::Color(240, 100, 140);
+        case AssetType::Template: return sf::Color(100, 200, 240);
         case AssetType::Image: return sf::Color(215, 115, 230);
         case AssetType::Audio: return sf::Color(255, 145, 75);
         case AssetType::Font: return sf::Color(75, 220, 210);
@@ -1880,6 +1947,7 @@ std::string ContentBrowser::LabelForType(AssetType type)
         case AssetType::Script: return "LUA";
         case AssetType::Scene: return "SCENE";
         case AssetType::UIScene: return "UI";
+        case AssetType::Template: return "TMPL";
         case AssetType::Image: return "IMG";
         case AssetType::Audio: return "SFX";
         case AssetType::Font: return "FONT";
@@ -1900,6 +1968,7 @@ std::string ContentBrowser::ExtensionLabel(const std::string &path, AssetType ty
 {
     if (type == AssetType::Scene) return "SCENE";
     if (type == AssetType::UIScene) return "UI";
+    if (type == AssetType::Template) return "TMPL";
 
     std::string ext = fs::path(path).extension().string();
     if (ext.empty()) return "";
@@ -1996,6 +2065,7 @@ void ContentBrowser::DrawIconForType(sf::RenderWindow &window, AssetType type, s
         case AssetType::Script: DrawScriptIcon(window, color, cx, cy, size); break;
         case AssetType::Scene:  DrawSceneIcon(window, color, cx, cy, size);  break;
         case AssetType::UIScene: DrawUISceneIcon(window, color, cx, cy, size); break;
+        case AssetType::Template: DrawSceneIcon(window, color, cx, cy, size); break;
         case AssetType::Audio:  DrawAudioIcon(window, color, cx, cy, size);  break;
         case AssetType::Font:   DrawFontIcon(window, color, cx, cy, size);   break;
         case AssetType::Image:  DrawImageIcon(window, color, cx, cy, size);  break;

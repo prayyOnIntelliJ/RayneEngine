@@ -14,6 +14,7 @@
 #include "../Application/Application.h"
 #include "TimerManager.h"
 #include "TweenManager.h"
+#include "../Scenes/SceneSerializer.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -52,6 +53,34 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     s_Lua.set_function("CreateEntity", [&]() { return registry.CreateEntity(); });
 
     s_Lua.set_function("DestroyEntity", [&](const Entity e) { return registry.DestroyEntity(e); });
+
+    s_Lua.set_function("Template", [&](sol::object pathObj) -> sol::table {
+        std::string pathStr;
+        if (pathObj.is<std::string>()) pathStr = pathObj.as<std::string>();
+        sol::table t = s_Lua.create_table();
+        t["__type"] = "template";
+        t["path"] = pathStr;
+        t["Instantiate"] = [&registry](sol::table self, float x, float y, sol::optional<Entity> parent) -> Entity {
+            std::string p = self["path"].get_or(std::string(""));
+            return SceneSerializer::InstantiateTemplate(registry, p, x, y, parent.value_or(0));
+        };
+        return t;
+    });
+
+    s_Lua.set_function("Instantiate", [&registry](sol::object templateObj, float x, float y, sol::optional<Entity> parent) -> Entity {
+        std::string templatePath;
+        if (templateObj.is<std::string>()) {
+            templatePath = templateObj.as<std::string>();
+        } else if (templateObj.is<sol::table>()) {
+            sol::table t = templateObj.as<sol::table>();
+            templatePath = t["path"].get_or(std::string(""));
+        }
+        if (templatePath.empty()) {
+            std::cerr << "[ERROR] [Lua] Instantiate called with empty or invalid template!\n";
+            return 0;
+        }
+        return SceneSerializer::InstantiateTemplate(registry, templatePath, x, y, parent.value_or(0));
+    });
 
     s_Lua.set_function("AddTransform", [&](const Entity e, const float x, const float y) {
         registry.AddComponent(e, TransformComponent{x, y});

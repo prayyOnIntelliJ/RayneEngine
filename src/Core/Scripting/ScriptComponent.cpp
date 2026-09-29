@@ -358,7 +358,17 @@ std::vector<ScriptComponent::Property> ScriptComponent::GetExportedProperties()
                 // Int must be checked before float, or we can just use float. Actually Lua only has numbers.
                 // Sol2 can check is<int>() or is<float>(). Let's use is<float>() since Lua numbers are doubles.
                 // Actually, Sol2 can distinguish integers in 5.3+.
-                if (val.is<int>()) { prop.type = PropertyType::Int; prop.intVal = val.as<int>(); prop.floatVal = val.as<float>(); }
+                if (val.is<sol::table>())
+                {
+                    sol::table t = val.as<sol::table>();
+                    sol::object typeObj = t["__type"];
+                    if (typeObj.is<std::string>() && typeObj.as<std::string>() == "template")
+                    {
+                        prop.type = PropertyType::Template;
+                        prop.stringVal = t["path"].get_or(std::string(""));
+                    }
+                }
+                else if (val.is<int>()) { prop.type = PropertyType::Int; prop.intVal = val.as<int>(); prop.floatVal = val.as<float>(); }
                 else if (val.is<float>()) { prop.type = PropertyType::Float; prop.floatVal = val.as<float>(); }
                 else if (val.is<bool>()) { prop.type = PropertyType::Bool; prop.boolVal = val.as<bool>(); }
                 else if (val.is<std::string>()) { prop.type = PropertyType::String; prop.stringVal = val.as<std::string>(); }
@@ -378,4 +388,11 @@ void ScriptComponent::SetExportedProperty(const Property& prop)
     else if (prop.type == PropertyType::Float) m_Env[prop.name] = prop.floatVal;
     else if (prop.type == PropertyType::Bool) m_Env[prop.name] = prop.boolVal;
     else if (prop.type == PropertyType::String) m_Env[prop.name] = prop.stringVal;
+    else if (prop.type == PropertyType::Template)
+    {
+        sol::table t = m_Env.create();
+        t["__type"] = "template";
+        t["path"] = prop.stringVal;
+        m_Env[prop.name] = t;
+    }
 }

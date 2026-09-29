@@ -30,7 +30,7 @@ public:
 
     sol::environment &GetEnv() { return m_Env; }
 
-    enum class PropertyType { Unknown, Int, Float, Bool, String };
+    enum class PropertyType { Unknown, Int, Float, Bool, String, Template };
     struct Property {
         std::string name;
         PropertyType type;

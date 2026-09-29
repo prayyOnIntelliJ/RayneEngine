@@ -276,6 +276,23 @@ function Engine.IsFPSShown() end
 ---@param y number
 function SetPosition(e, x, y)  end
 
+---@class Template
+---@field path string Path to the .template file
+---@field Instantiate fun(self: Template, x: number, y: number, parent?: Entity): Entity
+
+---Creates a Template reference (used for export variables or spawning)
+---@param path string Path to the .template file (e.g. "assets/templates/bullet.template")
+---@return Template
+function Template(path) end
+
+---Instantiates an entity from a template at the specified coordinates
+---@param template Template|string The template object or path string
+---@param x number X coordinate
+---@param y number Y coordinate
+---@param parent? Entity Optional parent entity
+---@return Entity The root entity ID created
+function Instantiate(template, x, y, parent) end
+
 ---Sets the parent of an Entity
 ---@param child Entity The child entity
 ---@param parent Entity The new parent entity (or 0 to unparent)

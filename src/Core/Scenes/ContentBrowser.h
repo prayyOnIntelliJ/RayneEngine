@@ -27,6 +27,7 @@ enum class AssetType
     Script,
     Scene,
     UIScene,
+    Template,
     Image,
     Audio,
     Font,
@@ -39,7 +40,8 @@ enum class AssetFilter
     Images,
     Scripts,
     Audio,
-    Scenes
+    Scenes,
+    Templates
 };
 
 struct ContentEntry
@@ -160,6 +162,8 @@ private:
 
     bool m_DeletePrompt = false;
     std::string m_DeleteTarget;
+    std::string m_DeleteWarningMessage;
+    void CheckTemplateReferences(const std::string &path);
 
     std::string m_StatusMessage;
     double m_StatusMessageTime = 0.0;
