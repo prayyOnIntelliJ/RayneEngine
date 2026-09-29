@@ -5,6 +5,14 @@
 ---@class Transform
 ---@field x number
 ---@field y number
+---@field rotation number
+---@field scaleX number
+---@field scaleY number
+---@field worldX number
+---@field worldY number
+---@field worldRotation number
+---@field worldScaleX number
+---@field worldScaleY number
 Transform = {}
 
 ---@class Velocity
@@ -267,6 +275,37 @@ function Engine.IsFPSShown() end
 ---@param x number
 ---@param y number
 function SetPosition(e, x, y)  end
+
+---Sets the parent of an Entity
+---@param child Entity The child entity
+---@param parent Entity The new parent entity (or 0 to unparent)
+---@param keepWorldTransform? boolean Whether to maintain world transform (defaults to true)
+function SetParent(child, parent, keepWorldTransform) end
+
+---Gets the parent Entity ID of an entity
+---@param child Entity The child entity
+---@return Entity The parent entity ID, or 0 if none
+function GetParent(child) end
+
+---Gets the children Entity IDs of an entity
+---@param parent Entity The parent entity
+---@return Entity[] An array of child entity IDs
+function GetChildren(parent) end
+
+---Gets the world position of an Entity
+---@param e Entity
+---@return number x, number y
+function GetWorldPosition(e) end
+
+---Gets the world rotation of an Entity
+---@param e Entity
+---@return number
+function GetWorldRotation(e) end
+
+---Gets the world scale of an Entity
+---@param e Entity
+---@return number sx, number sy
+function GetWorldScale(e) end
 
 ---Adds a Transform Component to an Entity
 ---@param e Entity
@@ -635,6 +674,27 @@ function UI.GetText(id) end
 ---@param y number The Y coordinate.
 function UI.SetPosition(id, x, y) end
 
+---Sets the parent of a UI element
+---@param childId string The child element ID
+---@param parentId string The parent element ID (or "" to unparent)
+---@param keepWorldPos? boolean Whether to maintain world position (defaults to true)
+function UI.SetParent(childId, parentId, keepWorldPos) end
+
+---Gets the parent ID of a UI element
+---@param id string The element ID
+---@return string The parent ID, or "" if none
+function UI.GetParent(id) end
+
+---Gets the child IDs of a UI element
+---@param id string The element ID
+---@return string[] Array of child element IDs
+function UI.GetChildren(id) end
+
+---Gets the world position of a UI element on the 1920x1080 canvas
+---@param id string The element ID
+---@return number x, number y
+function UI.GetWorldPosition(id) end
+
 ---Sets the dimensions of a UI element.
 ---@param id string The ID of the UI element.
 ---@param width number The width in canvas units.
@@ -861,6 +921,27 @@ function UI_GetText(id) end
 ---@param x number The X coordinate.
 ---@param y number The Y coordinate.
 function UI_SetPosition(id, x, y) end
+
+---Sets the parent of a UI element
+---@param childId string The child element ID
+---@param parentId string The parent element ID (or "" to unparent)
+---@param keepWorldPos? boolean Whether to maintain world position (defaults to true)
+function UI_SetParent(childId, parentId, keepWorldPos) end
+
+---Gets the parent ID of a UI element
+---@param id string The element ID
+---@return string The parent ID, or "" if none
+function UI_GetParent(id) end
+
+---Gets the child IDs of a UI element
+---@param id string The element ID
+---@return string[] Array of child element IDs
+function UI_GetChildren(id) end
+
+---Gets the world position of a UI element on the 1920x1080 canvas
+---@param id string The element ID
+---@return number x, number y
+function UI_GetWorldPosition(id) end
 
 ---Sets the dimensions of a UI element.
 ---@param id string The ID of the UI element.

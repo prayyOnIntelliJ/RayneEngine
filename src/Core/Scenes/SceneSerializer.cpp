@@ -1,8 +1,10 @@
 #include "SceneSerializer.h"
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 #include <nlohmann/json.hpp>
 #include "../ECS/Components.h"
+#include "../ECS/HierarchySystem.h"
 #include "../Scripting/ScriptComponent.h"
 #include "../Scripting/LuaState.h"
 #include "../Application/Application.h"
@@ -19,10 +21,20 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
 
     registry.Clear();
 
+    std::unordered_map<std::string, Entity> idToEntity;
+    std::vector<std::pair<Entity, std::string>> parentLinks;
+
     json data = json::parse(file);
     for (auto &j: data["objects"])
     {
         Entity entity = registry.CreateEntity();
+        std::string objId = j.value("id", "");
+        if (!objId.empty()) {
+            idToEntity[objId] = entity;
+        }
+        if (j.contains("parent") && !j["parent"].get<std::string>().empty()) {
+            parentLinks.push_back({entity, j["parent"].get<std::string>()});
+        }
         
         TransformComponent t;
         t.x = j["x"];
@@ -103,4 +115,22 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             registry.AddComponent(entity, CollisionComponent{j["collision"]["channel"], cType}); 
         }
     }
+
+    for (const auto& link : parentLinks) {
+        if (idToEntity.count(link.second)) {
+            Entity parentEntity = idToEntity[link.second];
+            if (!registry.HasComponent<HierarchyComponent>(link.first)) {
+                registry.AddComponent(link.first, HierarchyComponent{});
+            }
+            if (!registry.HasComponent<HierarchyComponent>(parentEntity)) {
+                registry.AddComponent(parentEntity, HierarchyComponent{});
+            }
+            auto &childH = registry.GetComponent<HierarchyComponent>(link.first);
+            auto &parentH = registry.GetComponent<HierarchyComponent>(parentEntity);
+            childH.parent = parentEntity;
+            parentH.children.push_back(link.first);
+        }
+    }
+
+    HierarchySystem::UpdateWorldTransforms(registry);
 }

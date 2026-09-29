@@ -211,6 +211,8 @@ static const sf::Color C_ACCENT_DIM = sf::Color(40, 35, 80, 200);
 static const sf::Color C_ACCENT_BRIGHT = sf::Color(146, 132, 245);
 static const sf::Color C_SUCCESS = sf::Color(74, 222, 128);
 static const sf::Color C_SUCCESS_DIM = sf::Color(20, 55, 35, 200);
+static const sf::Color C_WARNING = sf::Color(251, 191, 36);
+static const sf::Color C_WARNING_DIM = sf::Color(75, 55, 10, 200);
 static const sf::Color C_DANGER = sf::Color(241, 104, 94);
 static const sf::Color C_DANGER_DIM = sf::Color(70, 20, 18, 200);
 static const sf::Color C_GRID_MINOR = sf::Color(38, 43, 51);
@@ -337,6 +339,7 @@ void UIEditorScene::OnEnter()
         if (std::filesystem::exists(rootDir / "assets/scenes/game_ui.json"))
             UIManager::Get().SetCurrentUIPath("assets/scenes/game_ui.json");
     }
+    SetDirty(false);
 }
 
 void UIEditorScene::OnExit() { std::cout << "[INFO] [UIEditorScene] Exited UI Editor\n"; }
@@ -399,6 +402,34 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
     m_MouseScreenPos = m_Window.mapPixelToCoords(pixelPos, uiView);
     m_MouseCanvasPos = m_Window.mapPixelToCoords(pixelPos, m_CanvasView);
+
+    if (m_ShowDeleteModal)
+    {
+        if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left)
+        {
+            if (m_DeleteModalCascadeBtn.contains(m_MouseScreenPos))
+            {
+                ConfirmDeleteCascade();
+                return;
+            }
+            if (m_DeleteModalUnparentBtn.contains(m_MouseScreenPos))
+            {
+                ConfirmDeleteUnparent();
+                return;
+            }
+            if (m_DeleteModalCancelBtn.contains(m_MouseScreenPos))
+            {
+                m_ShowDeleteModal = false;
+                return;
+            }
+        }
+        if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
+        {
+            m_ShowDeleteModal = false;
+            return;
+        }
+        return;
+    }
 
     if (m_ContentBrowser)
     {
@@ -595,11 +626,24 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
             }
             if (m_HierarchyBounds.contains(m_MouseScreenPos))
             {
+                for (auto &[rect, id] : m_HierarchyFoldHitboxes)
+                {
+                    if (rect.contains(m_MouseScreenPos))
+                    {
+                        if (m_HierarchyCollapsed.count(id)) m_HierarchyCollapsed.erase(id);
+                        else m_HierarchyCollapsed.insert(id);
+                        return;
+                    }
+                }
                 for (auto &[rect, el]: m_HierarchyHitboxes)
                 {
                     if (rect.contains(m_MouseScreenPos))
                     {
                         SelectElement(el);
+                        m_HierarchyPotentialDrag = true;
+                        m_HierarchyDragStartPos = m_MouseScreenPos;
+                        m_HierarchyDragSourceId = el->id;
+                        m_HierarchyDragTargetId.clear();
                         return;
                     }
                 }
@@ -628,7 +672,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 });
                 for (auto *el: candidates)
                 {
-                    sf::FloatRect bounds(el->position.x, el->position.y, el->size.x, el->size.y);
+                    sf::FloatRect bounds(el->worldPosition.x, el->worldPosition.y, el->size.x, el->size.y);
                     if (bounds.contains(m_MouseCanvasPos))
                     {
                         clicked = el;
@@ -640,7 +684,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 {
                     SelectElement(clicked);
                     m_Dragging = true;
-                    m_DragOffset = m_MouseCanvasPos - clicked->position;
+                    m_DragOffset = m_MouseCanvasPos - clicked->worldPosition;
                 } else { SelectElement(nullptr); }
             }
         } else if (event.mouseButton.button == sf::Mouse::Middle || event.mouseButton.button == sf::Mouse::Right)
@@ -682,6 +726,27 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
             m_InputSelectionEnd = bestIdx;
         }
 
+        if (m_HierarchyPotentialDrag && !m_HierarchyDragging)
+        {
+            if (std::hypot(m_MouseScreenPos.x - m_HierarchyDragStartPos.x, m_MouseScreenPos.y - m_HierarchyDragStartPos.y) > 4.f)
+            {
+                m_HierarchyDragging = true;
+            }
+        }
+        if (m_HierarchyDragging)
+        {
+            m_HierarchyDragTargetId.clear();
+            for (auto &[rect, el] : m_HierarchyHitboxes)
+            {
+                if (rect.contains(m_MouseScreenPos) && el->id != m_HierarchyDragSourceId &&
+                    !UIManager::Get().IsDescendantOf(el->id, m_HierarchyDragSourceId))
+                {
+                    m_HierarchyDragTargetId = el->id;
+                    break;
+                }
+            }
+        }
+
         if (m_Panning)
         {
             sf::Vector2f newPos = m_Window.mapPixelToCoords(pixelPos, m_CanvasView);
@@ -689,8 +754,14 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         }
         if (m_Dragging && m_SelectedElement)
         {
-            m_SelectedElement->position = m_MouseCanvasPos - m_DragOffset;
-            m_SelectedElement->UpdateDrawables();
+            sf::Vector2f newWorldPos = m_MouseCanvasPos - m_DragOffset;
+            if (m_SelectedElement->parent.empty() || UIManager::Get().GetElement(m_SelectedElement->parent) == nullptr) {
+                m_SelectedElement->position = newWorldPos;
+            } else {
+                auto* parentEl = UIManager::Get().GetElement(m_SelectedElement->parent);
+                m_SelectedElement->position = newWorldPos - parentEl->worldPosition;
+            }
+            UIManager::Get().ApplyLayouts();
         }
         if (m_Resizing && m_SelectedElement)
         {
@@ -753,11 +824,32 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
     {
         if (event.mouseButton.button == sf::Mouse::Left)
         {
+            if (m_HierarchyDragging)
+            {
+                if (!m_HierarchyDragTargetId.empty())
+                {
+                    UIManager::Get().SetParent(m_HierarchyDragSourceId, m_HierarchyDragTargetId, true);
+                    SetDirty(true);
+                }
+                else if (m_HierarchyBounds.contains(m_MouseScreenPos))
+                {
+                    UIManager::Get().SetParent(m_HierarchyDragSourceId, "", true);
+                    SetDirty(true);
+                }
+            }
+            m_HierarchyDragging = false;
+            m_HierarchyPotentialDrag = false;
+            m_HierarchyDragSourceId.clear();
+            m_HierarchyDragTargetId.clear();
+
             m_IsSelectingText = false;
             if (m_InputSelectionStart == m_InputSelectionEnd) {
                 m_InputSelectionStart = -1;
                 m_InputSelectionEnd = -1;
             }
+        }
+        if (m_Dragging || m_Resizing) {
+            SetDirty(true);
         }
         m_Dragging = false;
         m_Panning = false;
@@ -993,6 +1085,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                     m_SelectedElement->UpdateDrawables();
                 }
             }
+            SetDirty(true);
             return;
         }
     }
@@ -1092,6 +1185,8 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 else if (m_ActiveField == EditField::UIText) m_SelectedElement->text = m_ActiveInputText;
                 else if (m_ActiveField == EditField::ScriptPath) m_SelectedElement->scriptPath = m_ActiveInputText;
                 else if (m_ActiveField == EditField::ScriptMethod) m_SelectedElement->scriptMethod = m_ActiveInputText;
+                m_SelectedElement->UpdateDrawables();
+                SetDirty(true);
             }
         }
     }
@@ -1108,7 +1203,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         char c = static_cast<char>(event.text.unicode);
         if (m_ActiveField == EditField::Id || m_ActiveField == EditField::UIText || 
             m_ActiveField == EditField::OnClickParam || m_ActiveField == EditField::OnHoverParam ||
-            m_ActiveField == EditField::Parent || m_ActiveField == EditField::ScriptPath ||
+            m_ActiveField == EditField::ScriptPath ||
             m_ActiveField == EditField::ScriptMethod)
             m_ActiveInputText += c;
         else if (std::isdigit(c) || c == '-' || c == '.')
@@ -1346,12 +1441,9 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         {
             try { m_SelectedElement->layoutPadding = std::stof(m_ActiveInputText); } catch (...) {}
         }
-        else if (m_ActiveField == EditField::Parent)
-        {
-            m_SelectedElement->parent = m_ActiveInputText;
-        }
 
         m_SelectedElement->UpdateDrawables();
+        SetDirty(true);
     }
 }
 
@@ -1360,6 +1452,11 @@ void UIEditorScene::Update(float deltaTime)
     m_InspectorScrollOffset += (m_InspectorTargetScroll - m_InspectorScrollOffset) * 15.f * deltaTime;
     if (m_SaveFeedbackTimer > 0.f)
         m_SaveFeedbackTimer -= deltaTime;
+
+    std::string uiPath = UIManager::Get().GetCurrentUIPath();
+    if (uiPath.empty()) uiPath = "game_ui.json";
+    std::string title = uiPath + (m_HasUnsavedChanges ? "*" : "") + " [UI Editor] - RayneEngine";
+    m_Window.setTitle(title);
 }
 
 void UIEditorScene::Render(sf::RenderWindow &window)
@@ -1452,6 +1549,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
     }
 
     DrawTooltip(window);
+    DrawDeleteModal(window);
 }
 
 void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
@@ -1518,6 +1616,7 @@ void UIEditorScene::DrawPalette(sf::RenderWindow &window)
 void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
 {
     m_HierarchyHitboxes.clear();
+    m_HierarchyFoldHitboxes.clear();
 
     sf::RectangleShape panel({InspectorWidth, HierarchyHeight});
     panel.setFillColor(C_BG_PANEL);
@@ -1530,40 +1629,142 @@ void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
     window.draw(borderTop);
 
     float y = m_HierarchyBounds.top + 10.f;
-    DrawSectionHeader(window, "UI HIERARCHY", C_ACCENT, m_HierarchyBounds.left, y);
+    DrawSectionHeader(window, m_HasUnsavedChanges ? "UI HIERARCHY *" : "UI HIERARCHY", m_HasUnsavedChanges ? C_WARNING : C_ACCENT, m_HierarchyBounds.left, y);
     y += 30.f;
 
-    std::vector<UIElement *> sortedElements;
-    for (auto &el: UIManager::Get().GetElements()) sortedElements.push_back(&el);
-    std::stable_sort(sortedElements.begin(), sortedElements.end(), [](const UIElement *a, const UIElement *b) {
-        return a->zIndex > b->zIndex;
-    });
+    auto getChildren = [](const std::string& parentId) -> std::vector<UIElement*> {
+        std::vector<UIElement*> ch;
+        for (auto &el : UIManager::Get().GetElements()) {
+            if (el.parent == parentId && el.id != parentId) {
+                ch.push_back(&el);
+            }
+        }
+        std::stable_sort(ch.begin(), ch.end(), [](const UIElement* a, const UIElement* b) {
+            return a->zIndex > b->zIndex;
+        });
+        return ch;
+    };
 
-    for (auto *el: sortedElements)
-    {
-        sf::FloatRect r(m_HierarchyBounds.left + 4.f, y, InspectorWidth - 8.f, 24.f);
-        bool hov = r.contains(m_MouseScreenPos);
+    std::function<void(UIElement*, int)> drawNode = [&](UIElement* el, int depth) {
+        if (!el) return;
+        if (y + 24.f > m_HierarchyBounds.top + HierarchyHeight) return;
+
+        float indent = depth * 16.f;
+        sf::FloatRect fullRowRect(m_HierarchyBounds.left + 4.f, y, InspectorWidth - 8.f, 24.f);
+        sf::FloatRect textRect(m_HierarchyBounds.left + 4.f + indent, y, InspectorWidth - 8.f - indent, 24.f);
+
+        bool hov = fullRowRect.contains(m_MouseScreenPos);
         bool sel = (m_SelectedElement == el);
+        bool isDropTarget = (m_HierarchyDragging && m_HierarchyDragTargetId == el->id);
 
-        if (hov || sel)
+        if (hov || sel || isDropTarget)
         {
-            sf::RectangleShape bg(r.getSize());
-            bg.setPosition(r.getPosition());
-            bg.setFillColor(sel ? C_ACCENT_DIM : C_BG_ELEVATED);
+            sf::RectangleShape bg(fullRowRect.getSize());
+            bg.setPosition(fullRowRect.getPosition());
+            if (isDropTarget) {
+                bg.setFillColor(sf::Color(80, 120, 240, 140));
+                bg.setOutlineColor(C_ACCENT_BRIGHT);
+                bg.setOutlineThickness(1.5f);
+            } else {
+                bg.setFillColor(sel ? C_ACCENT_DIM : C_BG_ELEVATED);
+            }
             window.draw(bg);
+
+            if (sel && !isDropTarget) {
+                sf::RectangleShape indicator({2.f, 24.f});
+                indicator.setPosition(fullRowRect.left, fullRowRect.top);
+                indicator.setFillColor(C_ACCENT);
+                window.draw(indicator);
+            }
         }
 
-        std::string display = "[Z: " + std::to_string(el->zIndex) + "] " + (el->id.empty() ? "Unnamed" : el->id);
+        std::vector<UIElement*> children = getChildren(el->id);
+        bool hasChildren = !children.empty();
+        bool isCollapsed = m_HierarchyCollapsed.count(el->id) > 0;
+
+        if (hasChildren) {
+            sf::FloatRect foldRect(m_HierarchyBounds.left + 4.f + indent, y, 14.f, 24.f);
+            m_HierarchyFoldHitboxes.push_back({foldRect, el->id});
+
+            sf::Text arrowText;
+            arrowText.setFont(*m_Font);
+            arrowText.setCharacterSize(10);
+            arrowText.setFillColor(C_TEXT_MUTED);
+            arrowText.setString(isCollapsed ? ">" : "v");
+            arrowText.setPosition(foldRect.left + 3.f, foldRect.top + 6.f);
+            window.draw(arrowText);
+        }
+
+        std::string display = "[Z:" + std::to_string(el->zIndex) + "] " + (el->id.empty() ? "Unnamed" : el->id);
         sf::Text t;
         t.setFont(*m_Font);
         t.setCharacterSize(12);
         t.setFillColor(sel ? sf::Color::White : C_TEXT_PRIMARY);
         t.setString(display);
-        t.setPosition(r.left + 8.f, r.top + 4.f);
+        t.setPosition(textRect.left + (hasChildren ? 16.f : 6.f), textRect.top + 4.f);
         window.draw(t);
 
-        m_HierarchyHitboxes.push_back({r, el});
+        m_HierarchyHitboxes.push_back({fullRowRect, el});
         y += 26.f;
+
+        if (hasChildren && !isCollapsed) {
+            for (auto* child : children) {
+                drawNode(child, depth + 1);
+            }
+        }
+    };
+
+    std::vector<UIElement*> rootElements;
+    for (auto &el : UIManager::Get().GetElements()) {
+        if (el.parent.empty() || UIManager::Get().GetElement(el.parent) == nullptr) {
+            rootElements.push_back(&el);
+        }
+    }
+    std::stable_sort(rootElements.begin(), rootElements.end(), [](const UIElement* a, const UIElement* b) {
+        return a->zIndex > b->zIndex;
+    });
+
+    for (auto* root : rootElements) {
+        drawNode(root, 0);
+    }
+
+    if (y < m_HierarchyBounds.top + HierarchyHeight) {
+        m_HierarchyRootDropZone = sf::FloatRect(m_HierarchyBounds.left, y, InspectorWidth, m_HierarchyBounds.top + HierarchyHeight - y);
+        if (m_HierarchyDragging && m_HierarchyDragTargetId.empty() && m_HierarchyRootDropZone.contains(m_MouseScreenPos)) {
+            sf::RectangleShape rootIndicator({InspectorWidth - 8.f, 20.f});
+            rootIndicator.setPosition(m_HierarchyBounds.left + 4.f, y + 4.f);
+            rootIndicator.setFillColor(sf::Color(80, 120, 240, 60));
+            rootIndicator.setOutlineColor(C_ACCENT);
+            rootIndicator.setOutlineThickness(1.f);
+            window.draw(rootIndicator);
+
+            sf::Text rText;
+            rText.setFont(*m_Font);
+            rText.setCharacterSize(10);
+            rText.setFillColor(C_TEXT_MUTED);
+            rText.setString("Detach to Root");
+            rText.setPosition(m_HierarchyBounds.left + 12.f, y + 7.f);
+            window.draw(rText);
+        }
+    } else {
+        m_HierarchyRootDropZone = sf::FloatRect(0, 0, 0, 0);
+    }
+
+    if (m_HierarchyDragging && !m_HierarchyDragSourceId.empty()) {
+        sf::RectangleShape ghost({130.f, 22.f});
+        ghost.setPosition(m_MouseScreenPos.x + 12.f, m_MouseScreenPos.y + 12.f);
+        ghost.setFillColor(sf::Color(35, 38, 46, 230));
+        ghost.setOutlineColor(C_ACCENT_BRIGHT);
+        ghost.setOutlineThickness(1.5f);
+        window.draw(ghost);
+
+        sf::Text gt;
+        gt.setFont(*m_Font);
+        gt.setCharacterSize(11);
+        gt.setFillColor(sf::Color::White);
+        gt.setString(m_HierarchyDragSourceId);
+        gt.setPosition(m_MouseScreenPos.x + 18.f, m_MouseScreenPos.y + 15.f);
+        window.draw(gt);
     }
 }
 
@@ -1606,10 +1807,8 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                 : (m_ActiveField == EditField::Id ? "|" : m_SelectedElement->id);
     y = DrawEditableRow(window, "ID", idDisplay, "edit_id", px, y);
 
-    std::string parentDisplay = (m_ActiveField == EditField::Parent && !m_ActiveInputText.empty())
-                                    ? m_ActiveInputText + "|"
-                                    : (m_ActiveField == EditField::Parent ? "|" : (m_SelectedElement->parent.empty() ? "(None)" : m_SelectedElement->parent));
-    y = DrawEditableRow(window, "Parent Box", parentDisplay, "edit_parent", px, y);
+    std::string parentDisplay = m_SelectedElement->parent.empty() ? "(None)" : m_SelectedElement->parent;
+    y = DrawRow(window, "Parent", parentDisplay, px, y);
     if (!m_SelectedElement->parent.empty())
     {
         DrawActionButton(window, "Detach Parent", "clear_parent", px + 10.f, y, C_DANGER_DIM, C_DANGER);
@@ -2043,11 +2242,11 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
     }
 
     y += 10.f;
-    y = DrawSectionHeader(window, "SCRIPT INTERACTION", sf::Color(120, 200, 255), px, y);
+    y = DrawSectionHeader(window, m_HasUnsavedChanges ? "SCRIPT INTERACTION *" : "SCRIPT INTERACTION", m_HasUnsavedChanges ? C_WARNING : sf::Color(120, 200, 255), px, y);
 
     std::string scriptDisplay = (m_ActiveField == EditField::ScriptPath && !m_ActiveInputText.empty())
                                     ? m_ActiveInputText + "|"
-                                    : (m_ActiveField == EditField::ScriptPath ? "|" : (m_SelectedElement->scriptPath.empty() ? "None (Click to set)" : m_SelectedElement->scriptPath));
+                                    : (m_ActiveField == EditField::ScriptPath ? "|" : (m_SelectedElement->scriptPath.empty() ? "None (Click to set)" : (m_SelectedElement->scriptPath + (m_HasUnsavedChanges ? " *" : ""))));
     y = DrawEditableRow(window, "Script File", scriptDisplay, "edit_script_path", px, y);
 
     y = DrawActionButton(window, "Select Script File...", "browse_scripts", px + 10.f, y, C_BG_ELEVATED, C_BORDER_LIGHT);
@@ -2132,7 +2331,7 @@ void UIEditorScene::DrawCanvas(sf::RenderWindow &window)
     if (m_SelectedElement)
     {
         sf::RectangleShape outline(m_SelectedElement->size);
-        outline.setPosition(m_SelectedElement->position);
+        outline.setPosition(m_SelectedElement->worldPosition);
         outline.setFillColor(sf::Color::Transparent);
         outline.setOutlineColor(sf::Color(255, 220, 60));
         outline.setOutlineThickness(2.f);
@@ -2146,7 +2345,7 @@ void UIEditorScene::DrawResizeHandles(sf::RenderWindow &window)
 {
     if (!m_SelectedElement) return;
 
-    const sf::FloatRect bounds(m_SelectedElement->position, m_SelectedElement->size);
+    const sf::FloatRect bounds(m_SelectedElement->worldPosition, m_SelectedElement->size);
     const float hw = 4.f;
 
     sf::Vector2f positions[8] = {
@@ -2175,7 +2374,7 @@ void UIEditorScene::DrawResizeHandles(sf::RenderWindow &window)
 int UIEditorScene::GetResizeHandle(sf::Vector2f worldPos) const
 {
     if (!m_SelectedElement) return -1;
-    const sf::FloatRect bounds(m_SelectedElement->position, m_SelectedElement->size);
+    const sf::FloatRect bounds(m_SelectedElement->worldPosition, m_SelectedElement->size);
     const float hw = 6.f;
     sf::Vector2f positions[8] = {
         {bounds.left, bounds.top},
@@ -2218,6 +2417,16 @@ void UIEditorScene::HandleAction(const std::string &action)
     m_InputSelectionEnd = -1;
     m_IsSelectingText = false;
 
+    if (action.rfind("add_", 0) == 0 || action == "clear_parent" || action == "delete" || action == "paste" ||
+        action.rfind("align_", 0) == 0 || action.rfind("valign_", 0) == 0 || action.rfind("style_", 0) == 0 ||
+        action == "uppercase_toggle" || action == "visible_toggle" || action == "disabled_toggle" ||
+        action == "layer_forward" || action == "layer_backward" || action == "checked_toggle" ||
+        action.rfind("clear_", 0) == 0 || action.rfind("pick_color", 0) == 0 ||
+        action == "clickparam_bool" || action == "hoverparam_bool" || action == "browse_script_dialog")
+    {
+        SetDirty(true);
+    }
+
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
@@ -2232,6 +2441,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             std::cout << "[INFO] [UIEditorScene] UI Saved to " << fullPath.string() << "\n";
             m_FeedbackMessage = "UI Saved successfully!";
             m_SaveFeedbackTimer = 2.0f;
+            SetDirty(false);
         } catch (const std::exception& e) {
             std::cerr << "[ERROR] [UIEditorScene] Failed to save UI: " << e.what() << "\n";
         }
@@ -2393,13 +2603,9 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         m_ActiveField = EditField::Id;
         m_ActiveInputText = m_SelectedElement->id;
-    } else if (action == "edit_parent")
-    {
-        m_ActiveField = EditField::Parent;
-        m_ActiveInputText = m_SelectedElement->parent;
     } else if (action == "clear_parent")
     {
-        if (m_SelectedElement) { m_SelectedElement->parent.clear(); m_SelectedElement->UpdateDrawables(); }
+        if (m_SelectedElement) { UIManager::Get().SetParent(m_SelectedElement->id, "", true); }
     } else if (action == "edit_layoutspacing")
     {
         m_ActiveField = EditField::LayoutSpacing;
@@ -3091,16 +3297,163 @@ void UIEditorScene::PasteClipboard()
     newEl->UpdateDrawables();
 
     SelectElement(newEl);
+    SetDirty(true);
+}
+
+void UIEditorScene::DeleteElementWithPrompt(UIElement *el)
+{
+    if (!el) return;
+    auto children = UIManager::Get().GetChildren(el->id);
+    if (!children.empty())
+    {
+        m_ShowDeleteModal = true;
+        m_DeleteModalTargetId = el->id;
+        m_DeleteModalDescendantIds = children;
+    }
+    else
+    {
+        std::string id = el->id;
+        SelectElement(nullptr);
+        UIManager::Get().RemoveElement(id);
+        SetDirty(true);
+    }
 }
 
 void UIEditorScene::DeleteSelected()
 {
     if (m_SelectedElement)
     {
-        std::string id = m_SelectedElement->id;
-        SelectElement(nullptr);
+        DeleteElementWithPrompt(m_SelectedElement);
+    }
+}
+
+void UIEditorScene::ConfirmDeleteCascade()
+{
+    if (m_DeleteModalTargetId.empty()) return;
+    std::vector<std::string> toDelete;
+    auto collect = [&](auto& self, const std::string& parentId) -> void {
+        for (const auto& ch : UIManager::Get().GetChildren(parentId)) {
+            self(self, ch);
+            toDelete.push_back(ch);
+        }
+    };
+    collect(collect, m_DeleteModalTargetId);
+    toDelete.push_back(m_DeleteModalTargetId);
+
+    SelectElement(nullptr);
+    for (const auto& id : toDelete) {
         UIManager::Get().RemoveElement(id);
     }
+    SetDirty(true);
+    m_ShowDeleteModal = false;
+    m_DeleteModalTargetId.clear();
+    m_DeleteModalDescendantIds.clear();
+}
+
+void UIEditorScene::ConfirmDeleteUnparent()
+{
+    if (m_DeleteModalTargetId.empty()) return;
+    auto* target = UIManager::Get().GetElement(m_DeleteModalTargetId);
+    std::string grandParent = target ? target->parent : "";
+
+    for (const auto& chId : UIManager::Get().GetChildren(m_DeleteModalTargetId)) {
+        UIManager::Get().SetParent(chId, grandParent, true);
+    }
+
+    SelectElement(nullptr);
+    UIManager::Get().RemoveElement(m_DeleteModalTargetId);
+    SetDirty(true);
+    m_ShowDeleteModal = false;
+    m_DeleteModalTargetId.clear();
+    m_DeleteModalDescendantIds.clear();
+}
+
+void UIEditorScene::DrawDeleteModal(sf::RenderWindow &window)
+{
+    if (!m_ShowDeleteModal) return;
+
+    sf::RectangleShape dim({static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y)});
+    dim.setFillColor(sf::Color(0, 0, 0, 150));
+    window.draw(dim);
+
+    float modalW = 440.f;
+    float modalH = 170.f;
+    float mx = (window.getSize().x - modalW) / 2.f;
+    float my = (window.getSize().y - modalH) / 2.f;
+
+    sf::RectangleShape box({modalW, modalH});
+    box.setPosition(mx, my);
+    box.setFillColor(C_BG_PANEL);
+    box.setOutlineColor(C_BORDER_LIGHT);
+    box.setOutlineThickness(1.5f);
+    window.draw(box);
+
+    sf::Text title;
+    title.setFont(*m_Font);
+    title.setCharacterSize(15);
+    title.setStyle(sf::Text::Bold);
+    title.setFillColor(C_TEXT_PRIMARY);
+    title.setString("Delete Element with Children");
+    title.setPosition(mx + 20.f, my + 18.f);
+    window.draw(title);
+
+    sf::Text msg;
+    msg.setFont(*m_Font);
+    msg.setCharacterSize(12);
+    msg.setFillColor(C_TEXT_SECONDARY);
+    msg.setString("Element '" + m_DeleteModalTargetId + "' has " + std::to_string(m_DeleteModalDescendantIds.size()) +
+                  " direct child element(s).\nHow would you like to proceed?");
+    msg.setPosition(mx + 20.f, my + 50.f);
+    window.draw(msg);
+
+    m_DeleteModalCascadeBtn = sf::FloatRect(mx + 20.f, my + 110.f, 115.f, 32.f);
+    bool hov1 = m_DeleteModalCascadeBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn1(m_DeleteModalCascadeBtn.getSize());
+    btn1.setPosition(m_DeleteModalCascadeBtn.getPosition());
+    btn1.setFillColor(hov1 ? sf::Color(180, 40, 40) : sf::Color(140, 30, 30));
+    window.draw(btn1);
+
+    sf::Text t1;
+    t1.setFont(*m_Font);
+    t1.setCharacterSize(11);
+    t1.setFillColor(sf::Color::White);
+    t1.setString("Delete All");
+    t1.setPosition(m_DeleteModalCascadeBtn.left + 22.f, m_DeleteModalCascadeBtn.top + 8.f);
+    window.draw(t1);
+
+    m_DeleteModalUnparentBtn = sf::FloatRect(mx + 145.f, my + 110.f, 150.f, 32.f);
+    bool hov2 = m_DeleteModalUnparentBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn2(m_DeleteModalUnparentBtn.getSize());
+    btn2.setPosition(m_DeleteModalUnparentBtn.getPosition());
+    btn2.setFillColor(hov2 ? C_ACCENT : C_BG_ELEVATED);
+    btn2.setOutlineColor(C_BORDER);
+    btn2.setOutlineThickness(1.f);
+    window.draw(btn2);
+
+    sf::Text t2;
+    t2.setFont(*m_Font);
+    t2.setCharacterSize(11);
+    t2.setFillColor(sf::Color::White);
+    t2.setString("Unparent Children");
+    t2.setPosition(m_DeleteModalUnparentBtn.left + 14.f, m_DeleteModalUnparentBtn.top + 8.f);
+    window.draw(t2);
+
+    m_DeleteModalCancelBtn = sf::FloatRect(mx + 305.f, my + 110.f, 100.f, 32.f);
+    bool hov3 = m_DeleteModalCancelBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn3(m_DeleteModalCancelBtn.getSize());
+    btn3.setPosition(m_DeleteModalCancelBtn.getPosition());
+    btn3.setFillColor(hov3 ? C_BG_ELEVATED : C_BG_PANEL);
+    btn3.setOutlineColor(C_BORDER);
+    btn3.setOutlineThickness(1.f);
+    window.draw(btn3);
+
+    sf::Text t3;
+    t3.setFont(*m_Font);
+    t3.setCharacterSize(11);
+    t3.setFillColor(C_TEXT_PRIMARY);
+    t3.setString("Cancel");
+    t3.setPosition(m_DeleteModalCancelBtn.left + 26.f, m_DeleteModalCancelBtn.top + 8.f);
+    window.draw(t3);
 }
 
 void UIEditorScene::DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, sf::Color fill, sf::Color outline)
@@ -3865,6 +4218,19 @@ void UIEditorScene::DrawMenuBar(sf::RenderWindow &window)
         }
 
         x += itemW;
+    }
+
+    std::string currentPath = UIManager::Get().GetCurrentUIPath();
+    if (currentPath.empty()) currentPath = "game_ui.json";
+    std::string wm = currentPath + (m_HasUnsavedChanges ? " *" : "") + " | RayneEngine UI";
+    sf::Text rightText;
+    if (m_Font) {
+        rightText.setFont(*m_Font);
+        rightText.setCharacterSize(11);
+        rightText.setFillColor(m_HasUnsavedChanges ? C_WARNING : C_TEXT_MUTED);
+        rightText.setString(wm);
+        rightText.setPosition(w - rightText.getLocalBounds().width - 12.f, 9.f);
+        window.draw(rightText);
     }
 }
 

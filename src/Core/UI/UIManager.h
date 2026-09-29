@@ -16,6 +16,7 @@ struct UIElement
     std::string id;
     UIElementType type;
     sf::Vector2f position;
+    sf::Vector2f worldPosition = {0.f, 0.f};
     sf::Vector2f size;
     sf::Color color;
     int zIndex = 0;
@@ -127,6 +128,11 @@ public:
     std::string GetText(const std::string &id);
 
     void SetPosition(const std::string &id, float x, float y);
+    sf::Vector2f GetWorldPosition(const std::string &id);
+    void SetParent(const std::string &childId, const std::string &parentId, bool keepWorldPos = true);
+    std::string GetParent(const std::string &id);
+    std::vector<std::string> GetChildren(const std::string &parentId);
+    bool IsDescendantOf(const std::string &childId, const std::string &ancestorId);
 
     void SetSize(const std::string &id, float w, float h);
 

@@ -6,6 +6,7 @@
 #include <list>
 #include <string>
 #include <map>
+#include <set>
 #include <nlohmann/json.hpp>
 
 #include "ContentBrowser.h"
@@ -30,6 +31,18 @@ struct EditorObject
     std::string id;
     std::string tag;
     Entity entity = 0;
+    std::string parentId = "";
+
+    sf::Vector2f localPosition = {0.f, 0.f};
+    float rotation = 0.f;
+    float scaleX = 1.f;
+    float scaleY = 1.f;
+
+    sf::Vector2f worldPosition = {0.f, 0.f};
+    float worldRotation = 0.f;
+    float worldScaleX = 1.f;
+    float worldScaleY = 1.f;
+
     sf::RectangleShape shape;
     sf::CircleShape circleShape;
     sf::Color color;
@@ -39,9 +52,6 @@ struct EditorObject
     std::string spritePath;
     std::shared_ptr<sf::Texture> previewTexture;
     sf::Sprite previewSprite;
-    float rotation = 0.f;
-    float scaleX = 1.f;
-    float scaleY = 1.f;
     int zIndex = 0;
     std::map<std::string, ScriptComponent::Property> scriptProperties;
 };
@@ -175,6 +185,34 @@ private:
 
     std::vector<InspectorButton> m_InspectorButtons;
     std::vector<std::pair<sf::FloatRect, EditorObject *> > m_HierarchyHitboxes;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_HierarchyFoldHitboxes;
+    std::set<std::string> m_HierarchyCollapsed;
+    bool m_HierarchyDragging = false;
+    bool m_HierarchyPotentialDrag = false;
+    sf::Vector2f m_HierarchyDragStartPos;
+    std::string m_HierarchyDragSourceId;
+    std::string m_HierarchyDragTargetId;
+    sf::FloatRect m_HierarchyRootDropZone;
+
+    bool m_ShowDeleteModal = false;
+    std::string m_DeleteModalTargetId;
+    std::vector<std::string> m_DeleteModalDescendantIds;
+    sf::FloatRect m_DeleteModalCascadeBtn;
+    sf::FloatRect m_DeleteModalUnparentBtn;
+    sf::FloatRect m_DeleteModalCancelBtn;
+    void DrawDeleteModal(sf::RenderWindow &window);
+    void DeleteObjectWithPrompt(EditorObject* obj);
+    void ConfirmDeleteCascade();
+    void ConfirmDeleteUnparent();
+
+    void UpdateWorldTransforms();
+    bool IsDescendantOf(const std::string& childId, const std::string& ancestorId) const;
+    std::vector<EditorObject*> GetChildren(const std::string& parentId);
+    void SetParent(const std::string& childId, const std::string& newParentId, bool keepWorldTransform = true);
+
+    bool m_HasUnsavedChanges = false;
+    void SetDirty(bool dirty = true);
+    bool IsDirty() const { return m_HasUnsavedChanges; }
 
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;

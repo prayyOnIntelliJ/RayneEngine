@@ -5,6 +5,7 @@
 #include "../ECS/Components.h"
 #include "../ECS/Registry.h"
 #include "../ECS/PhysicsSystem.h"
+#include "../ECS/HierarchySystem.h"
 #include "../Input/InputManager.h"
 #include "../Math/MathR.h"
 #include "../Resources/ResourceManager.h"
@@ -37,7 +38,12 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
                                            "y", &TransformComponent::y,
                                            "rotation", &TransformComponent::rotation,
                                            "scaleX", &TransformComponent::scaleX,
-                                           "scaleY", &TransformComponent::scaleY);
+                                           "scaleY", &TransformComponent::scaleY,
+                                           "worldX", &TransformComponent::worldX,
+                                           "worldY", &TransformComponent::worldY,
+                                           "worldRotation", &TransformComponent::worldRotation,
+                                           "worldScaleX", &TransformComponent::worldScaleX,
+                                           "worldScaleY", &TransformComponent::worldScaleY);
 
     s_Lua.new_usertype<VelocityComponent>("Velocity",
                                           "dx", &VelocityComponent::dx,
@@ -84,6 +90,41 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
             t.scaleX = sx;
             t.scaleY = sy;
         }
+    });
+
+    s_Lua.set_function("SetParent", [&](const Entity child, const Entity newParent, sol::optional<bool> keepWorldTransform) {
+        HierarchySystem::SetParent(registry, child, newParent, keepWorldTransform.value_or(true));
+    });
+
+    s_Lua.set_function("GetParent", [&](const Entity child) -> Entity {
+        return HierarchySystem::GetParent(registry, child);
+    });
+
+    s_Lua.set_function("GetChildren", [&](const Entity parent) -> std::vector<Entity> {
+        return HierarchySystem::GetChildren(registry, parent);
+    });
+
+    s_Lua.set_function("GetWorldPosition", [&](const Entity e) -> std::tuple<float, float> {
+        if (registry.HasComponent<TransformComponent>(e)) {
+            auto &t = registry.GetComponent<TransformComponent>(e);
+            return std::make_tuple(t.worldX, t.worldY);
+        }
+        return std::make_tuple(0.f, 0.f);
+    });
+
+    s_Lua.set_function("GetWorldRotation", [&](const Entity e) -> float {
+        if (registry.HasComponent<TransformComponent>(e)) {
+            return registry.GetComponent<TransformComponent>(e).worldRotation;
+        }
+        return 0.f;
+    });
+
+    s_Lua.set_function("GetWorldScale", [&](const Entity e) -> std::tuple<float, float> {
+        if (registry.HasComponent<TransformComponent>(e)) {
+            auto &t = registry.GetComponent<TransformComponent>(e);
+            return std::make_tuple(t.worldScaleX, t.worldScaleY);
+        }
+        return std::make_tuple(1.f, 1.f);
     });
 
     s_Lua.set_function("AddVelocity", [&](const Entity e, const float dx, const float dy) {
@@ -398,6 +439,23 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     regUI("SetPosition", [](const std::string &id, float x, float y) {
         UIManager::Get().SetPosition(id, x, y);
+    });
+
+    regUI("SetParent", [](const std::string &childId, const std::string &parentId, sol::optional<bool> keepWorldPos) {
+        UIManager::Get().SetParent(childId, parentId, keepWorldPos.value_or(true));
+    });
+
+    regUI("GetParent", [](const std::string &id) -> std::string {
+        return UIManager::Get().GetParent(id);
+    });
+
+    regUI("GetChildren", [](const std::string &id) -> std::vector<std::string> {
+        return UIManager::Get().GetChildren(id);
+    });
+
+    regUI("GetWorldPosition", [](const std::string &id) -> std::tuple<float, float> {
+        auto pos = UIManager::Get().GetWorldPosition(id);
+        return std::make_tuple(pos.x, pos.y);
     });
 
     regUI("SetSize", [](const std::string &id, float w, float h) {

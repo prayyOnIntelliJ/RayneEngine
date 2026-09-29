@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <set>
 #include <SFML/Graphics/Text.hpp>
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/View.hpp>
@@ -150,7 +151,6 @@ private:
         ProgressMax,
         LayoutSpacing,
         LayoutPadding,
-        Parent,
         ScriptPath,
         ScriptMethod,
     };
@@ -184,6 +184,25 @@ private:
     std::vector<ButtonHitbox> m_InspectorHitboxes;
     std::vector<ButtonHitbox> m_ToolbarHitboxes;
     std::vector<std::pair<sf::FloatRect, UIElement *> > m_HierarchyHitboxes;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_HierarchyFoldHitboxes;
+    std::set<std::string> m_HierarchyCollapsed;
+    bool m_HierarchyDragging = false;
+    bool m_HierarchyPotentialDrag = false;
+    sf::Vector2f m_HierarchyDragStartPos;
+    std::string m_HierarchyDragSourceId;
+    std::string m_HierarchyDragTargetId;
+    sf::FloatRect m_HierarchyRootDropZone;
+
+    bool m_ShowDeleteModal = false;
+    std::string m_DeleteModalTargetId;
+    std::vector<std::string> m_DeleteModalDescendantIds;
+    sf::FloatRect m_DeleteModalCascadeBtn;
+    sf::FloatRect m_DeleteModalUnparentBtn;
+    sf::FloatRect m_DeleteModalCancelBtn;
+    void DrawDeleteModal(sf::RenderWindow &window);
+    void DeleteElementWithPrompt(UIElement *el);
+    void ConfirmDeleteCascade();
+    void ConfirmDeleteUnparent();
 
     float m_InspectorScrollOffset = 0.f;
     float m_InspectorTargetScroll = 0.f;
@@ -196,6 +215,9 @@ private:
     float m_SaveFeedbackTimer = 0.f;
     std::string m_FeedbackMessage;
     std::string m_PreferredIDE;
+    bool m_HasUnsavedChanges = false;
+    void SetDirty(bool dirty = true) { m_HasUnsavedChanges = dirty; }
+    bool IsDirty() const { return m_HasUnsavedChanges; }
 
     void UpdateBounds();
 

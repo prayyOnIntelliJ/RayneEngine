@@ -531,6 +531,34 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
     }
 
+    if (m_ShowDeleteModal)
+    {
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            if (m_DeleteModalCascadeBtn.contains(m_MouseScreenPos))
+            {
+                ConfirmDeleteCascade();
+            }
+            else if (m_DeleteModalUnparentBtn.contains(m_MouseScreenPos))
+            {
+                ConfirmDeleteUnparent();
+            }
+            else if (m_DeleteModalCancelBtn.contains(m_MouseScreenPos))
+            {
+                m_ShowDeleteModal = false;
+                m_DeleteModalTargetId.clear();
+                m_DeleteModalDescendantIds.clear();
+            }
+        }
+        else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape)
+        {
+            m_ShowDeleteModal = false;
+            m_DeleteModalTargetId.clear();
+            m_DeleteModalDescendantIds.clear();
+        }
+        return;
+    }
+
     if (m_ShowProjectSettings)
     {
         if (event.type == sf::Event::TextEntered && m_ActiveProjectSettingsField != ProjectSettingsField::None)
@@ -759,13 +787,52 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_Preview.setPosition(SnapToGrid(pos));
         }
 
+        if (m_HierarchyPotentialDrag) {
+            float dist = std::hypot(m_MouseScreenPos.x - m_HierarchyDragStartPos.x, m_MouseScreenPos.y - m_HierarchyDragStartPos.y);
+            if (dist > 5.f) {
+                m_HierarchyDragging = true;
+                m_HierarchyPotentialDrag = false;
+            }
+        }
+
+        if (m_HierarchyDragging) {
+            m_HierarchyDragTargetId.clear();
+            for (auto &[rect, obj]: m_HierarchyHitboxes) {
+                if (rect.contains(m_MouseScreenPos)) {
+                    if (obj && obj->id != m_HierarchyDragSourceId && !IsDescendantOf(obj->id, m_HierarchyDragSourceId)) {
+                        m_HierarchyDragTargetId = obj->id;
+                    }
+                    break;
+                }
+            }
+        }
+
         if (m_Dragging) { 
             sf::Vector2f primaryPos = SnapToGrid(MouseWorldPos() - m_DragOffset);
             if (m_Selected) {
-                sf::Vector2f delta = primaryPos - m_Selected->shape.getPosition();
+                sf::Vector2f delta = primaryPos - m_Selected->worldPosition;
                 for (auto* obj : m_SelectedObjects) {
-                    obj->shape.setPosition(obj->shape.getPosition() + delta);
+                    bool parentSelected = false;
+                    for (auto* other : m_SelectedObjects) {
+                        if (other != obj && IsDescendantOf(obj->id, other->id)) {
+                            parentSelected = true;
+                            break;
+                        }
+                    }
+                    if (!parentSelected) {
+                        if (obj->parentId.empty() || ObjectById(obj->parentId) == nullptr) {
+                            obj->localPosition += delta;
+                        } else {
+                            auto* p = ObjectById(obj->parentId);
+                            sf::Transform pTr;
+                            pTr.translate(p->worldPosition);
+                            pTr.rotate(p->worldRotation);
+                            pTr.scale(p->worldScaleX, p->worldScaleY);
+                            obj->localPosition = pTr.getInverse().transformPoint(obj->worldPosition + delta);
+                        }
+                    }
                 }
+                UpdateWorldTransforms();
             }
         }
 
@@ -773,10 +840,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             sf::Vector2f mouseWorld = MouseWorldPos();
             sf::Vector2f deltaWorld = mouseWorld - m_ResizeMouseStart;
-            sf::Vector2f deltaLocal = RotatePoint(deltaWorld, {0.f, 0.f}, -m_Selected->rotation);
+            sf::Vector2f deltaLocal = RotatePoint(deltaWorld, {0.f, 0.f}, -m_Selected->worldRotation);
 
-            if (std::abs(m_Selected->scaleX) > 0.001f) deltaLocal.x /= m_Selected->scaleX;
-            if (std::abs(m_Selected->scaleY) > 0.001f) deltaLocal.y /= m_Selected->scaleY;
+            if (std::abs(m_Selected->worldScaleX) > 0.001f) deltaLocal.x /= m_Selected->worldScaleX;
+            if (std::abs(m_Selected->worldScaleY) > 0.001f) deltaLocal.y /= m_Selected->worldScaleY;
 
             sf::Vector2f newSize = m_ResizeObjSize;
             sf::Vector2f localPosOffset = {0.f, 0.f};
@@ -821,32 +888,22 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 default: break;
             }
 
-            sf::Vector2f scaledOffset = {localPosOffset.x * m_Selected->scaleX, localPosOffset.y * m_Selected->scaleY};
-            sf::Vector2f worldPosOffset = RotatePoint(scaledOffset, {0.f, 0.f}, m_Selected->rotation);
+            sf::Vector2f scaledOffset = {localPosOffset.x * m_Selected->worldScaleX, localPosOffset.y * m_Selected->worldScaleY};
+            sf::Vector2f worldPosOffset = RotatePoint(scaledOffset, {0.f, 0.f}, m_Selected->worldRotation);
             sf::Vector2f newPos = m_ResizeObjOrigin + worldPosOffset;
 
-            m_Selected->shape.setPosition(newPos);
+            if (m_Selected->parentId.empty() || ObjectById(m_Selected->parentId) == nullptr) {
+                m_Selected->localPosition = newPos;
+            } else {
+                auto* p = ObjectById(m_Selected->parentId);
+                sf::Transform pTr;
+                pTr.translate(p->worldPosition);
+                pTr.rotate(p->worldRotation);
+                pTr.scale(p->worldScaleX, p->worldScaleY);
+                m_Selected->localPosition = pTr.getInverse().transformPoint(newPos);
+            }
             m_Selected->shape.setSize(newSize);
-
-            if (IsPolygonType(m_Selected->objectType))
-            {
-                float rx = newSize.x * 0.5f;
-                float ry = newSize.y * 0.5f;
-                if (rx > 0.001f && ry > 0.001f)
-                {
-                    m_Selected->circleShape.setPosition(newPos);
-                    m_Selected->circleShape.setRadius(rx);
-                    m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
-                    m_Selected->circleShape.setRotation(m_Selected->rotation);
-                }
-            }
-
-            if (m_Selected->previewTexture)
-            {
-                const sf::Vector2u ts = m_Selected->previewTexture->getSize();
-                if (ts.x > 0 && ts.y > 0)
-                    m_Selected->previewSprite.setScale((newSize.x / ts.x) * m_Selected->scaleX, (newSize.y / ts.y) * m_Selected->scaleY);
-            }
+            UpdateWorldTransforms();
         }
 
         if (m_Rotating && m_Selected)
@@ -866,12 +923,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 ? (std::round(m_RotateObjAngleStart / 15.f) * 15.f)
                 : m_RotateObjAngleStart;
 
-            m_Selected->rotation = newRotation;
-            m_Selected->shape.setRotation(newRotation);
-            if (IsPolygonType(m_Selected->objectType))
-                m_Selected->circleShape.setRotation(newRotation);
-            if (m_Selected->previewTexture)
-                m_Selected->previewSprite.setRotation(newRotation);
+            if (m_Selected->parentId.empty() || ObjectById(m_Selected->parentId) == nullptr) {
+                m_Selected->rotation = newRotation;
+            } else {
+                auto* p = ObjectById(m_Selected->parentId);
+                m_Selected->rotation = newRotation - p->worldRotation;
+            }
+            UpdateWorldTransforms();
         }
 
         if (m_ContentBrowser->HasDraggedAsset())
@@ -1067,10 +1125,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         float val = std::stof(m_ActiveInputText);
-                        sf::Vector2f pos = m_Selected->shape.getPosition();
+                        sf::Vector2f pos = m_Selected->localPosition;
                         if (m_ActiveField == EditField::TransformX) pos.x = val;
                         else pos.y = val;
-                        m_Selected->shape.setPosition(pos);
+                        m_Selected->localPosition = pos;
+                        UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::Rotation)
                 {
@@ -1078,11 +1137,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     {
                         float val = std::stof(m_ActiveInputText);
                         m_Selected->rotation = val;
-                        m_Selected->shape.setRotation(val);
-                        if (IsPolygonType(m_Selected->objectType))
-                            m_Selected->circleShape.setRotation(val);
-                        if (m_Selected->previewTexture)
-                            m_Selected->previewSprite.setRotation(val);
+                        UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ScaleX || m_ActiveField == EditField::ScaleY)
                 {
@@ -1091,23 +1146,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         float val = std::stof(m_ActiveInputText);
                         if (m_ActiveField == EditField::ScaleX) m_Selected->scaleX = val;
                         else m_Selected->scaleY = val;
-                        m_Selected->shape.setScale(m_Selected->scaleX, m_Selected->scaleY);
-                        if (IsPolygonType(m_Selected->objectType))
-                        {
-                            float rx = m_Selected->shape.getSize().x * 0.5f;
-                            float ry = m_Selected->shape.getSize().y * 0.5f;
-                            if (rx > 0.001f && ry > 0.001f)
-                                m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
-                        }
-                        if (m_Selected->previewTexture)
-                        {
-                            const sf::Vector2u ts = m_Selected->previewTexture->getSize();
-                            if (ts.x > 0 && ts.y > 0)
-                            {
-                                sf::Vector2f size = m_Selected->shape.getSize();
-                                m_Selected->previewSprite.setScale((size.x / ts.x) * m_Selected->scaleX, (size.y / ts.y) * m_Selected->scaleY);
-                            }
-                        }
+                        UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::SizeW || m_ActiveField == EditField::SizeH)
                 {
@@ -1184,6 +1223,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         SyncToRegistry();
                     } catch (...) {}
                 }
+                SetDirty(true);
             }
 
             m_ActiveField = EditField::None;
@@ -1318,6 +1358,18 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left)
     {
+        if (m_HierarchyDragging) {
+            if (!m_HierarchyDragTargetId.empty()) {
+                SetParent(m_HierarchyDragSourceId, m_HierarchyDragTargetId, true);
+            } else if (m_HierarchyRootDropZone.contains(m_MouseScreenPos)) {
+                SetParent(m_HierarchyDragSourceId, "", true);
+            }
+            m_HierarchyDragging = false;
+            m_HierarchyDragSourceId.clear();
+            m_HierarchyDragTargetId.clear();
+        }
+        m_HierarchyPotentialDrag = false;
+
         if (m_ShowSettings) { SaveSettings(); }
 
         if (m_Dragging && !m_SelectedObjects.empty())
@@ -1328,8 +1380,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
             for (auto* obj : m_SelectedObjects) {
                 if (obj->entity != 0 && m_Registry.HasComponent<TransformComponent>(obj->entity)) {
                     auto &t = m_Registry.GetComponent<TransformComponent>(obj->entity);
-                    t.x = obj->shape.getPosition().x;
-                    t.y = obj->shape.getPosition().y;
+                    t.x = obj->localPosition.x;
+                    t.y = obj->localPosition.y;
+                    t.worldX = obj->worldPosition.x;
+                    t.worldY = obj->worldPosition.y;
                     
                     json after = SerializeObject(*obj);
                     json before = m_DragBeforeStates[obj->id];
@@ -1342,6 +1396,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             if (movedAny) {
                 m_UndoStack.push_back(macroCmd);
                 m_RedoStack.clear();
+                SetDirty(true);
             }
         }
         m_Dragging = false;
@@ -1375,13 +1430,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (m_Resizing && m_Selected && m_Selected->entity != 0)
         {
             const sf::Vector2f newSize = m_Selected->shape.getSize();
-            const sf::Vector2f newPos = m_Selected->shape.getPosition();
 
             if (m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
             {
                 auto &t = m_Registry.GetComponent<TransformComponent>(m_Selected->entity);
-                t.x = newPos.x;
-                t.y = newPos.y;
+                t.x = m_Selected->localPosition.x;
+                t.y = m_Selected->localPosition.y;
+                t.worldX = m_Selected->worldPosition.x;
+                t.worldY = m_Selected->worldPosition.y;
             }
 
             if (m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
@@ -1402,6 +1458,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 auto cmd = std::make_shared<ObjectStateCommand>(m_Selected->id, before, after);
                 m_UndoStack.push_back(cmd);
                 m_RedoStack.clear();
+                SetDirty(true);
             }
         }
         m_Resizing = false;
@@ -1413,6 +1470,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 auto &t = m_Registry.GetComponent<TransformComponent>(m_Selected->entity);
                 t.rotation = m_Selected->rotation;
+                t.worldRotation = m_Selected->worldRotation;
             }
 
             json after = SerializeObject(*m_Selected);
@@ -1421,6 +1479,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 auto cmd = std::make_shared<ObjectStateCommand>(m_Selected->id, before, after);
                 m_UndoStack.push_back(cmd);
                 m_RedoStack.clear();
+                SetDirty(true);
             }
         }
         m_Rotating = false;
@@ -1563,6 +1622,16 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (inHierarchy)
         {
+            for (const auto& fold : m_HierarchyFoldHitboxes) {
+                if (fold.first.contains(m_MouseScreenPos)) {
+                    if (m_HierarchyCollapsed.count(fold.second)) {
+                        m_HierarchyCollapsed.erase(fold.second);
+                    } else {
+                        m_HierarchyCollapsed.insert(fold.second);
+                    }
+                    return;
+                }
+            }
             for (auto &[rect, obj]: m_HierarchyHitboxes)
             {
                 if (rect.contains(m_MouseScreenPos))
@@ -1570,7 +1639,12 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     if (m_Selected) m_Selected->selected = false;
                     m_Selected = obj;
                     m_Selected->selected = true;
+                    m_SelectedObjects = { obj };
                     UpdateStatusText();
+
+                    m_HierarchyPotentialDrag = true;
+                    m_HierarchyDragStartPos = m_MouseScreenPos;
+                    m_HierarchyDragSourceId = obj->id;
                     return;
                 }
             }
@@ -1637,7 +1711,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             for (auto* obj : m_SelectedObjects) {
                 m_DragBeforeStates[obj->id] = SerializeObject(*obj);
             }
-            m_DragOffset = pos - hit->shape.getPosition();
+            m_DragOffset = pos - hit->worldPosition;
             
         } else
         {
@@ -1757,7 +1831,7 @@ void EditorScene::Update(float deltaTime)
 
         std::string title =
                 (g_App ? g_App->GetProjectName() : std::string(Rayne::DEFAULT_PROJECT_NAME))
-                + ": " + sceneName
+                + ": " + sceneName + (m_HasUnsavedChanges ? "*" : "")
                 + " (" + Rayne::PlatformString() + ")"
                 + " - RayneEngine " + Rayne::VersionString();
         if (m_ShowAutoSaveInTitle)
@@ -2131,6 +2205,7 @@ void EditorScene::Render(sf::RenderWindow &window)
 
     m_ContentBrowser->RenderDragGhost(window);
     DrawTooltip(window);
+    DrawDeleteModal(window);
 }
 
 static void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Color outline)
@@ -2308,11 +2383,15 @@ void EditorScene::DrawMenuBar(sf::RenderWindow &window)
         x += itemW;
     }
 
+    std::string sceneFile = m_SceneSavePath;
+    const size_t slash = sceneFile.find_last_of("/\\");
+    if (slash != std::string::npos) sceneFile = sceneFile.substr(slash + 1);
+
     sf::Text watermark;
     watermark.setFont(*m_Font);
     watermark.setCharacterSize(11);
-    watermark.setFillColor(C_TEXT_MUTED);
-    watermark.setString("RayneEngine");
+    watermark.setFillColor(m_HasUnsavedChanges ? C_WARNING : C_TEXT_MUTED);
+    watermark.setString(sceneFile + (m_HasUnsavedChanges ? " *" : "") + "  |  RayneEngine");
     watermark.setPosition(w - watermark.getLocalBounds().width - 12.f, 9.f);
     window.draw(watermark);
 }
@@ -2722,6 +2801,12 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         else if (m_Selected->objectType == ObjectType::Sprite) typeLabel = "sprite";
         y = DrawRow(window, "Type", typeLabel, panelX, y);
     }
+    std::string parentDisplay = m_Selected->parentId.empty() ? "(None)" : m_Selected->parentId;
+    y = DrawRow(window, "Parent", parentDisplay, panelX, y);
+    if (!m_Selected->parentId.empty())
+    {
+        y = DrawActionButton(window, "Detach Parent", "detach_parent", panelX, y, C_DANGER_DIM, C_DANGER);
+    }
 
     y += 8.f;
     y = DrawSectionHeader(window, "TRANSFORM", C_TEXT_SECONDARY, panelX, y);
@@ -2730,13 +2815,13 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::TransformX
                                        ? "|"
-                                       : std::to_string((int) m_Selected->shape.getPosition().x));
+                                       : std::to_string((int) m_Selected->localPosition.x));
     y = DrawEditableRow(window, "Position X", txDisplay, "edit_x", panelX, y);
     std::string tyDisplay = (m_ActiveField == EditField::TransformY && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::TransformY
                                        ? "|"
-                                       : std::to_string((int) m_Selected->shape.getPosition().y));
+                                       : std::to_string((int) m_Selected->localPosition.y));
     y = DrawEditableRow(window, "Position Y", tyDisplay, "edit_y", panelX, y);
 
     std::string rotDisplay = (m_ActiveField == EditField::Rotation && !m_ActiveInputText.empty())
@@ -2991,10 +3076,11 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             }
         }
 
-        y = DrawSectionHeader(window, "SCRIPT", C_TEXT_SECONDARY, panelX, y);
+        y = DrawSectionHeader(window, m_HasUnsavedChanges ? "SCRIPT *" : "SCRIPT", m_HasUnsavedChanges ? C_WARNING : C_TEXT_SECONDARY, panelX, y);
         std::string scriptName = m_Selected->scriptPath;
         const size_t slash = scriptName.find_last_of("/\\");
         if (slash != std::string::npos) scriptName = scriptName.substr(slash + 1);
+        if (m_HasUnsavedChanges) scriptName += " *";
         y = DrawRow(window, "File", scriptName, panelX, y);
         y = DrawRow(window, "OnCreate", "bound", panelX, y);
         y = DrawRow(window, "OnUpdate", "bound", panelX, y);
@@ -3042,6 +3128,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 void EditorScene::DrawHierarchy(sf::RenderWindow &window)
 {
     m_HierarchyHitboxes.clear();
+    m_HierarchyFoldHitboxes.clear();
 
     const float panelX = m_HierarchyBounds.left;
     const float panelY = m_HierarchyBounds.top;
@@ -3068,9 +3155,9 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         sf::Text title;
         title.setFont(*m_Font);
         title.setCharacterSize(11);
-        title.setFillColor(C_TEXT_SECONDARY);
+        title.setFillColor(m_HasUnsavedChanges ? C_WARNING : C_TEXT_SECONDARY);
         title.setStyle(sf::Text::Bold);
-        title.setString("SCENE HIERARCHY");
+        title.setString(m_HasUnsavedChanges ? "SCENE HIERARCHY *" : "SCENE HIERARCHY");
         title.setPosition(panelX + 12.f, panelY + 12.f);
         window.draw(title);
     }
@@ -3093,54 +3180,73 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
 
     float y = panelY + 36.f - m_HierarchyScrollY;
     const float rowHeight = 26.f;
-    int index = 0;
 
-    auto drawRowBg = [&](bool isSelected, sf::FloatRect rowRect) {
-        const bool isHovered = rowRect.contains(m_MouseScreenPos) && m_MouseScreenPos.y > panelY + 36.f;
-        if (isSelected || isHovered)
-        {
-            sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
-            rowBg.setPosition(panelX, y);
-            rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_BG_ELEVATED);
-            window.draw(rowBg);
+    std::function<void(EditorObject*, int)> drawNode = [&](EditorObject* obj, int depth) {
+        if (!obj) return;
 
-            if (isSelected)
-            {
-                sf::RectangleShape indicator({2.f, rowHeight});
-                indicator.setPosition(panelX, y);
-                indicator.setFillColor(C_ACCENT);
-                window.draw(indicator);
-            }
-        }
-        return isSelected;
-    };
-
-
-    for (auto it = m_Objects.rbegin(); it != m_Objects.rend(); ++it)
-    {
-        EditorObject &obj = *it;
+        float indent = depth * 16.f;
+        sf::FloatRect rowRect(panelX, y, HierarchyWidth, rowHeight);
+        bool isSelected = (obj == m_Selected);
+        bool isHovered = rowRect.contains(m_MouseScreenPos) && m_MouseScreenPos.y > panelY + 36.f;
+        bool isDropTarget = (m_HierarchyDragging && m_HierarchyDragTargetId == obj->id);
 
         if (y + rowHeight > panelY + 36.f && y < panelY + panelH)
         {
-            sf::FloatRect rowRect(panelX, y, HierarchyWidth, rowHeight);
-            bool isSelected = drawRowBg(&obj == m_Selected, rowRect);
+            if (isSelected || isHovered || isDropTarget)
+            {
+                sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
+                rowBg.setPosition(panelX, y);
+                if (isDropTarget) {
+                    rowBg.setFillColor(sf::Color(80, 120, 240, 140));
+                    rowBg.setOutlineColor(C_ACCENT_BRIGHT);
+                    rowBg.setOutlineThickness(1.5f);
+                } else {
+                    rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_BG_ELEVATED);
+                }
+                window.draw(rowBg);
+
+                if (isSelected && !isDropTarget)
+                {
+                    sf::RectangleShape indicator({2.f, rowHeight});
+                    indicator.setPosition(panelX, y);
+                    indicator.setFillColor(C_ACCENT);
+                    window.draw(indicator);
+                }
+            }
+
+            auto children = GetChildren(obj->id);
+            bool hasChildren = !children.empty();
+            bool isCollapsed = m_HierarchyCollapsed.count(obj->id) > 0;
+
+            if (hasChildren) {
+                sf::FloatRect foldRect(panelX + 4.f + indent, y, 14.f, rowHeight);
+                m_HierarchyFoldHitboxes.push_back({foldRect, obj->id});
+
+                sf::Text arrowText;
+                arrowText.setFont(*m_Font);
+                arrowText.setCharacterSize(10);
+                arrowText.setFillColor(C_TEXT_MUTED);
+                arrowText.setString(isCollapsed ? ">" : "v");
+                arrowText.setPosition(foldRect.left + 3.f, foldRect.top + 7.f);
+                window.draw(arrowText);
+            }
 
             sf::CircleShape icon;
             icon.setRadius(5.f);
-            icon.setPosition(panelX + 16.f, y + 8.f);
+            icon.setPosition(panelX + (hasChildren ? 20.f : 16.f) + indent, y + 8.f);
 
-            if (IsPolygonType(obj.objectType))
+            if (IsPolygonType(obj->objectType))
             {
-                icon.setPointCount(GetPolygonPointCount(obj.objectType));
-                icon.setFillColor(obj.color);
-            } else if (obj.objectType == ObjectType::Sprite)
+                icon.setPointCount(GetPolygonPointCount(obj->objectType));
+                icon.setFillColor(obj->color);
+            } else if (obj->objectType == ObjectType::Sprite)
             {
                 icon.setPointCount(4);
                 icon.setFillColor(sf::Color(150, 150, 255));
             } else
             {
                 icon.setPointCount(4);
-                icon.setFillColor(obj.color);
+                icon.setFillColor(obj->color);
             }
             window.draw(icon);
 
@@ -3148,19 +3254,74 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             nameText.setFont(*m_Font);
             nameText.setCharacterSize(12);
             nameText.setFillColor(isSelected ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-            nameText.setString(obj.id);
-            nameText.setPosition(panelX + 34.f, y + 4.f);
+            nameText.setString(obj->id);
+            nameText.setPosition(panelX + (hasChildren ? 38.f : 34.f) + indent, y + 4.f);
             window.draw(nameText);
         }
 
-        m_HierarchyHitboxes.push_back({sf::FloatRect(panelX, y, HierarchyWidth, rowHeight), &obj});
-
+        m_HierarchyHitboxes.push_back({sf::FloatRect(panelX, y, HierarchyWidth, rowHeight), obj});
         y += rowHeight;
-        index++;
+
+        auto children = GetChildren(obj->id);
+        bool isCollapsed = m_HierarchyCollapsed.count(obj->id) > 0;
+        if (!children.empty() && !isCollapsed) {
+            for (auto* child : children) {
+                drawNode(child, depth + 1);
+            }
+        }
+    };
+
+    std::vector<EditorObject*> rootObjects;
+    for (auto& obj : m_Objects) {
+        if (obj.parentId.empty() || ObjectById(obj.parentId) == nullptr) {
+            rootObjects.push_back(&obj);
+        }
     }
 
+    for (auto* root : rootObjects) {
+        drawNode(root, 0);
+    }
+
+    if (y < panelY + panelH) {
+        m_HierarchyRootDropZone = sf::FloatRect(panelX, y, HierarchyWidth, panelY + panelH - y);
+        if (m_HierarchyDragging && m_HierarchyDragTargetId.empty() && m_HierarchyRootDropZone.contains(m_MouseScreenPos)) {
+            sf::RectangleShape rootIndicator({HierarchyWidth - 8.f, 20.f});
+            rootIndicator.setPosition(panelX + 4.f, y + 4.f);
+            rootIndicator.setFillColor(sf::Color(80, 120, 240, 60));
+            rootIndicator.setOutlineColor(C_ACCENT);
+            rootIndicator.setOutlineThickness(1.f);
+            window.draw(rootIndicator);
+
+            sf::Text rText;
+            rText.setFont(*m_Font);
+            rText.setCharacterSize(10);
+            rText.setFillColor(C_TEXT_MUTED);
+            rText.setString("Detach to Root");
+            rText.setPosition(panelX + 12.f, y + 7.f);
+            window.draw(rText);
+        }
+    } else {
+        m_HierarchyRootDropZone = sf::FloatRect(0, 0, 0, 0);
+    }
 
     window.setView(prevView);
+
+    if (m_HierarchyDragging && !m_HierarchyDragSourceId.empty()) {
+        sf::RectangleShape ghost({130.f, 22.f});
+        ghost.setPosition(m_MouseScreenPos.x + 12.f, m_MouseScreenPos.y + 12.f);
+        ghost.setFillColor(sf::Color(35, 38, 46, 230));
+        ghost.setOutlineColor(C_ACCENT_BRIGHT);
+        ghost.setOutlineThickness(1.5f);
+        window.draw(ghost);
+
+        sf::Text gt;
+        gt.setFont(*m_Font);
+        gt.setCharacterSize(11);
+        gt.setFillColor(sf::Color::White);
+        gt.setString(m_HierarchyDragSourceId);
+        gt.setPosition(m_MouseScreenPos.x + 18.f, m_MouseScreenPos.y + 15.f);
+        window.draw(gt);
+    }
 
     if (m_HierarchyContextMenuOpen)
     {
@@ -3584,14 +3745,22 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
     {
         if (!btn.bounds.contains(pos)) continue;
 
+        if (btn.action == "detach_parent" && m_Selected)
+        {
+            SetParent(m_Selected->id, "", true);
+            return;
+        }
+
         if (btn.action == "add_velocity")
         {
             m_Registry.AddComponent(m_Selected->entity, VelocityComponent{0.f, 0.f});
             std::cout << "[INFO] [Inspector] VelocityComponent added to " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "remove_velocity")
         {
             m_Registry.RemoveComponent<VelocityComponent>(m_Selected->entity);
             std::cout << "[INFO] [Inspector] VelocityComponent removed from " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "add_camera")
         {
             m_Registry.ForEach<CameraComponent>([this](Entity e, CameraComponent &) {
@@ -3599,24 +3768,29 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             });
             m_Registry.AddComponent(m_Selected->entity, CameraComponent{true});
             std::cout << "[INFO] [Inspector] CameraComponent added to " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "remove_camera")
         {
             m_Registry.RemoveComponent<CameraComponent>(m_Selected->entity);
             std::cout << "[INFO] [Inspector] CameraComponent removed from " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "add_collision")
         {
             m_Registry.AddComponent(m_Selected->entity, CollisionComponent{0});
             std::cout << "[INFO] [Inspector] CollisionComponent added to " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "remove_collision")
         {
             m_Registry.RemoveComponent<CollisionComponent>(m_Selected->entity);
             std::cout << "[INFO] [Inspector] CollisionComponent removed from " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "toggle_collision_type")
         {
             if (m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
             {
                 auto& col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
                 col.type = (col.type == CollisionType::Static) ? CollisionType::Solid : CollisionType::Static;
+                SetDirty(true);
             }
         } else if (btn.action == "edit_collision_channel" && m_Selected)
         {
@@ -3642,6 +3816,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 {
                     m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
                 }
+                SetDirty(true);
             }
         } else if (btn.action.find("edit_script_prop_") == 0 && m_Selected)
         {
@@ -3672,6 +3847,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_Selected->scriptPath = "";
             m_Selected->scriptProperties.clear();
             std::cout << "[INFO] [Inspector] ScriptComponent removed from " << m_Selected->id << "\n";
+            SetDirty(true);
         } else if (btn.action == "edit_name" && m_Selected)
         {
             m_ActiveField = EditField::Name;
@@ -3881,6 +4057,14 @@ void EditorScene::DeleteSelected()
 {
     if (m_SelectedObjects.empty()) return;
 
+    if (m_SelectedObjects.size() == 1) {
+        auto children = GetChildren(m_SelectedObjects[0]->id);
+        if (!children.empty()) {
+            DeleteObjectWithPrompt(m_SelectedObjects[0]);
+            return;
+        }
+    }
+
     auto macroCmd = std::make_shared<MacroCommand>();
     for (auto* obj : m_SelectedObjects) {
         json before = SerializeObject(*obj);
@@ -3888,6 +4072,170 @@ void EditorScene::DeleteSelected()
     }
     ExecuteCommand(macroCmd);
     ClearSelection();
+}
+
+void EditorScene::DeleteObjectWithPrompt(EditorObject* obj)
+{
+    if (!obj) return;
+    auto children = GetChildren(obj->id);
+    if (children.empty()) {
+        auto macroCmd = std::make_shared<MacroCommand>();
+        json before = SerializeObject(*obj);
+        macroCmd->commands.push_back(std::make_shared<ObjectStateCommand>(obj->id, before, json()));
+        ExecuteCommand(macroCmd);
+        ClearSelection();
+        return;
+    }
+
+    m_DeleteModalTargetId = obj->id;
+    m_DeleteModalDescendantIds.clear();
+    for (auto* ch : children) {
+        m_DeleteModalDescendantIds.push_back(ch->id);
+    }
+    m_ShowDeleteModal = true;
+}
+
+void EditorScene::ConfirmDeleteCascade()
+{
+    if (m_DeleteModalTargetId.empty()) return;
+
+    std::vector<std::string> toDelete;
+    auto collect = [&](auto& self, const std::string& parentId) -> void {
+        for (auto* ch : GetChildren(parentId)) {
+            self(self, ch->id);
+            toDelete.push_back(ch->id);
+        }
+    };
+    collect(collect, m_DeleteModalTargetId);
+    toDelete.push_back(m_DeleteModalTargetId);
+
+    ClearSelection();
+
+    auto macroCmd = std::make_shared<MacroCommand>();
+    for (const auto& id : toDelete) {
+        auto* obj = ObjectById(id);
+        if (obj) {
+            json before = SerializeObject(*obj);
+            macroCmd->commands.push_back(std::make_shared<ObjectStateCommand>(obj->id, before, json()));
+        }
+    }
+    ExecuteCommand(macroCmd);
+
+    m_ShowDeleteModal = false;
+    m_DeleteModalTargetId.clear();
+    m_DeleteModalDescendantIds.clear();
+}
+
+void EditorScene::ConfirmDeleteUnparent()
+{
+    if (m_DeleteModalTargetId.empty()) return;
+    auto* target = ObjectById(m_DeleteModalTargetId);
+    std::string grandParent = target ? target->parentId : "";
+
+    for (auto* ch : GetChildren(m_DeleteModalTargetId)) {
+        SetParent(ch->id, grandParent, true);
+    }
+
+    ClearSelection();
+
+    if (target) {
+        auto macroCmd = std::make_shared<MacroCommand>();
+        json before = SerializeObject(*target);
+        macroCmd->commands.push_back(std::make_shared<ObjectStateCommand>(target->id, before, json()));
+        ExecuteCommand(macroCmd);
+    }
+
+    m_ShowDeleteModal = false;
+    m_DeleteModalTargetId.clear();
+    m_DeleteModalDescendantIds.clear();
+}
+
+void EditorScene::DrawDeleteModal(sf::RenderWindow &window)
+{
+    if (!m_ShowDeleteModal) return;
+
+    sf::RectangleShape dim({static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y)});
+    dim.setFillColor(sf::Color(0, 0, 0, 150));
+    window.draw(dim);
+
+    float modalW = 440.f;
+    float modalH = 170.f;
+    float mx = (window.getSize().x - modalW) / 2.f;
+    float my = (window.getSize().y - modalH) / 2.f;
+
+    sf::RectangleShape box({modalW, modalH});
+    box.setPosition(mx, my);
+    box.setFillColor(C_BG_PANEL);
+    box.setOutlineColor(C_BORDER_LIGHT);
+    box.setOutlineThickness(1.5f);
+    window.draw(box);
+
+    sf::Text title;
+    title.setFont(*m_Font);
+    title.setCharacterSize(15);
+    title.setStyle(sf::Text::Bold);
+    title.setFillColor(C_TEXT_PRIMARY);
+    title.setString("Delete Object with Children");
+    title.setPosition(mx + 20.f, my + 18.f);
+    window.draw(title);
+
+    sf::Text msg;
+    msg.setFont(*m_Font);
+    msg.setCharacterSize(12);
+    msg.setFillColor(C_TEXT_SECONDARY);
+    msg.setString("Object '" + m_DeleteModalTargetId + "' has " + std::to_string(m_DeleteModalDescendantIds.size()) +
+                  " direct child object(s).\nHow would you like to proceed?");
+    msg.setPosition(mx + 20.f, my + 50.f);
+    window.draw(msg);
+
+    m_DeleteModalCascadeBtn = sf::FloatRect(mx + 20.f, my + 110.f, 115.f, 32.f);
+    bool hov1 = m_DeleteModalCascadeBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn1(m_DeleteModalCascadeBtn.getSize());
+    btn1.setPosition(m_DeleteModalCascadeBtn.getPosition());
+    btn1.setFillColor(hov1 ? sf::Color(180, 40, 40) : sf::Color(140, 30, 30));
+    window.draw(btn1);
+
+    sf::Text t1;
+    t1.setFont(*m_Font);
+    t1.setCharacterSize(11);
+    t1.setFillColor(sf::Color::White);
+    t1.setString("Delete All");
+    t1.setPosition(m_DeleteModalCascadeBtn.left + 22.f, m_DeleteModalCascadeBtn.top + 8.f);
+    window.draw(t1);
+
+    m_DeleteModalUnparentBtn = sf::FloatRect(mx + 145.f, my + 110.f, 150.f, 32.f);
+    bool hov2 = m_DeleteModalUnparentBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn2(m_DeleteModalUnparentBtn.getSize());
+    btn2.setPosition(m_DeleteModalUnparentBtn.getPosition());
+    btn2.setFillColor(hov2 ? C_ACCENT : C_BG_ELEVATED);
+    btn2.setOutlineColor(C_BORDER);
+    btn2.setOutlineThickness(1.f);
+    window.draw(btn2);
+
+    sf::Text t2;
+    t2.setFont(*m_Font);
+    t2.setCharacterSize(11);
+    t2.setFillColor(sf::Color::White);
+    t2.setString("Unparent Children");
+    t2.setPosition(m_DeleteModalUnparentBtn.left + 14.f, m_DeleteModalUnparentBtn.top + 8.f);
+    window.draw(t2);
+
+    m_DeleteModalCancelBtn = sf::FloatRect(mx + 305.f, my + 110.f, 100.f, 32.f);
+    bool hov3 = m_DeleteModalCancelBtn.contains(m_MouseScreenPos);
+    sf::RectangleShape btn3(m_DeleteModalCancelBtn.getSize());
+    btn3.setPosition(m_DeleteModalCancelBtn.getPosition());
+    btn3.setFillColor(hov3 ? C_BG_ELEVATED : C_BG_PANEL);
+    btn3.setOutlineColor(C_BORDER);
+    btn3.setOutlineThickness(1.f);
+    window.draw(btn3);
+
+    sf::Text t3;
+    t3.setFont(*m_Font);
+    t3.setCharacterSize(11);
+    t3.setFillColor(C_TEXT_PRIMARY);
+    t3.setString("Cancel");
+    t3.setPosition(m_DeleteModalCancelBtn.left + 26.f, m_DeleteModalCancelBtn.top + 8.f);
+    window.draw(t3);
 }
 
 void EditorScene::SaveToJson(const std::string &path)
@@ -3901,79 +4249,7 @@ void EditorScene::SaveToJson(const std::string &path)
 
     for (auto &obj: m_Objects)
     {
-        json j;
-        j["id"] = obj.id;
-        j["tag"] = obj.tag;
-        std::string typeStr = "rectangle";
-        if (obj.objectType == ObjectType::Circle) typeStr = "circle";
-        else if (obj.objectType == ObjectType::Triangle) typeStr = "triangle";
-        else if (obj.objectType == ObjectType::Pentagon) typeStr = "pentagon";
-        else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
-        else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
-        j["type"] = typeStr;
-        j["x"] = obj.shape.getPosition().x;
-        j["y"] = obj.shape.getPosition().y;
-        j["rotation"] = obj.rotation;
-        j["scaleX"] = obj.scaleX;
-        j["scaleY"] = obj.scaleY;
-        j["width"] = obj.shape.getSize().x;
-        j["height"] = obj.shape.getSize().y;
-
-        j["color"] = {obj.color.r, obj.color.g, obj.color.b};
-
-        if (!obj.spritePath.empty())
-        {
-            std::error_code ec;
-            std::filesystem::path p(obj.spritePath);
-            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
-            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
-            j["sprite"] = ec ? obj.spritePath : rel;
-        }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity))
-        {
-            auto &vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
-            j["velocity"] = {{"dx", vel.dx}, {"dy", vel.dy}};
-        }
-
-        if (!obj.scriptPath.empty())
-        {
-            std::error_code ec;
-            std::filesystem::path p(obj.scriptPath);
-            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
-            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
-            j["script"] = ec ? obj.scriptPath : rel;
-
-            if (!obj.scriptProperties.empty())
-            {
-                json propsJson;
-                for (auto& pair : obj.scriptProperties)
-                {
-                    const auto& prop = pair.second;
-                    json pJson;
-                    pJson["type"] = static_cast<int>(prop.type);
-                    if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
-                    else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
-                    else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
-                    else if (prop.type == ScriptComponent::PropertyType::String) pJson["value"] = prop.stringVal;
-                    propsJson[pair.first] = pJson;
-                }
-                j["scriptProperties"] = propsJson;
-            }
-        }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) { j["camera"] = true; }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity))
-        {
-            auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
-            j["collision"] = {
-                {"channel", col.channel},
-                {"type", col.type == CollisionType::Solid ? "solid" : "static"}
-            };
-        }
-
-        data["objects"].push_back(j);
+        data["objects"].push_back(SerializeObject(obj));
     }
 
     std::ofstream file(path);
@@ -3983,6 +4259,7 @@ void EditorScene::SaveToJson(const std::string &path)
         return;
     }
     file << data.dump(4);
+    SetDirty(false);
     UpdateStatusText();
 }
 
@@ -4014,9 +4291,11 @@ void EditorScene::LoadFromJson(const std::string &path)
         EditorObject obj;
         obj.id = j["id"];
         if (j.contains("tag")) obj.tag = j["tag"];
+        obj.parentId = j.value("parent", "");
         obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
         obj.shape.setSize({j["width"], j["height"]});
-        obj.shape.setPosition(j["x"], j["y"]);
+        obj.localPosition = {j["x"].get<float>(), j["y"].get<float>()};
+        obj.shape.setPosition(obj.localPosition);
         if (j.contains("rotation")) obj.rotation = j["rotation"];
         if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
         if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
@@ -4119,14 +4398,18 @@ void EditorScene::LoadFromJson(const std::string &path)
             m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
         }
 
+        m_Registry.AddComponent(obj.entity, HierarchyComponent{});
         m_Objects.push_back(std::move(obj));
     }
 
+    UpdateWorldTransforms();
+    SetDirty(false);
     UpdateStatusText();
 }
 
 void EditorScene::SyncToRegistry()
 {
+    UpdateWorldTransforms();
     for (auto &obj: m_Objects)
     {
         if (obj.entity == 0) continue;
@@ -4134,11 +4417,27 @@ void EditorScene::SyncToRegistry()
         if (m_Registry.HasComponent<TransformComponent>(obj.entity))
         {
             auto &t = m_Registry.GetComponent<TransformComponent>(obj.entity);
-            t.x = obj.shape.getPosition().x;
-            t.y = obj.shape.getPosition().y;
+            t.x = obj.localPosition.x;
+            t.y = obj.localPosition.y;
             t.rotation = obj.rotation;
             t.scaleX = obj.scaleX;
             t.scaleY = obj.scaleY;
+            t.worldX = obj.worldPosition.x;
+            t.worldY = obj.worldPosition.y;
+            t.worldRotation = obj.worldRotation;
+            t.worldScaleX = obj.worldScaleX;
+            t.worldScaleY = obj.worldScaleY;
+        }
+
+        if (m_Registry.HasComponent<HierarchyComponent>(obj.entity))
+        {
+            auto &hc = m_Registry.GetComponent<HierarchyComponent>(obj.entity);
+            EditorObject* parentObj = ObjectById(obj.parentId);
+            hc.parent = parentObj ? parentObj->entity : NULL_ENTITY;
+            hc.children.clear();
+            for (auto* child : GetChildren(obj.id)) {
+                if (child->entity != 0) hc.children.push_back(child->entity);
+            }
         }
 
         if (m_Registry.HasComponent<RenderComponent>(obj.entity))
@@ -4711,7 +5010,15 @@ void EditorScene::UpdateStatusText()
         s += "  |  " + m_Selected->id
                 + "  (" + std::to_string((int) m_Selected->shape.getPosition().x)
                 + ", " + std::to_string((int) m_Selected->shape.getPosition().y) + ")";
+    if (m_HasUnsavedChanges)
+        s += "  |  * Unsaved";
     m_StatusText.setString(s);
+}
+
+void EditorScene::SetDirty(bool dirty)
+{
+    m_HasUnsavedChanges = dirty;
+    UpdateStatusText();
 }
 
 std::string EditorScene::NextId() { return "obj_" + std::to_string(m_IdCounter++); }
@@ -5623,10 +5930,155 @@ void EditorScene::RemoveObject(const std::string& id) {
     }
 }
 
+void EditorScene::UpdateWorldTransforms()
+{
+    auto updateSubtree = [&](auto& self, EditorObject* obj, const sf::Transform& parentTransform, float parentRot, float parentScaleX, float parentScaleY) -> void {
+        if (!obj) return;
+
+        if (obj->parentId.empty() || ObjectById(obj->parentId) == nullptr) {
+            obj->worldPosition = obj->localPosition;
+            obj->worldRotation = obj->rotation;
+            obj->worldScaleX = obj->scaleX;
+            obj->worldScaleY = obj->scaleY;
+        } else {
+            obj->worldPosition = parentTransform.transformPoint(obj->localPosition);
+            obj->worldRotation = parentRot + obj->rotation;
+            obj->worldScaleX = parentScaleX * obj->scaleX;
+            obj->worldScaleY = parentScaleY * obj->scaleY;
+        }
+
+        obj->shape.setPosition(obj->worldPosition);
+        obj->shape.setRotation(obj->worldRotation);
+        obj->shape.setScale(obj->worldScaleX, obj->worldScaleY);
+
+        if (IsPolygonType(obj->objectType)) {
+            float rx = obj->shape.getSize().x * 0.5f;
+            float ry = obj->shape.getSize().y * 0.5f;
+            if (rx > 0.001f && ry > 0.001f) {
+                obj->circleShape.setRadius(rx);
+                obj->circleShape.setScale(obj->worldScaleX, obj->worldScaleY * (ry / rx));
+            }
+            obj->circleShape.setPosition(obj->worldPosition);
+            obj->circleShape.setRotation(obj->worldRotation);
+        }
+
+        if (obj->objectType == ObjectType::Sprite && obj->previewTexture) {
+            obj->previewSprite.setPosition(obj->worldPosition);
+            obj->previewSprite.setRotation(obj->worldRotation);
+            obj->previewSprite.setScale(obj->worldScaleX, obj->worldScaleY);
+        }
+
+        if (obj->entity != 0 && m_Registry.HasComponent<TransformComponent>(obj->entity)) {
+            auto &tc = m_Registry.GetComponent<TransformComponent>(obj->entity);
+            tc.x = obj->localPosition.x;
+            tc.y = obj->localPosition.y;
+            tc.rotation = obj->rotation;
+            tc.scaleX = obj->scaleX;
+            tc.scaleY = obj->scaleY;
+            tc.worldX = obj->worldPosition.x;
+            tc.worldY = obj->worldPosition.y;
+            tc.worldRotation = obj->worldRotation;
+            tc.worldScaleX = obj->worldScaleX;
+            tc.worldScaleY = obj->worldScaleY;
+        }
+
+        sf::Transform myTransform;
+        myTransform.translate(obj->worldPosition);
+        myTransform.rotate(obj->worldRotation);
+        myTransform.scale(obj->worldScaleX, obj->worldScaleY);
+
+        for (auto& other : m_Objects) {
+            if (other.parentId == obj->id && other.id != obj->id) {
+                self(self, &other, myTransform, obj->worldRotation, obj->worldScaleX, obj->worldScaleY);
+            }
+        }
+    };
+
+    sf::Transform identity;
+    for (auto& obj : m_Objects) {
+        if (obj.parentId.empty() || ObjectById(obj.parentId) == nullptr) {
+            updateSubtree(updateSubtree, &obj, identity, 0.f, 1.f, 1.f);
+        }
+    }
+}
+
+bool EditorScene::IsDescendantOf(const std::string& childId, const std::string& ancestorId) const
+{
+    if (childId.empty() || ancestorId.empty()) return false;
+    if (childId == ancestorId) return true;
+    const EditorObject* cur = const_cast<EditorScene*>(this)->ObjectById(childId);
+    while (cur && !cur->parentId.empty()) {
+        if (cur->parentId == ancestorId) return true;
+        cur = const_cast<EditorScene*>(this)->ObjectById(cur->parentId);
+    }
+    return false;
+}
+
+std::vector<EditorObject*> EditorScene::GetChildren(const std::string& parentId)
+{
+    std::vector<EditorObject*> ch;
+    for (auto& obj : m_Objects) {
+        if (obj.parentId == parentId && obj.id != parentId) {
+            ch.push_back(&obj);
+        }
+    }
+    return ch;
+}
+
+void EditorScene::SetParent(const std::string& childId, const std::string& newParentId, bool keepWorldTransform)
+{
+    if (childId.empty() || childId == newParentId) return;
+    auto* child = ObjectById(childId);
+    if (!child) return;
+    if (child->parentId == newParentId) return;
+
+    if (!newParentId.empty() && IsDescendantOf(newParentId, childId)) {
+        std::cerr << "[WARN] [EditorScene] Cannot parent object to its own descendant!\n";
+        return;
+    }
+
+    json before = SerializeObject(*child);
+
+    if (keepWorldTransform) {
+        if (newParentId.empty()) {
+            child->localPosition = child->worldPosition;
+            child->rotation = child->worldRotation;
+            child->scaleX = child->worldScaleX;
+            child->scaleY = child->worldScaleY;
+            child->parentId = "";
+        } else {
+            auto* newParent = ObjectById(newParentId);
+            if (newParent) {
+                sf::Transform parentWorldTransform;
+                parentWorldTransform.translate(newParent->worldPosition);
+                parentWorldTransform.rotate(newParent->worldRotation);
+                parentWorldTransform.scale(newParent->worldScaleX, newParent->worldScaleY);
+
+                child->localPosition = parentWorldTransform.getInverse().transformPoint(child->worldPosition);
+                child->rotation = child->worldRotation - newParent->worldRotation;
+                child->scaleX = (std::abs(newParent->worldScaleX) > 0.0001f) ? (child->worldScaleX / newParent->worldScaleX) : child->worldScaleX;
+                child->scaleY = (std::abs(newParent->worldScaleY) > 0.0001f) ? (child->worldScaleY / newParent->worldScaleY) : child->worldScaleY;
+                child->parentId = newParentId;
+            }
+        }
+    } else {
+        child->parentId = newParentId;
+    }
+
+    UpdateWorldTransforms();
+
+    json after = SerializeObject(*child);
+    if (before != after) {
+        m_UndoStack.push_back(std::make_shared<ObjectStateCommand>(child->id, before, after));
+        m_RedoStack.clear();
+    }
+}
+
 json EditorScene::SerializeObject(const EditorObject& obj) const {
     json j;
     j["id"] = obj.id;
     j["tag"] = obj.tag;
+    j["parent"] = obj.parentId;
     std::string typeStr = "rectangle";
     if (obj.objectType == ObjectType::Circle) typeStr = "circle";
     else if (obj.objectType == ObjectType::Triangle) typeStr = "triangle";
@@ -5634,8 +6086,8 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
     else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
     j["type"] = typeStr;
-    j["x"] = obj.shape.getPosition().x;
-    j["y"] = obj.shape.getPosition().y;
+    j["x"] = obj.localPosition.x;
+    j["y"] = obj.localPosition.y;
     j["rotation"] = obj.rotation;
     j["scaleX"] = obj.scaleX;
     j["scaleY"] = obj.scaleY;
@@ -5699,9 +6151,11 @@ void EditorScene::DeserializeObject(const json& j) {
     EditorObject obj;
     obj.id = j["id"];
     if (j.contains("tag")) obj.tag = j["tag"];
+    obj.parentId = j.value("parent", "");
     obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
     obj.shape.setSize({j["width"], j["height"]});
-    obj.shape.setPosition(j["x"], j["y"]);
+    obj.localPosition = {j["x"].get<float>(), j["y"].get<float>()};
+    obj.shape.setPosition(obj.localPosition);
     if (j.contains("rotation")) obj.rotation = j["rotation"];
     if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
     if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
@@ -5801,7 +6255,10 @@ void EditorScene::DeserializeObject(const json& j) {
         m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
     }
 
+    m_Registry.AddComponent(obj.entity, HierarchyComponent{});
+
     m_Objects.push_back(std::move(obj));
+    UpdateWorldTransforms();
     UpdateStatusText();
 }
 
@@ -5814,6 +6271,7 @@ void EditorScene::ExecuteCommand(std::shared_ptr<EditorCommand> command) {
     command->Execute(this);
     m_UndoStack.push_back(command);
     m_RedoStack.clear();
+    SetDirty(true);
 }
 
 void EditorScene::UndoCommand() {
@@ -5823,6 +6281,7 @@ void EditorScene::UndoCommand() {
         cmd->Undo(this);
         m_RedoStack.push_back(cmd);
         m_Selected = nullptr;
+        SetDirty(true);
         UpdateStatusText();
     }
 }
@@ -5834,6 +6293,7 @@ void EditorScene::RedoCommand() {
         cmd->Execute(this);
         m_UndoStack.push_back(cmd);
         m_Selected = nullptr;
+        SetDirty(true);
         UpdateStatusText();
     }
 }

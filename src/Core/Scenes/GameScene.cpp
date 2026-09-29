@@ -4,6 +4,7 @@
 #include "../Application/Application.h"
 
 #include "../ECS/Components.h"
+#include "../ECS/HierarchySystem.h"
 #include "../Scripting/EventManager.h"
 #include "../UI/UIManager.h"
 #include "../Scripting/ScriptComponent.h"
@@ -163,7 +164,7 @@ void GameScene::CheckCollisions()
             if (m_Registry.HasComponent<CollisionComponent>(e))
             {
                 auto &col = m_Registry.GetComponent<CollisionComponent>(e);
-                collidables.push_back({e, t.x, t.y, r.size.x, r.size.y, col.channel, col.type});
+                collidables.push_back({e, t.worldX, t.worldY, r.size.x, r.size.y, col.channel, col.type});
             }
         });
 
@@ -278,6 +279,8 @@ void GameScene::Update(float deltaTime)
             t.y += v.dy * effectiveDt;
         });
 
+    HierarchySystem::UpdateWorldTransforms(m_Registry);
+
 #ifndef RAYNE_STANDALONE
     m_HotReloadTimer += deltaTime;
     if (m_HotReloadTimer >= 0.5f)
@@ -303,15 +306,18 @@ void GameScene::Update(float deltaTime)
 
     m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
 
+    HierarchySystem::UpdateWorldTransforms(m_Registry);
+
     if (!isPaused)
     {
         TimerManager::Get().Update(effectiveDt);
         TweenManager::Get().Update(effectiveDt);
         CheckCollisions();
+        HierarchySystem::UpdateWorldTransforms(m_Registry);
     }
 
     m_Registry.ForEach<TransformComponent, CameraComponent>(
-        [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.x, t.y); } });
+        [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.worldX, t.worldY); } });
 
     UIManager::Get().ClearClickedButton();
 }
@@ -346,8 +352,8 @@ void GameScene::Render(sf::RenderWindow &window)
         if (m_Registry.HasComponent<SpriteComponent>(e))
         {
             auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
-            sc.sprite.setPosition(t.x, t.y);
-            sc.sprite.setRotation(t.rotation);
+            sc.sprite.setPosition(t.worldX, t.worldY);
+            sc.sprite.setRotation(t.worldRotation);
             
             float baseScaleX = 1.f, baseScaleY = 1.f;
             if (sc.texture) {
@@ -357,7 +363,7 @@ void GameScene::Render(sf::RenderWindow &window)
                     baseScaleY = sc.size.y / static_cast<float>(texSize.y);
                 }
             }
-            sc.sprite.setScale(baseScaleX * t.scaleX, baseScaleY * t.scaleY);
+            sc.sprite.setScale(baseScaleX * t.worldScaleX, baseScaleY * t.worldScaleY);
             
             window.draw(sc.sprite);
         } else
@@ -365,9 +371,9 @@ void GameScene::Render(sf::RenderWindow &window)
             if (r.shapeType == ShapeType::Rectangle)
             {
                 sf::RectangleShape shape(r.size);
-                shape.setPosition(t.x, t.y);
-                shape.setRotation(t.rotation);
-                shape.setScale(t.scaleX, t.scaleY);
+                shape.setPosition(t.worldX, t.worldY);
+                shape.setRotation(t.worldRotation);
+                shape.setScale(t.worldScaleX, t.worldScaleY);
                 shape.setFillColor(r.color);
                 window.draw(shape);
             } else
@@ -389,15 +395,15 @@ void GameScene::Render(sf::RenderWindow &window)
                 if (rx > 0.001f && ry > 0.001f)
                 {
                     circle.setRadius(rx);
-                    circle.setScale(t.scaleX, t.scaleY * (ry / rx));
+                    circle.setScale(t.worldScaleX, t.worldScaleY * (ry / rx));
                 }
                 else
                 {
                     circle.setRadius(r.size.x / 2.f);
-                    circle.setScale(t.scaleX, t.scaleY);
+                    circle.setScale(t.worldScaleX, t.worldScaleY);
                 }
-                circle.setPosition(t.x, t.y);
-                circle.setRotation(t.rotation);
+                circle.setPosition(t.worldX, t.worldY);
+                circle.setRotation(t.worldRotation);
                 circle.setFillColor(r.color);
                 window.draw(circle);
             }

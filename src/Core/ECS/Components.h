@@ -3,7 +3,9 @@
 
 #include <SFML/Graphics/Color.hpp>
 #include <SFML/System/Vector2.hpp>
+#include <vector>
 
+#include "Entity.h"
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Texture.hpp"
 #include "../Resources/ResourceManager.h"
@@ -15,6 +17,19 @@ struct TransformComponent
     float rotation = 0.f;
     float scaleX = 1.f;
     float scaleY = 1.f;
+
+    // Computed world transform
+    float worldX = 0.f;
+    float worldY = 0.f;
+    float worldRotation = 0.f;
+    float worldScaleX = 1.f;
+    float worldScaleY = 1.f;
+};
+
+struct HierarchyComponent
+{
+    Entity parent = NULL_ENTITY;
+    std::vector<Entity> children;
 };
 
 struct VelocityComponent

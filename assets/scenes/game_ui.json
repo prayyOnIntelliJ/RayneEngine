@@ -1,43 +1,6 @@
 {
     "ui_elements": [
         {
-            "color": [
-                74,
-                23,
-                87,
-                255
-            ],
-            "fillTexturePath": "",
-            "height": 103.08270263671875,
-            "id": "ProgressBar_1",
-            "layoutPadding": 10.0,
-            "layoutSpacing": 8.0,
-            "onClickAction": "",
-            "onClickParam": "",
-            "onHoverAction": "",
-            "onHoverParam": "",
-            "opacity": 255.0,
-            "outlineColor": [
-                0,
-                0,
-                0,
-                0
-            ],
-            "outlineThickness": 0.0,
-            "parent": "",
-            "progressMax": 1.0,
-            "progressValue": 0.5,
-            "scriptMethod": "",
-            "scriptPath": "",
-            "texturePath": "",
-            "type": "progressbar",
-            "visible": true,
-            "width": 877.233154296875,
-            "x": 494.58642578125,
-            "y": 169.330810546875,
-            "zIndex": 1
-        },
-        {
             "borderColor": [
                 0,
                 0,
@@ -148,8 +111,8 @@
                 100,
                 255
             ],
-            "onClickAction": "On_Button_3_Clicked",
-            "onClickParam": "Hello from UI!",
+            "onClickAction": "SetCursorVisible",
+            "onClickParam": "true",
             "onHoverAction": "",
             "onHoverParam": "",
             "opacity": 255.0,
@@ -194,8 +157,8 @@
             "type": "button",
             "visible": true,
             "width": 180.0,
-            "x": 821.0761108398438,
-            "y": 319.05908203125,
+            "x": 817.8280029296875,
+            "y": 690.9688720703125,
             "zIndex": 3
         }
     ]

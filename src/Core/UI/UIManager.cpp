@@ -15,7 +15,7 @@ using json = nlohmann::json;
 
 void UIElement::UpdateDrawables()
 {
-    shape.setPosition(position);
+    shape.setPosition(worldPosition);
     shape.setSize(size);
     extraShape.setFillColor(sf::Color::Transparent);
 
@@ -43,7 +43,7 @@ void UIElement::UpdateDrawables()
             if (isChecked && !checkedTexture)
             {
                 extraShape.setSize({size.x * 0.6f, size.y * 0.6f});
-                extraShape.setPosition(position.x + size.x * 0.2f, position.y + size.y * 0.2f);
+                extraShape.setPosition(worldPosition.x + size.x * 0.2f, worldPosition.y + size.y * 0.2f);
                 extraShape.setFillColor(textColor);
             }
         }
@@ -82,7 +82,7 @@ void UIElement::UpdateDrawables()
         float percent = (range > 0) ? (sliderValue - sliderMin) / range : 0.f;
         float knobWidth = size.y * 0.8f;
         extraShape.setSize({knobWidth, size.y * 1.2f});
-        extraShape.setPosition(position.x + percent * size.x - knobWidth / 2.f, position.y - size.y * 0.1f);
+        extraShape.setPosition(worldPosition.x + percent * size.x - knobWidth / 2.f, worldPosition.y - size.y * 0.1f);
         extraShape.setFillColor(normalColor);
         extraShape.setTexture(knobTexture.get());
     }
@@ -95,7 +95,7 @@ void UIElement::UpdateDrawables()
 
         float percent = (progressMax > 0) ? std::clamp(progressValue / progressMax, 0.f, 1.f) : 0.f;
         extraShape.setSize({size.x * percent, size.y});
-        extraShape.setPosition(position);
+        extraShape.setPosition(worldPosition);
         extraShape.setFillColor(normalColor);
         extraShape.setTexture(fillTexture.get());
     }
@@ -130,19 +130,19 @@ void UIElement::UpdateDrawables()
         drawableText.setOutlineThickness(textOutlineThickness);
 
         sf::FloatRect bounds = drawableText.getLocalBounds();
-        float textY = position.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
+        float textY = worldPosition.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
         if (type == UIElementType::Text)
         {
             switch (textVAlign)
             {
                 case TextVAlign::Top:
-                    textY = position.y - bounds.top + textOffset.y;
+                    textY = worldPosition.y - bounds.top + textOffset.y;
                     break;
                 case TextVAlign::Middle:
-                    textY = position.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
+                    textY = worldPosition.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
                     break;
                 case TextVAlign::Bottom:
-                    textY = position.y + size.y - bounds.height - bounds.top + textOffset.y;
+                    textY = worldPosition.y + size.y - bounds.height - bounds.top + textOffset.y;
                     break;
             }
         }
@@ -150,24 +150,24 @@ void UIElement::UpdateDrawables()
 
         if (type == UIElementType::Button || type == UIElementType::Checkbox)
         {
-            textX = position.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
+            textX = worldPosition.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
         }
         else if (type == UIElementType::TextInput)
         {
-            textX = position.x + 5.f + textOffset.x;
+            textX = worldPosition.x + 5.f + textOffset.x;
         }
         else
         {
             switch (textAlign)
             {
                 case TextAlign::Left:
-                    textX = position.x + textOffset.x;
+                    textX = worldPosition.x + textOffset.x;
                     break;
                 case TextAlign::Center:
-                    textX = position.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
+                    textX = worldPosition.x + (size.x - bounds.width) / 2.f - bounds.left + textOffset.x;
                     break;
                 case TextAlign::Right:
-                    textX = position.x + size.x - bounds.width - bounds.left + textOffset.x;
+                    textX = worldPosition.x + size.x - bounds.width - bounds.left + textOffset.x;
                     break;
             }
         }
@@ -197,34 +197,114 @@ void UIManager::Init(std::shared_ptr<sf::Font> defaultFont) { m_DefaultFont = de
 
 void UIManager::ApplyLayouts()
 {
-    for (auto &container : m_Elements)
-    {
-        if (container.type != UIElementType::VerticalBox && container.type != UIElementType::HorizontalBox)
-            continue;
+    auto updateSubtree = [&](auto& self, UIElement* el, sf::Vector2f parentWorldPos) -> void {
+        if (!el) return;
 
-        float currX = container.position.x + container.layoutPadding;
-        float currY = container.position.y + container.layoutPadding;
+        if (el->parent.empty() || GetElement(el->parent) == nullptr) {
+            el->worldPosition = el->position;
+        }
 
-        for (auto &child : m_Elements)
-        {
-            if (child.parent != container.id || child.id == container.id)
-                continue;
+        if (el->type == UIElementType::VerticalBox || el->type == UIElementType::HorizontalBox) {
+            float currX = el->worldPosition.x + el->layoutPadding;
+            float currY = el->worldPosition.y + el->layoutPadding;
 
-            if (container.type == UIElementType::VerticalBox)
-            {
-                child.position.x = currX;
-                child.position.y = currY;
-                currY += child.size.y + container.layoutSpacing;
+            for (auto &child : m_Elements) {
+                if (child.parent == el->id && child.id != el->id) {
+                    child.worldPosition = {currX, currY};
+                    child.position = child.worldPosition - el->worldPosition;
+                    if (el->type == UIElementType::VerticalBox) {
+                        currY += child.size.y + el->layoutSpacing;
+                    } else {
+                        currX += child.size.x + el->layoutSpacing;
+                    }
+                    self(self, &child, child.worldPosition);
+                }
             }
-            else if (container.type == UIElementType::HorizontalBox)
-            {
-                child.position.x = currX;
-                child.position.y = currY;
-                currX += child.size.x + container.layoutSpacing;
+        } else {
+            for (auto &child : m_Elements) {
+                if (child.parent == el->id && child.id != el->id) {
+                    child.worldPosition = el->worldPosition + child.position;
+                    self(self, &child, el->worldPosition);
+                }
             }
-            child.UpdateDrawables();
+        }
+        el->UpdateDrawables();
+    };
+
+    for (auto &el : m_Elements) {
+        if (el.parent.empty() || GetElement(el.parent) == nullptr) {
+            el.worldPosition = el.position;
+            updateSubtree(updateSubtree, &el, {0.f, 0.f});
         }
     }
+}
+
+sf::Vector2f UIManager::GetWorldPosition(const std::string &id)
+{
+    auto* el = GetElement(id);
+    if (!el) return {0.f, 0.f};
+    return el->worldPosition;
+}
+
+void UIManager::SetParent(const std::string &childId, const std::string &parentId, bool keepWorldPos)
+{
+    if (childId.empty() || childId == parentId) return;
+    auto* child = GetElement(childId);
+    if (!child) return;
+    if (child->parent == parentId) return;
+
+    if (!parentId.empty() && IsDescendantOf(parentId, childId)) {
+        std::cerr << "[WARN] [UIManager] Cannot parent element to its own descendant!\n";
+        return;
+    }
+
+    if (keepWorldPos) {
+        sf::Vector2f curWorld = child->worldPosition;
+        if (parentId.empty()) {
+            child->position = curWorld;
+            child->parent = "";
+        } else {
+            auto* parentEl = GetElement(parentId);
+            if (parentEl) {
+                child->position = curWorld - parentEl->worldPosition;
+                child->parent = parentId;
+            }
+        }
+    } else {
+        child->parent = parentId;
+    }
+
+    m_SortDirty = true;
+    ApplyLayouts();
+}
+
+std::string UIManager::GetParent(const std::string &id)
+{
+    auto* el = GetElement(id);
+    return el ? el->parent : "";
+}
+
+std::vector<std::string> UIManager::GetChildren(const std::string &parentId)
+{
+    std::vector<std::string> children;
+    for (const auto &el : m_Elements) {
+        if (el.parent == parentId && el.id != parentId) {
+            children.push_back(el.id);
+        }
+    }
+    return children;
+}
+
+bool UIManager::IsDescendantOf(const std::string &childId, const std::string &ancestorId)
+{
+    if (childId.empty() || ancestorId.empty()) return false;
+    if (childId == ancestorId) return true;
+    auto* cur = GetElement(childId);
+    while (cur && !cur->parent.empty()) {
+        if (cur->parent == ancestorId) return true;
+        cur = GetElement(cur->parent);
+    }
+    return false;
 }
 
 void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool mouseReleased)
@@ -1220,17 +1300,33 @@ bool UIManager::IsButtonHovered(const std::string &id)
 
 void UIManager::RebuildSortedCaches()
 {
+    auto isDescendant = [this](const UIElement *child, const UIElement *ancestor) -> bool {
+        const UIElement *cur = child;
+        while (cur && !cur->parent.empty()) {
+            if (cur->parent == ancestor->id) return true;
+            cur = GetElement(cur->parent);
+        }
+        return false;
+    };
+
     m_SortedUpdateOrder.clear();
     m_SortedUpdateOrder.reserve(m_Elements.size());
     for (auto &el: m_Elements) m_SortedUpdateOrder.push_back(&el);
-    std::stable_sort(m_SortedUpdateOrder.begin(), m_SortedUpdateOrder.end(), [](const UIElement *a, const UIElement *b) {
-        return a->zIndex > b->zIndex;
+    std::stable_sort(m_SortedUpdateOrder.begin(), m_SortedUpdateOrder.end(), [&](const UIElement *a, const UIElement *b) {
+        if (a->zIndex != b->zIndex) return a->zIndex > b->zIndex;
+        if (isDescendant(a, b)) return true;
+        if (isDescendant(b, a)) return false;
+        return false;
     });
+
     m_SortedRenderOrder.clear();
     m_SortedRenderOrder.reserve(m_Elements.size());
     for (const auto &el: m_Elements) m_SortedRenderOrder.push_back(&el);
-    std::stable_sort(m_SortedRenderOrder.begin(), m_SortedRenderOrder.end(), [](const UIElement *a, const UIElement *b) {
-        return a->zIndex < b->zIndex;
+    std::stable_sort(m_SortedRenderOrder.begin(), m_SortedRenderOrder.end(), [&](const UIElement *a, const UIElement *b) {
+        if (a->zIndex != b->zIndex) return a->zIndex < b->zIndex;
+        if (isDescendant(a, b)) return false;
+        if (isDescendant(b, a)) return true;
+        return false;
     });
     m_SortDirty = false;
 }
