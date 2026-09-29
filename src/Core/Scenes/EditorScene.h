@@ -404,6 +404,8 @@ private:
 
     void LoadSettings();
 
+    void OpenScriptInIDE(const std::string &scriptPath);
+
     nlohmann::json m_PlayModeSnapshot;
     Entity m_SnapshotEntityCounter = 1;
     void SnapshotState();

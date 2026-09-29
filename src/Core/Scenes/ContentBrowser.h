@@ -89,6 +89,7 @@ public:
     std::string GetSelectedPath() const { return m_SelectedPath; }
 
     std::function<void(const std::string &)> onSceneLoadRequest;
+    std::function<void(const std::string &)> onScriptOpenRequest;
 
     void RenderDragGhost(sf::RenderWindow &window);
 

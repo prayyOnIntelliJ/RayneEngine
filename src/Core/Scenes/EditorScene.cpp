@@ -238,6 +238,9 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
         this->SaveSettings();
         std::cout << "[INFO] [EditorScene] Loaded scene from browser. Set active path to: " << relPath << "\n";
     };
+    m_ContentBrowser->onScriptOpenRequest = [this](const std::string &path) {
+        this->OpenScriptInIDE(path);
+    };
 
     m_camera = window.getDefaultView();
 
@@ -3609,13 +3612,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             SyncToRegistry();
         } else if (btn.action == "open_script" && m_Selected && !m_Selected->scriptPath.empty())
         {
-#ifdef _WIN32
-            ShellExecuteA(nullptr, "open", m_Selected->scriptPath.c_str(), nullptr, nullptr, SW_SHOW);
-#elif __APPLE__
-            system(("open \"" + m_Selected->scriptPath + "\"").c_str());
-#else
-            system(("xdg-open \"" + m_Selected->scriptPath + "\"").c_str());
-#endif
+            OpenScriptInIDE(m_Selected->scriptPath);
         } else if (btn.action == "remove_sprite" && m_Selected)
         {
             m_Selected->spritePath.clear();
@@ -3630,6 +3627,43 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
         }
         break;
+    }
+}
+
+void EditorScene::OpenScriptInIDE(const std::string &scriptPath)
+{
+    if (scriptPath.empty()) return;
+
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path assetsPath = std::filesystem::absolute(rootDir / "assets");
+
+    std::string resolved = ResourceManager::ResolveAssetPath(scriptPath);
+    std::filesystem::path absScript = std::filesystem::absolute(resolved.empty() ? scriptPath : resolved);
+
+    std::string ide = m_PreferredIDE;
+    if (ide.empty() || !IsExecutableInPath(ide))
+    {
+        if (IsExecutableInPath("code")) ide = "code";
+        else if (IsExecutableInPath("rider")) ide = "rider";
+        else if (IsExecutableInPath("clion")) ide = "clion";
+        else ide = "";
+    }
+
+    if (!ide.empty())
+    {
+        std::string cmd = ide + " \"" + assetsPath.string() + "\" \"" + absScript.string() + "\"";
+        LaunchProcessDetached(cmd);
+        std::cout << "[INFO] [EditorScene] Opening script with " << ide << ": " << absScript.string() << " in " << assetsPath.string() << "\n";
+    }
+    else
+    {
+#ifdef _WIN32
+        ShellExecuteA(nullptr, "open", absScript.string().c_str(), nullptr, nullptr, SW_SHOW);
+#elif __APPLE__
+        system(("open \"" + absScript.string() + "\"").c_str());
+#else
+        system(("xdg-open \"" + absScript.string() + "\"").c_str());
+#endif
     }
 }
 
