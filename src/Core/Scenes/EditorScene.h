@@ -419,6 +419,7 @@ private:
     EditorObject *ObjectById(const std::string& id);
 
     void DrawGrid();
+    void DrawWorldAxes(sf::RenderWindow &window);
 
     void DrawGizmos(sf::RenderWindow &window);
 

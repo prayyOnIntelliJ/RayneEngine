@@ -1807,6 +1807,7 @@ void EditorScene::Render(sf::RenderWindow &window)
 {
     window.setView(m_camera);
     DrawGrid();
+    DrawWorldAxes(window);
 
     std::vector<EditorObject*> sortedObjects;
     sortedObjects.reserve(m_Objects.size());
@@ -4360,6 +4361,49 @@ void EditorScene::DrawGrid()
     }
 
     m_Window.draw(lines);
+}
+
+void EditorScene::DrawWorldAxes(sf::RenderWindow &window)
+{
+    const sf::Vector2f center = m_camera.getCenter();
+    const sf::Vector2f camSize = m_camera.getSize();
+
+    const float left = center.x - camSize.x * 0.5f - 200.f;
+    const float right = center.x + camSize.x * 0.5f + 200.f;
+    const float top = center.y - camSize.y * 0.5f - 200.f;
+    const float bottom = center.y + camSize.y * 0.5f + 200.f;
+
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i oneScreen{1, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wOne  = m_Window.mapPixelToCoords(oneScreen,  m_camera);
+    const float pixelWidth = std::max(1.f, std::abs(wOne.x - wZero.x));
+
+    const float axisThickness = std::max(1.5f, pixelWidth * 1.5f);
+
+    // X-Axis (Red): along y = 0
+    sf::RectangleShape xAxis({right - left, axisThickness});
+    xAxis.setOrigin(0.f, axisThickness * 0.5f);
+    xAxis.setPosition(left, 0.f);
+    xAxis.setFillColor(sf::Color(220, 60, 60, 200));
+    window.draw(xAxis);
+
+    // Y-Axis (Green): along x = 0
+    sf::RectangleShape yAxis({axisThickness, bottom - top});
+    yAxis.setOrigin(axisThickness * 0.5f, 0.f);
+    yAxis.setPosition(0.f, top);
+    yAxis.setFillColor(sf::Color(60, 200, 60, 200));
+    window.draw(yAxis);
+
+    // World origin marker at (0, 0)
+    const float markerRadius = std::max(3.f, pixelWidth * 3.5f);
+    sf::CircleShape originMarker(markerRadius);
+    originMarker.setOrigin(markerRadius, markerRadius);
+    originMarker.setPosition(0.f, 0.f);
+    originMarker.setFillColor(sf::Color(255, 255, 255, 230));
+    originMarker.setOutlineColor(sf::Color(30, 30, 30, 220));
+    originMarker.setOutlineThickness(std::max(1.f, pixelWidth * 0.8f));
+    window.draw(originMarker);
 }
 
 static sf::Vector2f RotatePoint(sf::Vector2f point, sf::Vector2f center, float angleDegrees)
