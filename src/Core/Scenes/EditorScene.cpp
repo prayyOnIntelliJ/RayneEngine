@@ -1768,6 +1768,35 @@ void EditorScene::Update(float deltaTime)
         m_ShowAutoSavePopup = false;
         m_AutoSaveTimer = 0.f;
     }
+
+    m_Registry.ForEach<ScriptComponent>([this](Entity entity, ScriptComponent &sc) {
+        if (sc.ReloadIfNeeded())
+        {
+            auto freshProps = sc.GetExportedProperties();
+            for (auto &obj : m_Objects)
+            {
+                if (obj.entity == entity)
+                {
+                    obj.scriptProperties.clear();
+                    for (const auto& prop : freshProps)
+                    {
+                        obj.scriptProperties[prop.name] = prop;
+                    }
+
+                    if (m_Selected && m_Selected->entity == entity)
+                    {
+                        if (m_ActiveField == EditField::ScriptProperty)
+                        {
+                            m_ActiveField = EditField::None;
+                            m_ActiveInputText.clear();
+                        }
+                    }
+                    std::cout << "[INFO] [EditorScene] Refreshed exported script variables for Entity " << obj.id << "\n";
+                    break;
+                }
+            }
+        }
+    });
 }
 
 void EditorScene::Render(sf::RenderWindow &window)
@@ -2886,11 +2915,28 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
     {
         auto &sc = m_Registry.GetComponent<ScriptComponent>(m_Selected->entity);
-        for (const auto& prop : sc.GetExportedProperties())
+        if (sc.ReloadIfNeeded())
         {
-            if (m_Selected->scriptProperties.find(prop.name) == m_Selected->scriptProperties.end())
+            auto freshProps = sc.GetExportedProperties();
+            m_Selected->scriptProperties.clear();
+            for (const auto& prop : freshProps)
             {
                 m_Selected->scriptProperties[prop.name] = prop;
+            }
+            if (m_ActiveField == EditField::ScriptProperty)
+            {
+                m_ActiveField = EditField::None;
+                m_ActiveInputText.clear();
+            }
+        }
+        else
+        {
+            for (const auto& prop : sc.GetExportedProperties())
+            {
+                if (m_Selected->scriptProperties.find(prop.name) == m_Selected->scriptProperties.end())
+                {
+                    m_Selected->scriptProperties[prop.name] = prop;
+                }
             }
         }
 
@@ -3536,6 +3582,7 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_Registry.RemoveComponent<ScriptComponent>(m_Selected->entity);
             m_Selected->scriptPath = "";
+            m_Selected->scriptProperties.clear();
             std::cout << "[INFO] [Inspector] ScriptComponent removed from " << m_Selected->id << "\n";
         } else if (btn.action == "edit_name" && m_Selected)
         {

@@ -37,12 +37,14 @@ public:
     std::vector<Property> GetExportedProperties();
     void SetExportedProperty(const Property& prop);
 
-    void Reload();
-    void ReloadIfNeeded();
+    bool Reload();
+    bool ReloadIfNeeded();
 
 private:
     std::string m_Path;
     std::filesystem::file_time_type m_LastWriteTime;
+    std::filesystem::file_time_type m_LastAttemptedWriteTime;
+    Entity m_Entity = 0;
 
     sol::environment m_Env;
     sol::state *m_Lua;

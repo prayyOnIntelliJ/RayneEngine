@@ -6,13 +6,20 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
 {
     m_Env = sol::environment(*m_Lua, sol::create, m_Lua->globals());
     Reload();
+    std::error_code ec;
+    if (std::filesystem::exists(m_Path, ec))
+    {
+        m_LastWriteTime = std::filesystem::last_write_time(m_Path, ec);
+        m_LastAttemptedWriteTime = m_LastWriteTime;
+    }
 }
 
-void ScriptComponent::Reload()
+bool ScriptComponent::Reload()
 {
-    if (std::filesystem::exists(m_Path))
+    std::error_code ec;
+    if (!std::filesystem::exists(m_Path, ec))
     {
-        m_LastWriteTime = std::filesystem::last_write_time(m_Path);
+        return false;
     }
 
     sol::load_result loadResult = m_Lua->load_file(m_Path);
@@ -21,11 +28,17 @@ void ScriptComponent::Reload()
     {
         sol::error err = loadResult;
         std::cerr << "[ERROR] [Script] Failed to load Lua script (" << m_Path << "): " << err.what() << std::endl;
-        return;
+        return false;
+    }
+
+    sol::environment newEnv(*m_Lua, sol::create, m_Lua->globals());
+    if (m_Entity != 0)
+    {
+        newEnv["self"] = m_Entity;
     }
 
     sol::protected_function scriptFunc = loadResult;
-    sol::set_environment(m_Env, scriptFunc);
+    sol::set_environment(newEnv, scriptFunc);
 
     sol::protected_function_result execResult = scriptFunc();
 
@@ -33,8 +46,12 @@ void ScriptComponent::Reload()
     {
         sol::error err = execResult;
         std::cerr << "[ERROR] [Script] Execution error in Lua script (" << m_Path << "): " << err.what() << std::endl;
-        return;
+        return false;
     }
+
+    m_LastWriteTime = std::filesystem::last_write_time(m_Path, ec);
+    m_LastAttemptedWriteTime = m_LastWriteTime;
+    m_Env = newEnv;
 
     std::cout << "[INFO] [Script] Successfully compiled and attached script: " << m_Path << "\n";
 
@@ -42,18 +59,24 @@ void ScriptComponent::Reload()
     m_OnUpdate = m_Env["OnUpdate"];
     m_OnCollision = m_Env["OnCollision"];
     m_OnButtonClicked = m_Env["OnButtonClicked"];
+    return true;
 }
 
-void ScriptComponent::ReloadIfNeeded()
+bool ScriptComponent::ReloadIfNeeded()
 {
-    if (!std::filesystem::exists(m_Path)) return;
+    std::error_code ec;
+    if (m_Path.empty() || !std::filesystem::exists(m_Path, ec)) return false;
     
-    auto currentWriteTime = std::filesystem::last_write_time(m_Path);
-    if (currentWriteTime > m_LastWriteTime)
+    auto currentWriteTime = std::filesystem::last_write_time(m_Path, ec);
+    if (ec) return false;
+
+    if (currentWriteTime > m_LastAttemptedWriteTime)
     {
+        m_LastAttemptedWriteTime = currentWriteTime;
         std::cout << "[INFO] [Script] Hot-reloading script: " << m_Path << "\n";
-        Reload();
+        return Reload();
     }
+    return false;
 }
 
 void ScriptComponent::OnCreate() const { if (m_OnCreate.valid()) m_OnCreate(m_Env["self"].get_or(0)); }
@@ -94,7 +117,11 @@ void ScriptComponent::OnButtonClicked(const std::string &buttonId) const
     }
 }
 
-void ScriptComponent::SetEntity(Entity e) { m_Env["self"] = e; }
+void ScriptComponent::SetEntity(Entity e)
+{
+    m_Entity = e;
+    m_Env["self"] = e;
+}
 
 std::vector<ScriptComponent::Property> ScriptComponent::GetExportedProperties()
 {
