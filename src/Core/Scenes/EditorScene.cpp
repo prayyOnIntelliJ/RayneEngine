@@ -4490,7 +4490,7 @@ void EditorScene::LoadFromJson(const std::string &path)
             std::string tp = j["template"].get<std::string>();
             std::filesystem::path p(tp);
             if (!p.is_absolute()) {
-                tp = (std::filesystem::path(ASSET_PATH) / p).string();
+                tp = (FindProjectRoot() / p).string();
             }
             obj.templatePath = tp;
         }
@@ -4647,7 +4647,7 @@ void EditorScene::SnapshotState()
         {
             std::error_code ec;
             std::filesystem::path p(obj.templatePath);
-            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+            std::filesystem::path root = FindProjectRoot();
             std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
             j["template"] = ec ? obj.templatePath : rel;
         }
@@ -4794,7 +4794,7 @@ void EditorScene::RestoreSnapshot()
             std::string tp = j["template"].get<std::string>();
             std::filesystem::path p(tp);
             if (!p.is_absolute()) {
-                tp = (std::filesystem::path(ASSET_PATH) / p).string();
+                tp = (FindProjectRoot() / p).string();
             }
             obj.templatePath = tp;
         }
@@ -6272,7 +6272,7 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     if (!obj.templatePath.empty()) {
         std::error_code ec;
         std::filesystem::path p(obj.templatePath);
-        std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
+        std::filesystem::path root = FindProjectRoot();
         std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
         j["template"] = ec ? obj.templatePath : rel;
     }
@@ -6385,7 +6385,7 @@ void EditorScene::DeserializeObject(const json& j) {
         std::string tp = j["template"].get<std::string>();
         std::filesystem::path p(tp);
         if (!p.is_absolute()) {
-            tp = (std::filesystem::path(ASSET_PATH) / p).string();
+            tp = (FindProjectRoot() / p).string();
         }
         obj.templatePath = tp;
     }
@@ -7435,7 +7435,8 @@ void EditorScene::SaveAsTemplate(EditorObject *obj, const std::string &name)
         cleanName = cleanName.substr(0, cleanName.size() - 9);
     }
 
-    std::filesystem::path templateDir = std::filesystem::path(ASSET_PATH) / "templates";
+    std::filesystem::path rootDir = m_ContentBrowser ? std::filesystem::path(m_ContentBrowser->GetRootPath()) : (FindProjectRoot() / "assets");
+    std::filesystem::path templateDir = rootDir / "templates";
     std::error_code ec;
     std::filesystem::create_directories(templateDir, ec);
 
@@ -7480,7 +7481,9 @@ void EditorScene::SaveAsTemplate(EditorObject *obj, const std::string &name)
     out << data.dump(4);
     out.close();
 
-    obj->templatePath = targetFile.generic_string();
+    // Store relative path from assets root if possible
+    std::string relPath = std::filesystem::proximate(targetFile, rootDir, ec).generic_string();
+    obj->templatePath = ec ? targetFile.generic_string() : ("assets/" + relPath);
     if (m_ContentBrowser)
     {
         m_ContentBrowser->Refresh();
@@ -7494,10 +7497,18 @@ void EditorScene::ApplyToTemplate(EditorObject *obj)
 {
     if (!obj || obj->templatePath.empty()) return;
 
+    std::filesystem::path rootDir = m_ContentBrowser ? std::filesystem::path(m_ContentBrowser->GetRootPath()) : (FindProjectRoot() / "assets");
     std::filesystem::path targetFile(obj->templatePath);
     if (!targetFile.is_absolute())
     {
-        targetFile = std::filesystem::path(ASSET_PATH) / targetFile;
+        if (obj->templatePath.rfind("assets/", 0) == 0)
+        {
+            targetFile = rootDir.parent_path() / obj->templatePath;
+        }
+        else
+        {
+            targetFile = rootDir / targetFile;
+        }
     }
 
     std::vector<EditorObject*> hierarchy;
@@ -7548,10 +7559,18 @@ void EditorScene::ApplyToTemplate(EditorObject *obj)
 
 EditorObject* EditorScene::InstantiateTemplateOnCanvas(const std::string &templatePath, sf::Vector2f pos)
 {
+    std::filesystem::path rootDir = m_ContentBrowser ? std::filesystem::path(m_ContentBrowser->GetRootPath()) : (FindProjectRoot() / "assets");
     std::filesystem::path tp(templatePath);
     if (!tp.is_absolute())
     {
-        tp = std::filesystem::path(ASSET_PATH) / tp;
+        if (templatePath.rfind("assets/", 0) == 0)
+        {
+            tp = rootDir.parent_path() / templatePath;
+        }
+        else
+        {
+            tp = rootDir / tp;
+        }
     }
 
     std::ifstream file(tp);
