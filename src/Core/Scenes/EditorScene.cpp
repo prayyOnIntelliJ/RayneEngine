@@ -453,6 +453,8 @@ void EditorScene::HandleMenuAction(const std::string &action)
     } else if (action == "center_camera") { m_camera.setCenter(0.f, 0.f); } else if (action == "run")
     {
         SyncToRegistry();
+        SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
+        std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
         SnapshotState();
         m_manager.SwitchSceneTo("game");
     } else if (action == "reset_scene")
@@ -1697,6 +1699,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (event.key.code == sf::Keyboard::F5)
         {
             SyncToRegistry();
+            SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
+            std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
             SnapshotState();
             m_manager.SwitchSceneTo("game");
         }
