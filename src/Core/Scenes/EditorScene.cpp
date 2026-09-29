@@ -4320,9 +4320,52 @@ EditorObject *EditorScene::ObjectAt(sf::Vector2f pos)
         return a->zIndex > b->zIndex;
     });
 
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i tolScreen{5, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wTol  = m_Window.mapPixelToCoords(tolScreen,  m_camera);
+    const float screenTolWorld = std::abs(wTol.x - wZero.x);
+
     for (auto *obj: sortedObjects)
-        if (obj->shape.getGlobalBounds().contains(pos))
-            return obj;
+    {
+        sf::Transform tr;
+        tr.translate(obj->shape.getPosition());
+        tr.rotate(obj->rotation);
+        tr.scale(obj->scaleX, obj->scaleY);
+
+        sf::Vector2f localPos = tr.getInverse().transformPoint(pos);
+        sf::Vector2f s = obj->shape.getSize();
+
+        float tolX = screenTolWorld / std::max(std::abs(obj->scaleX), 0.05f);
+        float tolY = screenTolWorld / std::max(std::abs(obj->scaleY), 0.05f);
+
+        if (obj->objectType == ObjectType::Circle)
+        {
+            float rx = std::abs(s.x) * 0.5f;
+            float ry = std::abs(s.y) * 0.5f;
+            if (rx > 0.001f && ry > 0.001f)
+            {
+                float effRx = rx + tolX;
+                float effRy = ry + tolY;
+                float dx = localPos.x - rx;
+                float dy = localPos.y - ry;
+                if ((dx * dx) / (effRx * effRx) + (dy * dy) / (effRy * effRy) <= 1.0f)
+                    return obj;
+            }
+        }
+        else
+        {
+            float minX = std::min(0.f, s.x) - tolX;
+            float maxX = std::max(0.f, s.x) + tolX;
+            float minY = std::min(0.f, s.y) - tolY;
+            float maxY = std::max(0.f, s.y) + tolY;
+            if (localPos.x >= minX && localPos.x <= maxX &&
+                localPos.y >= minY && localPos.y <= maxY)
+            {
+                return obj;
+            }
+        }
+    }
     return nullptr;
 }
 
