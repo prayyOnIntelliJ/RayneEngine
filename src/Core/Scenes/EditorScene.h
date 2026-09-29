@@ -282,6 +282,7 @@ private:
     bool m_PanOnMiddleButton = true;
     bool m_InvertPan = false;
     float m_ScrollSensitivity = 20.f;
+    std::string m_PreferredIDE = "code";
 
     bool m_ShowEntityIDs = false;
     bool m_ShowColliderOutlines = false;

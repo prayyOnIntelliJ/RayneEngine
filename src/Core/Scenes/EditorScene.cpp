@@ -81,6 +81,50 @@ static std::filesystem::path FindProjectRoot()
     return cur;
 }
 
+static void LaunchProcessDetached(const std::string &commandLine)
+{
+#ifdef _WIN32
+    STARTUPINFOA si;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(pi));
+
+    std::string fullCmd = "cmd.exe /c " + commandLine;
+    std::vector<char> cmdBuf(fullCmd.begin(), fullCmd.end());
+    cmdBuf.push_back('\0');
+
+    if (CreateProcessA(NULL, cmdBuf.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+    {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+#elif __APPLE__
+    std::string cmd = commandLine + " &";
+    system(cmd.c_str());
+#else
+    std::string cmd = commandLine + " &";
+    system(cmd.c_str());
+#endif
+}
+
+static bool IsExecutableInPath(const std::string &name)
+{
+#ifdef _WIN32
+    char buf[MAX_PATH];
+    if (SearchPathA(NULL, name.c_str(), ".cmd", MAX_PATH, buf, NULL) > 0) return true;
+    if (SearchPathA(NULL, name.c_str(), ".exe", MAX_PATH, buf, NULL) > 0) return true;
+    if (SearchPathA(NULL, name.c_str(), ".bat", MAX_PATH, buf, NULL) > 0) return true;
+    return false;
+#else
+    std::string checkCmd = "which " + name + " >/dev/null 2>&1";
+    return system(checkCmd.c_str()) == 0;
+#endif
+}
+
 #ifdef _WIN32
 static void SetPathReadOnly(const std::filesystem::path& targetPath, bool recursive = true)
 {
@@ -385,13 +429,10 @@ void EditorScene::HandleMenuAction(const std::string &action)
     {
         std::filesystem::path assetsPath = FindProjectRoot() / "assets";
         std::string exeName = action == "open_clion" ? "clion" : (action == "open_rider" ? "rider" : "code");
-#ifdef _WIN32
-        std::string cmd = "start \"\" " + exeName + " \"" + assetsPath.string() + "\"";
-        system(cmd.c_str());
-#else
-        std::string cmd = exeName + " \"" + assetsPath.string() + "\" &";
-        system(cmd.c_str());
-#endif
+        m_PreferredIDE = exeName;
+        SaveSettings();
+        std::string cmd = exeName + " \"" + assetsPath.string() + "\"";
+        LaunchProcessDetached(cmd);
     } else if (action == "quit") { m_Window.close(); } else if (action == "delete")
     {
         DeleteSelected();
@@ -5191,6 +5232,7 @@ void EditorScene::SaveSettings()
         m_SelectionOutlineColor.r, m_SelectionOutlineColor.g, m_SelectionOutlineColor.b
     };
     data["editor"]["selectionOutlineThickness"] = m_SelectionOutlineThickness;
+    data["editor"]["preferredIDE"] = m_PreferredIDE;
 
     data["rendering"]["showFPS"] = m_ShowFPS;
     data["rendering"]["fpsCapIndex"] = m_FPSCapIndex;
@@ -5258,6 +5300,7 @@ void EditorScene::LoadSettings()
             }
             m_SelectionOutlineThickness = data["editor"].
                     value("selectionOutlineThickness", m_SelectionOutlineThickness);
+            m_PreferredIDE = data["editor"].value("preferredIDE", m_PreferredIDE);
         }
 
         if (data.contains("rendering"))
