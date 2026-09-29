@@ -377,6 +377,13 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     sol::table uiTable = s_Lua.create_named_table("UI");
     uiTable["OnButtonClicked"] = sol::nil;
+    uiTable["OnButtonHovered"] = sol::nil;
+    uiTable["OnSliderChanged"] = sol::nil;
+    uiTable["OnCheckboxChanged"] = sol::nil;
+    uiTable["OnTextInputChanged"] = sol::nil;
+    uiTable["OnTextInputSubmitted"] = sol::nil;
+    uiTable["OnUIHover"] = sol::nil;
+    uiTable["OnUIFocus"] = sol::nil;
 
     auto regUI = [&](const std::string &name, auto func) {
         uiTable.set_function(name, func);
@@ -515,6 +522,49 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     
     regUI("GetFocused", [](const std::string &id) -> bool {
         return UIManager::Get().GetFocused(id);
+    });
+
+    regUI("SetTextVAlign", [](const std::string &id, int valign) {
+        UIManager::Get().SetTextVAlign(id, valign);
+    });
+
+    regUI("SetSliderMin", [](const std::string &id, float min) {
+        if (auto *el = UIManager::Get().GetElement(id)) {
+            el->sliderMin = min;
+            el->UpdateDrawables();
+        }
+    });
+
+    regUI("SetSliderMax", [](const std::string &id, float max) {
+        if (auto *el = UIManager::Get().GetElement(id)) {
+            el->sliderMax = max;
+            el->UpdateDrawables();
+        }
+    });
+
+    regUI("GetSliderMin", [](const std::string &id) -> float {
+        auto *el = UIManager::Get().GetElement(id);
+        return el ? el->sliderMin : 0.f;
+    });
+
+    regUI("GetSliderMax", [](const std::string &id) -> float {
+        auto *el = UIManager::Get().GetElement(id);
+        return el ? el->sliderMax : 1.f;
+    });
+
+    regUI("IsHovered", [](const std::string &id) -> bool {
+        auto *el = UIManager::Get().GetElement(id);
+        return el ? el->isHovered : false;
+    });
+
+    regUI("IsPressed", [](const std::string &id) -> bool {
+        auto *el = UIManager::Get().GetElement(id);
+        return el ? el->isPressed : false;
+    });
+
+    regUI("IsDisabled", [](const std::string &id) -> bool {
+        auto *el = UIManager::Get().GetElement(id);
+        return el ? el->disabled : false;
     });
 
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";

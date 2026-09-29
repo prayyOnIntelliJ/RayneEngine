@@ -94,9 +94,47 @@ function OnUpdate(self, dt) end
 ---@param other Entity
 function OnCollision(self, other) end
 
+---Called when an Entity or scene is destroyed / unloaded
+---@param self Entity
+function OnDestroy(self) end
+
 ---Called when a UI button is clicked
 ---@param id string The ID of the clicked button
 function OnButtonClicked(id) end
+
+---Called when the mouse cursor enters / hovers over a UI button
+---@param id string The ID of the hovered button
+function OnButtonHovered(id) end
+
+---Called when a slider's value is changed
+---@param id string The ID of the slider
+---@param value number The new slider value
+function OnSliderChanged(id, value) end
+
+---Called when a checkbox state is toggled
+---@param id string The ID of the checkbox
+---@param checked boolean True if checked, false otherwise
+function OnCheckboxChanged(id, checked) end
+
+---Called when text in a TextInput element is changed
+---@param id string The ID of the TextInput element
+---@param text string The current text content
+function OnTextInputChanged(id, text) end
+
+---Called when the Enter key is pressed in a focused TextInput element
+---@param id string The ID of the TextInput element
+---@param text string The submitted text content
+function OnTextInputSubmitted(id, text) end
+
+---Called when the hover state of any UI element changes
+---@param id string The ID of the UI element
+---@param hovered boolean True if mouse entered, false if mouse left
+function OnUIHover(id, hovered) end
+
+---Called when a UI element gains or loses keyboard/input focus
+---@param id string The ID of the UI element
+---@param focused boolean True if element gained focus, false if lost focus
+function OnUIFocus(id, focused) end
 
 ---Creates a new Entity ID
 ---@return Entity
@@ -543,6 +581,34 @@ UI = {}
 ---@type fun(id: string)|nil
 UI.OnButtonClicked = nil
 
+---Called when a UI button is hovered (can be defined as a callback)
+---@type fun(id: string)|nil
+UI.OnButtonHovered = nil
+
+---Called when a UI slider's value changes (can be defined as a callback)
+---@type fun(id: string, value: number)|nil
+UI.OnSliderChanged = nil
+
+---Called when a UI checkbox is toggled (can be defined as a callback)
+---@type fun(id: string, checked: boolean)|nil
+UI.OnCheckboxChanged = nil
+
+---Called when a UI TextInput's text changes (can be defined as a callback)
+---@type fun(id: string, text: string)|nil
+UI.OnTextInputChanged = nil
+
+---Called when the Enter key is pressed in a UI TextInput (can be defined as a callback)
+---@type fun(id: string, text: string)|nil
+UI.OnTextInputSubmitted = nil
+
+---Called when the hover state of any UI element changes (can be defined as a callback)
+---@type fun(id: string, hovered: boolean)|nil
+UI.OnUIHover = nil
+
+---Called when a UI element gains or loses focus (can be defined as a callback)
+---@type fun(id: string, focused: boolean)|nil
+UI.OnUIFocus = nil
+
 ---Checks whether a UI button with the specified ID was clicked in the current frame.
 ---@param id string The ID of the button configured in the UI Editor.
 ---@return boolean True if the button was clicked, false otherwise.
@@ -734,6 +800,46 @@ function UI.SetFocused(id, focused) end
 ---@param id string The ID of the input element.
 ---@return boolean
 function UI.GetFocused(id) end
+
+---Sets the vertical text alignment of a UI element (0=Top, 1=Middle, 2=Bottom).
+---@param id string The ID of the element.
+---@param valign number 0=Top, 1=Middle, 2=Bottom.
+function UI.SetTextVAlign(id, valign) end
+
+---Sets the minimum value of a slider element.
+---@param id string The ID of the slider.
+---@param min number The minimum value.
+function UI.SetSliderMin(id, min) end
+
+---Sets the maximum value of a slider element.
+---@param id string The ID of the slider.
+---@param max number The maximum value.
+function UI.SetSliderMax(id, max) end
+
+---Gets the minimum value of a slider element.
+---@param id string The ID of the slider.
+---@return number
+function UI.GetSliderMin(id) end
+
+---Gets the maximum value of a slider element.
+---@param id string The ID of the slider.
+---@return number
+function UI.GetSliderMax(id) end
+
+---Gets whether a UI element is currently hovered by the mouse.
+---@param id string The ID of the UI element.
+---@return boolean
+function UI.IsHovered(id) end
+
+---Gets whether an interactive UI element is currently being pressed.
+---@param id string The ID of the UI element.
+---@return boolean
+function UI.IsPressed(id) end
+
+---Gets whether a UI element is disabled.
+---@param id string The ID of the UI element.
+---@return boolean
+function UI.IsDisabled(id) end
 
 ---Checks whether a UI button with the specified ID was clicked in the current frame.
 ---@param id string The ID of the button configured in the UI Editor.
