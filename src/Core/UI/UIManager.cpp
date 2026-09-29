@@ -123,7 +123,7 @@ void UIElement::UpdateDrawables()
         drawableText.setString(displayText);
         drawableText.setCharacterSize(characterSize);
         drawableText.setFillColor(textColor);
-        drawableText.setStyle(textStyle);
+        drawableText.setStyle(textStyle & ~sf::Text::Underlined);
         drawableText.setLetterSpacing(letterSpacing);
         drawableText.setLineSpacing(lineSpacing);
         drawableText.setOutlineColor(textOutlineColor);
@@ -131,6 +131,21 @@ void UIElement::UpdateDrawables()
 
         sf::FloatRect bounds = drawableText.getLocalBounds();
         float textY = position.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
+        if (type == UIElementType::Text)
+        {
+            switch (textVAlign)
+            {
+                case TextVAlign::Top:
+                    textY = position.y - bounds.top + textOffset.y;
+                    break;
+                case TextVAlign::Middle:
+                    textY = position.y + (size.y - bounds.height) / 2.f - bounds.top + textOffset.y;
+                    break;
+                case TextVAlign::Bottom:
+                    textY = position.y + size.y - bounds.height - bounds.top + textOffset.y;
+                    break;
+            }
+        }
         float textX = 0.f;
 
         if (type == UIElementType::Button || type == UIElementType::Checkbox)
@@ -158,6 +173,22 @@ void UIElement::UpdateDrawables()
         }
 
         drawableText.setPosition(textX, textY);
+
+        if ((textStyle & sf::Text::Underlined) != 0 && !displayText.empty())
+        {
+            float lineThickness = std::max(1.5f, std::round(characterSize / 14.f));
+            if ((textStyle & sf::Text::Bold) != 0)
+                lineThickness += 1.0f;
+            float lineY = textY + bounds.top + bounds.height + 2.f;
+            underlineShape.setSize({bounds.width, lineThickness});
+            underlineShape.setPosition(textX + bounds.left, lineY);
+            underlineShape.setFillColor(textColor);
+        }
+        else
+        {
+            underlineShape.setSize({0.f, 0.f});
+            underlineShape.setFillColor(sf::Color::Transparent);
+        }
     }
 }
 
@@ -421,7 +452,13 @@ void UIManager::Render(sf::RenderWindow &window)
         if (el->type == UIElementType::Text || el->type == UIElementType::Button || el->type == UIElementType::Checkbox || el->type == UIElementType::TextInput)
         {
             if (el->font)
+            {
                 window.draw(el->drawableText);
+                if ((el->textStyle & sf::Text::Underlined) != 0 && el->underlineShape.getSize().x > 0.f)
+                {
+                    window.draw(el->underlineShape);
+                }
+            }
         }
     }
 }
@@ -612,6 +649,7 @@ void UIManager::Save(const std::string &path)
             j["textColor"] = {el.textColor.r, el.textColor.g, el.textColor.b, el.textColor.a};
             j["textStyle"] = static_cast<int>(el.textStyle);
             j["textAlign"] = static_cast<int>(el.textAlign);
+            j["textVAlign"] = static_cast<int>(el.textVAlign);
             j["textUpperCase"] = el.textUpperCase;
             j["letterSpacing"] = el.letterSpacing;
             j["lineSpacing"] = el.lineSpacing;
@@ -733,8 +771,9 @@ void UIManager::Load(const std::string &path)
             el.text = j.value("text", "Text");
             if (el.type == UIElementType::TextInput) el.text = j.value("text", "");
             el.characterSize = j.value("characterSize", 16);
-            el.textStyle = static_cast<sf::Text::Style>(j.value("textStyle", 0));
+            el.textStyle = static_cast<sf::Uint32>(j.value("textStyle", 0));
             el.textAlign = static_cast<TextAlign>(j.value("textAlign", 0));
+            el.textVAlign = static_cast<TextVAlign>(j.value("textVAlign", 1));
             el.textUpperCase = j.value("textUpperCase", false);
             el.letterSpacing = j.value("letterSpacing", 1.0f);
             el.lineSpacing = j.value("lineSpacing", 1.0f);
@@ -953,7 +992,7 @@ void UIManager::SetTextStyle(const std::string &id, int style)
 {
     if (auto *el = GetElement(id))
     {
-        el->textStyle = static_cast<sf::Text::Style>(style);
+        el->textStyle = static_cast<sf::Uint32>(style);
         el->UpdateDrawables();
     }
 }
@@ -963,6 +1002,15 @@ void UIManager::SetTextAlign(const std::string &id, int align)
     if (auto *el = GetElement(id))
     {
         el->textAlign = static_cast<TextAlign>(std::clamp(align, 0, 2));
+        el->UpdateDrawables();
+    }
+}
+
+void UIManager::SetTextVAlign(const std::string &id, int valign)
+{
+    if (auto *el = GetElement(id))
+    {
+        el->textVAlign = static_cast<TextVAlign>(std::clamp(valign, 0, 2));
         el->UpdateDrawables();
     }
 }

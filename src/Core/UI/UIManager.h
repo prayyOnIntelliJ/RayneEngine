@@ -9,6 +9,7 @@
 enum class UIElementType { Text, Panel, Button, Image, Checkbox, Slider, TextInput, ProgressBar, VerticalBox, HorizontalBox };
 
 enum class TextAlign { Left, Center, Right };
+enum class TextVAlign { Top, Middle, Bottom };
 
 struct UIElement
 {
@@ -27,8 +28,9 @@ struct UIElement
     unsigned int characterSize = 16;
     sf::Color textColor = sf::Color::White;
 
-    sf::Text::Style textStyle = sf::Text::Regular;
+    sf::Uint32 textStyle = sf::Text::Regular;
     TextAlign textAlign = TextAlign::Left;
+    TextVAlign textVAlign = TextVAlign::Middle;
     bool textUpperCase = false;
     float letterSpacing = 1.0f;
     float lineSpacing = 1.0f;
@@ -81,6 +83,7 @@ struct UIElement
 
     sf::RectangleShape shape;
     sf::RectangleShape extraShape;
+    sf::RectangleShape underlineShape;
     sf::Text drawableText;
     std::shared_ptr<sf::Font> font;
 
@@ -145,6 +148,7 @@ public:
 
     void SetTextStyle(const std::string &id, int style);
     void SetTextAlign(const std::string &id, int align);
+    void SetTextVAlign(const std::string &id, int valign);
 
     void SetUpperCase(const std::string &id, bool upper);
     bool GetUpperCase(const std::string &id);
