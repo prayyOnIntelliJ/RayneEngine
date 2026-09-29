@@ -775,6 +775,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
             sf::Vector2f deltaWorld = mouseWorld - m_ResizeMouseStart;
             sf::Vector2f deltaLocal = RotatePoint(deltaWorld, {0.f, 0.f}, -m_Selected->rotation);
 
+            if (std::abs(m_Selected->scaleX) > 0.001f) deltaLocal.x /= m_Selected->scaleX;
+            if (std::abs(m_Selected->scaleY) > 0.001f) deltaLocal.y /= m_Selected->scaleY;
+
             sf::Vector2f newSize = m_ResizeObjSize;
             sf::Vector2f localPosOffset = {0.f, 0.f};
             const float minSize = 4.f;
@@ -818,7 +821,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 default: break;
             }
 
-            sf::Vector2f worldPosOffset = RotatePoint(localPosOffset, {0.f, 0.f}, m_Selected->rotation);
+            sf::Vector2f scaledOffset = {localPosOffset.x * m_Selected->scaleX, localPosOffset.y * m_Selected->scaleY};
+            sf::Vector2f worldPosOffset = RotatePoint(scaledOffset, {0.f, 0.f}, m_Selected->rotation);
             sf::Vector2f newPos = m_ResizeObjOrigin + worldPosOffset;
 
             m_Selected->shape.setPosition(newPos);
@@ -826,15 +830,22 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
             if (IsPolygonType(m_Selected->objectType))
             {
-                m_Selected->circleShape.setPosition(newPos);
-                m_Selected->circleShape.setRadius(newSize.x / 2.f);
+                float rx = newSize.x * 0.5f;
+                float ry = newSize.y * 0.5f;
+                if (rx > 0.001f && ry > 0.001f)
+                {
+                    m_Selected->circleShape.setPosition(newPos);
+                    m_Selected->circleShape.setRadius(rx);
+                    m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
+                    m_Selected->circleShape.setRotation(m_Selected->rotation);
+                }
             }
 
             if (m_Selected->previewTexture)
             {
                 const sf::Vector2u ts = m_Selected->previewTexture->getSize();
                 if (ts.x > 0 && ts.y > 0)
-                    m_Selected->previewSprite.setScale(newSize.x / ts.x, newSize.y / ts.y);
+                    m_Selected->previewSprite.setScale((newSize.x / ts.x) * m_Selected->scaleX, (newSize.y / ts.y) * m_Selected->scaleY);
             }
         }
 
@@ -1082,7 +1093,12 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         else m_Selected->scaleY = val;
                         m_Selected->shape.setScale(m_Selected->scaleX, m_Selected->scaleY);
                         if (IsPolygonType(m_Selected->objectType))
-                            m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY);
+                        {
+                            float rx = m_Selected->shape.getSize().x * 0.5f;
+                            float ry = m_Selected->shape.getSize().y * 0.5f;
+                            if (rx > 0.001f && ry > 0.001f)
+                                m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
+                        }
                         if (m_Selected->previewTexture)
                         {
                             const sf::Vector2u ts = m_Selected->previewTexture->getSize();
@@ -1104,7 +1120,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         m_Selected->shape.setSize(size);
 
                         if (IsPolygonType(m_Selected->objectType))
-                            m_Selected->circleShape.setRadius(size.x / 2.f);
+                        {
+                            float rx = size.x * 0.5f;
+                            float ry = size.y * 0.5f;
+                            if (rx > 0.001f && ry > 0.001f)
+                            {
+                                m_Selected->circleShape.setRadius(rx);
+                                m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
+                            }
+                        }
 
                         if (m_Selected->previewTexture)
                         {
@@ -1828,13 +1852,22 @@ void EditorScene::Render(sf::RenderWindow &window)
         {
             obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
             obj.circleShape.setPosition(obj.shape.getPosition());
-            obj.circleShape.setRadius(obj.shape.getSize().x / 2.f);
+            float rx = obj.shape.getSize().x * 0.5f;
+            float ry = obj.shape.getSize().y * 0.5f;
+            if (rx > 0.001f && ry > 0.001f)
+            {
+                obj.circleShape.setRadius(rx);
+                obj.circleShape.setScale(obj.scaleX, obj.scaleY * (ry / rx));
+            }
+            obj.circleShape.setRotation(obj.rotation);
             obj.circleShape.setFillColor(obj.color);
             obj.circleShape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color::Transparent);
             obj.circleShape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 0.f);
             window.draw(obj.circleShape);
         } else
         {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
             obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color::Transparent);
             obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 0.f);
             window.draw(obj.shape);
@@ -1844,6 +1877,14 @@ void EditorScene::Render(sf::RenderWindow &window)
         {
             obj.previewSprite.setTexture(*obj.previewTexture);
             obj.previewSprite.setPosition(obj.shape.getPosition());
+            obj.previewSprite.setRotation(obj.rotation);
+            auto texSize = obj.previewTexture->getSize();
+            if (texSize.x > 0 && texSize.y > 0)
+            {
+                obj.previewSprite.setScale(
+                    (obj.shape.getSize().x / static_cast<float>(texSize.x)) * obj.scaleX,
+                    (obj.shape.getSize().y / static_cast<float>(texSize.y)) * obj.scaleY);
+            }
             window.draw(obj.previewSprite);
         }
 
@@ -3957,10 +3998,15 @@ void EditorScene::LoadFromJson(const std::string &path)
         if (IsPolygonType(obj.objectType))
         {
             obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
-            obj.circleShape.setRadius(obj.shape.getSize().x / 2.f);
+            float rx = obj.shape.getSize().x * 0.5f;
+            float ry = obj.shape.getSize().y * 0.5f;
+            if (rx > 0.001f && ry > 0.001f)
+            {
+                obj.circleShape.setRadius(rx);
+                obj.circleShape.setScale(obj.scaleX, obj.scaleY * (ry / rx));
+            }
             obj.circleShape.setPosition(obj.shape.getPosition());
             obj.circleShape.setRotation(obj.rotation);
-            obj.circleShape.setScale(obj.scaleX, obj.scaleY);
             obj.circleShape.setFillColor(obj.color);
         }
 
@@ -4219,10 +4265,15 @@ void EditorScene::RestoreSnapshot()
         if (IsPolygonType(obj.objectType))
         {
             obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
-            obj.circleShape.setRadius(obj.shape.getSize().x / 2.f);
+            float rx = obj.shape.getSize().x * 0.5f;
+            float ry = obj.shape.getSize().y * 0.5f;
+            if (rx > 0.001f && ry > 0.001f)
+            {
+                obj.circleShape.setRadius(rx);
+                obj.circleShape.setScale(obj.scaleX, obj.scaleY * (ry / rx));
+            }
             obj.circleShape.setPosition(obj.shape.getPosition());
             obj.circleShape.setRotation(obj.rotation);
-            obj.circleShape.setScale(obj.scaleX, obj.scaleY);
             obj.circleShape.setFillColor(obj.color);
         }
 
@@ -4471,7 +4522,7 @@ static sf::Vector2f RotatePoint(sf::Vector2f point, sf::Vector2f center, float a
 static sf::Vector2f HandlePos(const EditorObject* obj, int idx)
 {
     sf::Vector2f p = obj->shape.getPosition();
-    sf::Vector2f s = obj->shape.getSize();
+    sf::Vector2f s = {obj->shape.getSize().x * obj->scaleX, obj->shape.getSize().y * obj->scaleY};
     sf::Vector2f c = p + s * 0.5f;
     
     sf::Vector2f u;
@@ -4496,7 +4547,7 @@ int EditorScene::GetResizeHandle(sf::Vector2f worldPos) const
     if (!m_Selected) return -1;
 
     sf::Vector2i zeroScreen{0, 0};
-    sf::Vector2i hitScreen{7, 0};
+    sf::Vector2i hitScreen{8, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
     const sf::Vector2f wHit = m_Window.mapPixelToCoords(hitScreen,  m_camera);
     const float hitRadius = std::abs(wHit.x - wZero.x);
@@ -5632,10 +5683,15 @@ void EditorScene::DeserializeObject(const json& j) {
 
     if (IsPolygonType(obj.objectType)) {
         obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
-        obj.circleShape.setRadius(obj.shape.getSize().x / 2.f);
+        float rx = obj.shape.getSize().x * 0.5f;
+        float ry = obj.shape.getSize().y * 0.5f;
+        if (rx > 0.001f && ry > 0.001f)
+        {
+            obj.circleShape.setRadius(rx);
+            obj.circleShape.setScale(obj.scaleX, obj.scaleY * (ry / rx));
+        }
         obj.circleShape.setPosition(obj.shape.getPosition());
         obj.circleShape.setRotation(obj.rotation);
-        obj.circleShape.setScale(obj.scaleX, obj.scaleY);
         obj.circleShape.setFillColor(obj.color);
     }
 

@@ -318,10 +318,20 @@ void GameScene::Render(sf::RenderWindow &window)
                     case ShapeType::Circle: default: circle.setPointCount(30);
                         break;
                 }
-                circle.setRadius(r.size.x / 2.f);
+                float rx = r.size.x * 0.5f;
+                float ry = r.size.y * 0.5f;
+                if (rx > 0.001f && ry > 0.001f)
+                {
+                    circle.setRadius(rx);
+                    circle.setScale(t.scaleX, t.scaleY * (ry / rx));
+                }
+                else
+                {
+                    circle.setRadius(r.size.x / 2.f);
+                    circle.setScale(t.scaleX, t.scaleY);
+                }
                 circle.setPosition(t.x, t.y);
                 circle.setRotation(t.rotation);
-                circle.setScale(t.scaleX, t.scaleY);
                 circle.setFillColor(r.color);
                 window.draw(circle);
             }
