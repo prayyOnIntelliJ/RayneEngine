@@ -2731,13 +2731,13 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                 : (m_ActiveField == EditField::TransformX
                                        ? "|"
                                        : std::to_string((int) m_Selected->shape.getPosition().x));
-    y = DrawEditableRow(window, "X", txDisplay, "edit_x", panelX, y);
+    y = DrawEditableRow(window, "Position X", txDisplay, "edit_x", panelX, y);
     std::string tyDisplay = (m_ActiveField == EditField::TransformY && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::TransformY
                                        ? "|"
                                        : std::to_string((int) m_Selected->shape.getPosition().y));
-    y = DrawEditableRow(window, "Y", tyDisplay, "edit_y", panelX, y);
+    y = DrawEditableRow(window, "Position Y", tyDisplay, "edit_y", panelX, y);
 
     std::string rotDisplay = (m_ActiveField == EditField::Rotation && !m_ActiveInputText.empty())
                                  ? m_ActiveInputText + "|"
@@ -2769,13 +2769,13 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                : (m_ActiveField == EditField::SizeW
                                       ? "|"
                                       : std::to_string((int) m_Selected->shape.getSize().x));
-    y = DrawEditableRow(window, "W", wDisplay, "edit_w", panelX, y);
+    y = DrawEditableRow(window, "Width", wDisplay, "edit_w", panelX, y);
     std::string hDisplay = (m_ActiveField == EditField::SizeH && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
                                : (m_ActiveField == EditField::SizeH
                                       ? "|"
                                       : std::to_string((int) m_Selected->shape.getSize().y));
-    y = DrawEditableRow(window, "H", hDisplay, "edit_h", panelX, y);
+    y = DrawEditableRow(window, "Height", hDisplay, "edit_h", panelX, y);
 
     y += 4.f;
 
@@ -2813,15 +2813,15 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     std::string rDisplay = (m_ActiveField == EditField::ColorR && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
                                : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(m_Selected->color.r));
-    y = DrawEditableRow(window, "R", rDisplay, "edit_r", panelX, y);
+    y = DrawEditableRow(window, "Color Red", rDisplay, "edit_r", panelX, y);
     std::string gDisplay = (m_ActiveField == EditField::ColorG && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
                                : (m_ActiveField == EditField::ColorG ? "|" : std::to_string(m_Selected->color.g));
-    y = DrawEditableRow(window, "G", gDisplay, "edit_g", panelX, y);
+    y = DrawEditableRow(window, "Color Green", gDisplay, "edit_g", panelX, y);
     std::string bDisplay = (m_ActiveField == EditField::ColorB && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
                                : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_Selected->color.b));
-    y = DrawEditableRow(window, "B", bDisplay, "edit_b", panelX, y);
+    y = DrawEditableRow(window, "Color Blue", bDisplay, "edit_b", panelX, y);
 
     std::string zDisplay = (m_ActiveField == EditField::ZIndex && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
@@ -2917,8 +2917,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(m_Selected->entity);
         y = DrawSectionHeader(window, "VELOCITY", C_TEXT_SECONDARY, panelX, y);
-        y = DrawRow(window, "dX", FormatFloat(vel.dx, 2), panelX, y);
-        y = DrawRow(window, "dY", FormatFloat(vel.dy, 2), panelX, y);
+        y = DrawRow(window, "Velocity X", FormatFloat(vel.dx, 2), panelX, y);
+        y = DrawRow(window, "Velocity Y", FormatFloat(vel.dy, 2), panelX, y);
         y += 4.f;
         y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
@@ -2950,7 +2950,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                       : (m_ActiveField == EditField::CollisionChannel
                                              ? "|"
                                              : std::to_string(col.channel));
-        y = DrawEditableRow(window, "Channel", chanDisplay, "edit_collision_channel", panelX, y);
+        y = DrawEditableRow(window, "Collision Channel", chanDisplay, "edit_collision_channel", panelX, y);
         y += 4.f;
         std::string typeLabel = "Type: " + std::string(col.type == CollisionType::Solid ? "Solid" : "Static");
         y = DrawActionButton(window, typeLabel, "toggle_collision_type", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
@@ -3236,42 +3236,54 @@ static std::string GetInspectorTooltip(const std::string& key)
     if (key == "Tag") return "Category tag for scripts and queries";
     if (key == "Entity") return "Internal ECS entity ID";
     if (key == "Type") return "Geometric shape or sprite type";
-    if (key == "X") return "Horizontal position in world units";
-    if (key == "Y") return "Vertical position in world units";
+    if (key == "Position X" || key == "X") return "Horizontal position in world units";
+    if (key == "Position Y" || key == "Y") return "Vertical position in world units";
     if (key == "Rotation") return "Rotation angle in degrees";
     if (key == "Scale X") return "Scaling factor along X axis";
     if (key == "Scale Y") return "Scaling factor along Y axis";
-    if (key == "W") return "Width of the object in units";
-    if (key == "H") return "Height of the object in units";
-    if (key == "Z-Index") return "Render layer: higher values render in front";
-    if (key == "R") return "Red color component (0-255)";
-    if (key == "G") return "Green color component (0-255)";
-    if (key == "B") return "Blue color component (0-255)";
+    if (key == "Width" || key == "W") return "Width of the object in units";
+    if (key == "Height" || key == "H") return "Height of the object in units";
+    if (key == "Z-Index" || key == "Z") return "Render layer: higher values render in front";
+    if (key == "Color Red" || key == "R") return "Red color component (0-255)";
+    if (key == "Color Green" || key == "G") return "Green color component (0-255)";
+    if (key == "Color Blue" || key == "B") return "Blue color component (0-255)";
     if (key == "File") return "Assigned texture or image file";
     if (key == "Script") return "Attached Lua script";
-    if (key == "Channel") return "Collision channel number";
+    if (key == "Collision Channel" || key == "Channel") return "Collision channel number";
     if (key == "Solid") return "Whether object has solid collision physics";
-    if (key == "Dx") return "Velocity along X axis";
-    if (key == "Dy") return "Velocity along Y axis";
+    if (key == "Velocity X" || key == "dX" || key == "Dx") return "Velocity along X axis";
+    if (key == "Velocity Y" || key == "dY" || key == "Dy") return "Velocity along Y axis";
     return "";
 }
 
 float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
                            const std::string &val, float x, float y)
 {
-    const sf::FloatRect rowRect(x, y, InspectorWidth, 20.f);
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(key);
+
+    const float labelWidth = keyText.getLocalBounds().width;
+    const bool wrapField = (labelWidth + InspectorPad + 12.f > InspectorWidth * 0.48f);
+    const float rowH = wrapField ? 38.f : 20.f;
+
+    const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
     if (rowRect.contains(m_MouseScreenPos))
     {
         std::string tip = GetInspectorTooltip(key);
         if (!tip.empty()) m_ActiveTooltip = tip;
     }
 
-    sf::Text keyText;
-    keyText.setFont(*m_Font);
-    keyText.setCharacterSize(12);
-    keyText.setFillColor(C_TEXT_SECONDARY);
-    keyText.setString(key);
-    keyText.setPosition(x + InspectorPad + 4.f, y + 2.f);
+    if (wrapField)
+    {
+        keyText.setPosition(x + InspectorPad + 4.f, y + 2.f);
+    }
+    else
+    {
+        keyText.setPosition(x + InspectorPad + 4.f, y + 2.f);
+    }
     window.draw(keyText);
 
     sf::Text valText;
@@ -3279,38 +3291,63 @@ float EditorScene::DrawRow(sf::RenderWindow &window, const std::string &key,
     valText.setCharacterSize(12);
     valText.setFillColor(C_TEXT_PRIMARY);
     valText.setString(val);
-    valText.setPosition(x + InspectorWidth * 0.48f, y + 2.f);
+
+    if (wrapField)
+    {
+        valText.setPosition(x + InspectorPad + 4.f, y + 18.f);
+    }
+    else
+    {
+        valText.setPosition(x + InspectorWidth * 0.48f, y + 2.f);
+    }
     window.draw(valText);
 
     sf::RectangleShape line({InspectorWidth - InspectorPad * 2, 1.f});
     line.setFillColor(sf::Color(C_BORDER.r, C_BORDER.g, C_BORDER.b, 80));
-    line.setPosition(x + InspectorPad, y + 18.f);
+    line.setPosition(x + InspectorPad, y + rowH - 2.f);
     window.draw(line);
 
-    return y + 20.f;
+    return y + rowH;
 }
 
 float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &key, const std::string &val,
                                    const std::string &action, float x, float y)
 {
-    const sf::FloatRect rowRect(x, y, InspectorWidth, 22.f);
+    sf::Text keyText;
+    keyText.setFont(*m_Font);
+    keyText.setCharacterSize(12);
+    keyText.setFillColor(C_TEXT_SECONDARY);
+    keyText.setString(key);
+
+    const float labelWidth = keyText.getLocalBounds().width;
+    const bool wrapField = (labelWidth + InspectorPad + 12.f > InspectorWidth * 0.44f);
+    const float rowH = wrapField ? 44.f : 24.f;
+
+    const sf::FloatRect rowRect(x, y, InspectorWidth, rowH);
     if (rowRect.contains(m_MouseScreenPos))
     {
         std::string tip = GetInspectorTooltip(key);
         if (!tip.empty()) m_ActiveTooltip = tip;
     }
 
-    sf::Text keyText;
-    keyText.setFont(*m_Font);
-    keyText.setCharacterSize(12);
-    keyText.setFillColor(C_TEXT_SECONDARY);
-    keyText.setString(key);
-    keyText.setPosition(x + InspectorPad + 4.f, y + 3.f);
+    float valX, valY, valW;
+    if (wrapField)
+    {
+        keyText.setPosition(x + InspectorPad + 4.f, y + 2.f);
+        valX = x + InspectorPad + 4.f;
+        valY = y + 18.f;
+        valW = InspectorWidth - (InspectorPad + 4.f) * 2.f;
+    }
+    else
+    {
+        keyText.setPosition(x + InspectorPad + 4.f, y + 3.f);
+        valX = x + InspectorWidth * 0.44f;
+        valY = y;
+        valW = InspectorWidth - InspectorWidth * 0.44f - InspectorPad;
+    }
     window.draw(keyText);
 
-    const float valX = x + InspectorWidth * 0.44f;
-    const float valW = InspectorWidth - InspectorWidth * 0.44f - InspectorPad;
-    const sf::FloatRect fieldRect(valX, y, valW, 20.f);
+    const sf::FloatRect fieldRect(valX, valY, valW, 20.f);
     const bool hovered = fieldRect.contains(m_MouseScreenPos);
 
     sf::Color fieldFill = hovered ? C_BG_ELEVATED : C_BG_INPUT;
@@ -3335,7 +3372,7 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
             float x1 = t.findCharacterPos(sMin).x;
             float x2 = t.findCharacterPos(sMax).x;
             sf::RectangleShape selBox({x2 - x1, 14.f});
-            selBox.setPosition(valX + 5.f + x1, y + 3.f);
+            selBox.setPosition(valX + 5.f + x1, valY + 3.f);
             selBox.setFillColor(sf::Color(60, 120, 240, 140));
             window.draw(selBox);
         }
@@ -3354,17 +3391,17 @@ float EditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string &
     valText.setCharacterSize(12);
     valText.setFillColor(hovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
     valText.setString(displayVal);
-    valText.setPosition(valX + 5.f, y + 3.f);
+    valText.setPosition(valX + 5.f, valY + 3.f);
     window.draw(valText);
 
     m_InspectorButtons.push_back({fieldRect, action});
 
     sf::RectangleShape line({InspectorWidth - InspectorPad * 2, 1.f});
     line.setFillColor(sf::Color(C_BORDER.r, C_BORDER.g, C_BORDER.b, 60));
-    line.setPosition(x + InspectorPad, y + 21.f);
+    line.setPosition(x + InspectorPad, y + rowH - 1.f);
     window.draw(line);
 
-    return y + 22.f;
+    return y + rowH;
 }
 
 float EditorScene::DrawCheckboxRow(sf::RenderWindow &window, const std::string &key, bool value,
