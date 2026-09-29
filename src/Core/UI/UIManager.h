@@ -58,6 +58,9 @@ struct UIElement
     std::string onClickParam = "";
     std::string onHoverAction = "";
     std::string onHoverParam = "";
+
+    std::string scriptPath = "";
+    std::string scriptMethod = "";
     
     std::string texturePath = "";
     std::string hoverTexturePath = "";

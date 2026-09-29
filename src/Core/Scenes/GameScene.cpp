@@ -56,12 +56,78 @@ void GameScene::OnEnter()
         });
     });
 
+    EventManager::Get().SubscribeButtonHover([this](const std::string &buttonId) {
+        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity, ScriptComponent &sc) {
+            sc.OnButtonHovered(buttonId);
+        });
+    });
+
+    EventManager::Get().SubscribeSliderChange([this](const std::string &sliderId, float val) {
+        m_Registry.ForEach<ScriptComponent>([&sliderId, val](Entity, ScriptComponent &sc) {
+            sc.OnSliderChanged(sliderId, val);
+        });
+    });
+
+    EventManager::Get().SubscribeCheckboxChange([this](const std::string &checkboxId, bool checked) {
+        m_Registry.ForEach<ScriptComponent>([&checkboxId, checked](Entity, ScriptComponent &sc) {
+            sc.OnCheckboxChanged(checkboxId, checked);
+        });
+    });
+
+    EventManager::Get().SubscribeTextInputChange([this](const std::string &inputId, const std::string &text) {
+        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity, ScriptComponent &sc) {
+            sc.OnTextInputChanged(inputId, text);
+        });
+    });
+
+    EventManager::Get().SubscribeTextInputSubmit([this](const std::string &inputId, const std::string &text) {
+        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity, ScriptComponent &sc) {
+            sc.OnTextInputSubmitted(inputId, text);
+        });
+    });
+
+    EventManager::Get().SubscribeUIHover([this](const std::string &id, bool hovered) {
+        m_Registry.ForEach<ScriptComponent>([&id, hovered](Entity, ScriptComponent &sc) {
+            sc.OnUIHover(id, hovered);
+        });
+    });
+
+    EventManager::Get().SubscribeUIFocus([this](const std::string &id, bool focused) {
+        m_Registry.ForEach<ScriptComponent>([&id, focused](Entity, ScriptComponent &sc) {
+            sc.OnUIFocus(id, focused);
+        });
+    });
+
+    // Load any scripts bound to UI elements
+    for (const auto &el : UIManager::Get().GetElements())
+    {
+        if (!el.scriptPath.empty())
+        {
+            std::string resolved = ResourceManager::ResolveAssetPath(el.scriptPath);
+            std::error_code ec;
+            if (std::filesystem::exists(resolved, ec))
+            {
+                auto res = LuaState::GetLua().safe_script_file(resolved);
+                if (!res.valid())
+                {
+                    sol::error err = res;
+                    std::cerr << "[ERROR] [GameScene] Failed to load UI script (" << resolved << "): " << err.what() << "\n";
+                }
+                else
+                {
+                    std::cout << "[INFO] [GameScene] Loaded UI script: " << resolved << "\n";
+                }
+            }
+        }
+    }
+
     std::cout << "[INFO] [GameScene] Firing OnCreate() for all active scripts...\n";
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
 }
 
 void GameScene::OnExit()
 {
+    m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnDestroy(); });
     m_LastCollisions.clear();
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();

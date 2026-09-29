@@ -347,13 +347,34 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             sf::FloatRect bounds(el->position.x, el->position.y, el->size.x, el->size.y);
             bool hovered = !buttonHit && bounds.contains(mousePos);
 
-            if (hovered && !el->isHovered)
+            if (hovered != el->isHovered)
             {
-                executeAction(el->onHoverAction, el->onHoverParam, el->id, "Hover");
-            }
-            
-            el->isHovered = hovered;
+                if (hovered)
+                {
+                    executeAction(el->onHoverAction, el->onHoverParam, el->id, "Hover");
+                }
+                el->isHovered = hovered;
+                EventManager::Get().FireUIHover(el->id, hovered);
+                try {
+                    sol::state &lua = LuaState::GetLua();
+                    if (lua["OnUIHover"].is<sol::protected_function>())
+                        lua["OnUIHover"](el->id, hovered);
+                    sol::object uiObj = lua["UI"];
+                    if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnUIHover"].is<sol::protected_function>())
+                        uiObj.as<sol::table>()["OnUIHover"](el->id, hovered);
 
+                    if (hovered && el->type == UIElementType::Button)
+                    {
+                        EventManager::Get().FireButtonHover(el->id);
+                        if (lua["OnButtonHovered"].is<sol::protected_function>())
+                            lua["OnButtonHovered"](el->id);
+                        if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnButtonHovered"].is<sol::protected_function>())
+                            uiObj.as<sol::table>()["OnButtonHovered"](el->id);
+                    }
+                } catch (...) {}
+            }
+
+            bool wasFocused = el->isFocused;
             if (hovered)
             {
                 buttonHit = true;
@@ -367,11 +388,40 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
                 if (mouseClicked && el->type == UIElementType::TextInput) el->isFocused = false;
             }
 
+            if (el->type == UIElementType::TextInput && wasFocused != el->isFocused)
+            {
+                EventManager::Get().FireUIFocus(el->id, el->isFocused);
+                try {
+                    sol::state &lua = LuaState::GetLua();
+                    if (lua["OnUIFocus"].is<sol::protected_function>())
+                        lua["OnUIFocus"](el->id, el->isFocused);
+                    sol::object uiObj = lua["UI"];
+                    if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnUIFocus"].is<sol::protected_function>())
+                        uiObj.as<sol::table>()["OnUIFocus"](el->id, el->isFocused);
+                } catch (...) {}
+            }
+
             if (el->type == UIElementType::Slider && el->isPressed)
             {
+                float oldVal = el->sliderValue;
                 float relativeX = mousePos.x - el->position.x;
                 float percent = std::clamp(relativeX / el->size.x, 0.f, 1.f);
                 el->sliderValue = el->sliderMin + percent * (el->sliderMax - el->sliderMin);
+                if (std::abs(el->sliderValue - oldVal) > 0.0001f)
+                {
+                    EventManager::Get().FireSliderChange(el->id, el->sliderValue);
+                    executeAction(el->onClickAction, std::to_string(el->sliderValue), el->id, "SliderChange");
+                    try {
+                        sol::state &lua = LuaState::GetLua();
+                        if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
+                            lua[el->scriptMethod](el->sliderValue);
+                        if (lua["OnSliderChanged"].is<sol::protected_function>())
+                            lua["OnSliderChanged"](el->id, el->sliderValue);
+                        sol::object uiObj = lua["UI"];
+                        if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnSliderChanged"].is<sol::protected_function>())
+                            uiObj.as<sol::table>()["OnSliderChanged"](el->id, el->sliderValue);
+                    } catch (...) {}
+                }
             }
 
             if (mouseReleased)
@@ -379,11 +429,29 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
                 if (el->isPressed && el->isHovered)
                 {
                     m_LastClickedButton = el->id;
-                    if (el->type == UIElementType::Checkbox) el->isChecked = !el->isChecked;
+                    if (el->type == UIElementType::Checkbox)
+                    {
+                        el->isChecked = !el->isChecked;
+                        EventManager::Get().FireCheckboxChange(el->id, el->isChecked);
+                        try {
+                            sol::state &lua = LuaState::GetLua();
+                            if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
+                                lua[el->scriptMethod](el->isChecked);
+                            if (lua["OnCheckboxChanged"].is<sol::protected_function>())
+                                lua["OnCheckboxChanged"](el->id, el->isChecked);
+                            sol::object uiObj = lua["UI"];
+                            if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnCheckboxChanged"].is<sol::protected_function>())
+                                uiObj.as<sol::table>()["OnCheckboxChanged"](el->id, el->isChecked);
+                        } catch (...) {}
+                    }
                     executeAction(el->onClickAction, el->onClickParam, el->id, "Click");
                     EventManager::Get().FireButtonClick(el->id);
                     try {
                         sol::state &lua = LuaState::GetLua();
+                        if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
+                            lua[el->scriptMethod]();
+                        if (lua["OnButtonClicked"].is<sol::protected_function>())
+                            lua["OnButtonClicked"](el->id);
                         sol::object uiObj = lua["UI"];
                         if (uiObj.is<sol::table>())
                         {
@@ -408,16 +476,45 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
 
             if (el->type == UIElementType::TextInput && el->isFocused)
             {
+                std::string oldText = el->text;
                 for (sf::Uint32 unicode : textEntered)
                 {
                     if (unicode == '\b')
                     {
                         if (!el->text.empty()) el->text.pop_back();
                     }
+                    else if (unicode == 13 || unicode == '\n' || unicode == '\r')
+                    {
+                        EventManager::Get().FireTextInputSubmit(el->id, el->text);
+                        try {
+                            sol::state &lua = LuaState::GetLua();
+                            if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
+                                lua[el->scriptMethod](el->text);
+                            if (lua["OnTextInputSubmitted"].is<sol::protected_function>())
+                                lua["OnTextInputSubmitted"](el->id, el->text);
+                            sol::object uiObj = lua["UI"];
+                            if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnTextInputSubmitted"].is<sol::protected_function>())
+                                uiObj.as<sol::table>()["OnTextInputSubmitted"](el->id, el->text);
+                        } catch (...) {}
+                    }
                     else if (unicode >= 32 && unicode < 128)
                     {
                         el->text += static_cast<char>(unicode);
                     }
+                }
+                if (el->text != oldText)
+                {
+                    EventManager::Get().FireTextInputChange(el->id, el->text);
+                    try {
+                        sol::state &lua = LuaState::GetLua();
+                        if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
+                            lua[el->scriptMethod](el->text);
+                        if (lua["OnTextInputChanged"].is<sol::protected_function>())
+                            lua["OnTextInputChanged"](el->id, el->text);
+                        sol::object uiObj = lua["UI"];
+                        if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnTextInputChanged"].is<sol::protected_function>())
+                            uiObj.as<sol::table>()["OnTextInputChanged"](el->id, el->text);
+                    } catch (...) {}
                 }
             }
         }
@@ -638,9 +735,13 @@ void UIManager::Save(const std::string &path)
         j["visible"] = el.visible;
         j["outlineColor"] = {el.outlineColor.r, el.outlineColor.g, el.outlineColor.b, el.outlineColor.a};
         j["outlineThickness"] = el.outlineThickness;
-        j["cornerRadius"] = el.cornerRadius;
-
         j["texturePath"] = el.texturePath;
+        j["scriptPath"] = el.scriptPath;
+        j["scriptMethod"] = el.scriptMethod;
+        j["onClickAction"] = el.onClickAction;
+        j["onClickParam"] = el.onClickParam;
+        j["onHoverAction"] = el.onHoverAction;
+        j["onHoverParam"] = el.onHoverParam;
 
         if (el.type == UIElementType::Text || el.type == UIElementType::Button || el.type == UIElementType::Checkbox || el.type == UIElementType::TextInput)
         {
@@ -754,6 +855,12 @@ void UIManager::Load(const std::string &path)
         el.cornerRadius = j.value("cornerRadius", 0.f);
         
         el.texturePath = j.value("texturePath", "");
+        el.scriptPath = j.value("scriptPath", "");
+        el.scriptMethod = j.value("scriptMethod", "");
+        el.onClickAction = j.value("onClickAction", "");
+        el.onClickParam = j.value("onClickParam", "");
+        el.onHoverAction = j.value("onHoverAction", "");
+        el.onHoverParam = j.value("onHoverParam", "");
         if (!el.texturePath.empty()) el.texture = ResourceManager::Get().GetTexture(el.texturePath);
 
         if (j.contains("color"))
