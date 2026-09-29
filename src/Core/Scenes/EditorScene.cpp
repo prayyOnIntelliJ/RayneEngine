@@ -840,15 +840,20 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (m_Rotating && m_Selected)
         {
-            sf::Vector2f center = m_Selected->shape.getPosition() + m_Selected->shape.getSize() * 0.5f;
+            sf::Vector2f pivot = m_Selected->shape.getPosition();
             sf::Vector2f pos = MouseWorldPos();
-            float currentAngle = std::atan2(pos.y - center.y, pos.x - center.x) * 180.f / 3.14159265f;
+            float currentAngle = std::atan2(pos.y - pivot.y, pos.x - pivot.x) * 180.f / 3.14159265f;
             
-            float newRotation = m_RotateObjAngleStart + (currentAngle - m_RotateMouseAngleStart);
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift))
-            {
-                newRotation = std::round(newRotation / 15.f) * 15.f;
-            }
+            float stepDelta = currentAngle - m_RotateMouseAngleStart;
+            while (stepDelta > 180.f) stepDelta -= 360.f;
+            while (stepDelta < -180.f) stepDelta += 360.f;
+
+            m_RotateMouseAngleStart = currentAngle;
+            m_RotateObjAngleStart += stepDelta;
+
+            float newRotation = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)
+                ? (std::round(m_RotateObjAngleStart / 15.f) * 15.f)
+                : m_RotateObjAngleStart;
 
             m_Selected->rotation = newRotation;
             m_Selected->shape.setRotation(newRotation);
@@ -1575,8 +1580,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_Rotating = true;
                 m_DragBeforeStates.clear();
                 m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
-                sf::Vector2f center = m_Selected->shape.getPosition() + m_Selected->shape.getSize() * 0.5f;
-                m_RotateMouseAngleStart = std::atan2(pos.y - center.y, pos.x - center.x) * 180.f / 3.14159265f;
+                sf::Vector2f pivot = m_Selected->shape.getPosition();
+                m_RotateMouseAngleStart = std::atan2(pos.y - pivot.y, pos.x - pivot.x) * 180.f / 3.14159265f;
                 m_RotateObjAngleStart = m_Selected->rotation;
                 return;
             }
@@ -4512,6 +4517,24 @@ void EditorScene::DrawResizeHandles(sf::RenderWindow &window)
     DrawGizmos(window);
 }
 
+sf::Vector2f EditorScene::GetRotateHandlePos(const EditorObject* obj) const
+{
+    if (!obj) return {0.f, 0.f};
+
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i fortyScreen{0, 36};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wForty = m_Window.mapPixelToCoords(fortyScreen, m_camera);
+    const float rotOffset = std::abs(wForty.y - wZero.y);
+
+    sf::Vector2f p = obj->shape.getPosition();
+    sf::Vector2f s = {obj->shape.getSize().x * obj->scaleX, obj->shape.getSize().y * obj->scaleY};
+    sf::Vector2f unrotatedTopMid = {p.x + s.x * 0.5f, p.y};
+
+    sf::Vector2f unrotatedRotateHandle = {unrotatedTopMid.x, unrotatedTopMid.y - rotOffset};
+    return RotatePoint(unrotatedRotateHandle, p, obj->rotation);
+}
+
 void EditorScene::DrawGizmos(sf::RenderWindow &window)
 {
     if (!m_Selected) return;
@@ -4522,19 +4545,11 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     const sf::Vector2f wHandle = m_Window.mapPixelToCoords(handleScreen, m_camera);
     const float hw = std::abs(wHandle.x - wZero.x);
 
-    sf::Vector2i fortyScreen{0, 40};
-    const sf::Vector2f wForty = m_Window.mapPixelToCoords(fortyScreen, m_camera);
-    const float rotOffset = std::abs(wForty.y - wZero.y);
-
     sf::Vector2f p = m_Selected->shape.getPosition();
-    sf::Vector2f s = m_Selected->shape.getSize();
-    sf::Vector2f center = p + s * 0.5f;
-    sf::Vector2f unrotatedTopMid = {center.x, p.y};
-
-    sf::Vector2f unrotatedRotateHandle = {unrotatedTopMid.x, unrotatedTopMid.y - rotOffset};
-    m_RotateHandlePos = RotatePoint(unrotatedRotateHandle, p, m_Selected->rotation);
-    
+    sf::Vector2f s = {m_Selected->shape.getSize().x * m_Selected->scaleX, m_Selected->shape.getSize().y * m_Selected->scaleY};
+    sf::Vector2f unrotatedTopMid = {p.x + s.x * 0.5f, p.y};
     sf::Vector2f topMid = RotatePoint(unrotatedTopMid, p, m_Selected->rotation);
+    m_RotateHandlePos = GetRotateHandlePos(m_Selected);
 
     static const sf::Color C_SCALE_FILL  = sf::Color(80, 165, 255, 240);
     static const sf::Color C_SCALE_EDGE  = sf::Color(120, 195, 255, 240);
@@ -4588,13 +4603,14 @@ bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
     if (!m_Selected) return false;
 
     sf::Vector2i zeroScreen{0, 0};
-    sf::Vector2i tenScreen{14, 0};
+    sf::Vector2i hitScreen{16, 0};
     const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
-    const sf::Vector2f wTen  = m_Window.mapPixelToCoords(tenScreen,  m_camera);
-    const float hitRadius = std::abs(wTen.x - wZero.x);
+    const sf::Vector2f wHit  = m_Window.mapPixelToCoords(hitScreen,  m_camera);
+    const float hitRadius = std::abs(wHit.x - wZero.x);
 
-    const float dx = worldPos.x - m_RotateHandlePos.x;
-    const float dy = worldPos.y - m_RotateHandlePos.y;
+    sf::Vector2f rotHandlePos = GetRotateHandlePos(m_Selected);
+    const float dx = worldPos.x - rotHandlePos.x;
+    const float dy = worldPos.y - rotHandlePos.y;
     return std::sqrt(dx * dx + dy * dy) <= hitRadius;
 }
 

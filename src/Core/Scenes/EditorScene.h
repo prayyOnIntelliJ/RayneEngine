@@ -427,6 +427,7 @@ private:
 
     int GetResizeHandle(sf::Vector2f worldPos) const;
 
+    sf::Vector2f GetRotateHandlePos(const EditorObject* obj) const;
     bool GetRotateHandle(sf::Vector2f worldPos) const;
 
     void UpdateStatusText();
