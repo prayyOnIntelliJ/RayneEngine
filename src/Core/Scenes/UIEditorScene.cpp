@@ -1,10 +1,12 @@
 #include "UIEditorScene.h"
 #include <iostream>
+#include <fstream>
 #include <algorithm>
 #include <filesystem>
 #include <chrono>
 #include "../Resources/ResourceManager.h"
 #include "../Application/Application.h"
+#include <nlohmann/json.hpp>
 #include <SFML/Window/Event.hpp>
 #include <SFML/Window/Clipboard.hpp>
 
@@ -17,8 +19,10 @@
 #endif
 #include <windows.h>
 #include <commdlg.h>
+#include <shellapi.h>
 #undef CreateWindow
 #pragma comment(lib, "comdlg32.lib")
+#pragma comment(lib, "shell32.lib")
 
 static std::string OpenImageFileDialog(HWND hwnd)
 {
@@ -70,6 +74,110 @@ static bool OpenColorPickerDialog(sf::Color &ioColor, HWND hwnd = nullptr)
     return false;
 }
 #endif
+
+static std::filesystem::path GetAppDir()
+{
+#ifdef _WIN32
+    char pathBuf[MAX_PATH];
+    if (GetModuleFileNameA(NULL, pathBuf, MAX_PATH)) {
+        return std::filesystem::path(pathBuf).parent_path();
+    }
+#endif
+    return std::filesystem::current_path();
+}
+
+static std::filesystem::path FindProjectRoot()
+{
+    std::error_code ec;
+    std::filesystem::path cur = std::filesystem::current_path(ec);
+    std::filesystem::path appDir = GetAppDir();
+
+    if (std::filesystem::exists(cur / "CMakeLists.txt") && std::filesystem::exists(cur / "assets")) return cur;
+    if (std::filesystem::exists(cur.parent_path() / "CMakeLists.txt") && std::filesystem::exists(cur.parent_path() / "assets")) return cur.parent_path();
+    
+    if (std::filesystem::exists(appDir / "CMakeLists.txt") && std::filesystem::exists(appDir / "assets")) return appDir;
+    if (std::filesystem::exists(appDir.parent_path() / "CMakeLists.txt") && std::filesystem::exists(appDir.parent_path() / "assets")) return appDir.parent_path();
+
+    if (!ec && std::filesystem::exists(cur / "assets")) return cur;
+    if (std::filesystem::exists(appDir / "assets")) return appDir;
+
+    return cur;
+}
+
+#ifdef _WIN32
+static std::string OpenScriptFileDialog(HWND hwnd)
+{
+    char filename[MAX_PATH] = "";
+    OPENFILENAMEA ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFilter = "Lua Scripts (*.lua)\0*.lua\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path assetsDir = rootDir / "assets";
+    std::string initDir = std::filesystem::exists(assetsDir) ? assetsDir.string() : rootDir.string();
+    ofn.lpstrInitialDir = initDir.c_str();
+
+    if (GetOpenFileNameA(&ofn))
+    {
+        std::error_code ec;
+        std::filesystem::path fullPath(filename);
+        std::string relPath = std::filesystem::relative(fullPath, rootDir, ec).generic_string();
+        if (ec || relPath.empty())
+            relPath = fullPath.generic_string();
+        return relPath;
+    }
+    return "";
+}
+#endif
+
+static void LaunchProcessDetached(const std::string &commandLine)
+{
+#ifdef _WIN32
+    STARTUPINFOA si;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(pi));
+
+    std::string fullCmd = "cmd.exe /c " + commandLine;
+    std::vector<char> cmdBuf(fullCmd.begin(), fullCmd.end());
+    cmdBuf.push_back('\0');
+
+    if (CreateProcessA(NULL, cmdBuf.data(), NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi))
+    {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+#elif __APPLE__
+    std::string cmd = commandLine + " &";
+    system(cmd.c_str());
+#else
+    std::string cmd = commandLine + " &";
+    system(cmd.c_str());
+#endif
+}
+
+static bool IsExecutableInPath(const std::string &name)
+{
+#ifdef _WIN32
+    char buf[MAX_PATH];
+    if (SearchPathA(NULL, name.c_str(), ".cmd", MAX_PATH, buf, NULL) > 0) return true;
+    if (SearchPathA(NULL, name.c_str(), ".exe", MAX_PATH, buf, NULL) > 0) return true;
+    if (SearchPathA(NULL, name.c_str(), ".bat", MAX_PATH, buf, NULL) > 0) return true;
+    return false;
+#else
+    std::string checkCmd = "which " + name + " >/dev/null 2>&1";
+    return system(checkCmd.c_str()) == 0;
+#endif
+}
 
 static std::string FormatFloat(float value, int precision = 2)
 {
@@ -158,12 +266,77 @@ UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
     UpdateBounds();
 }
 
+void UIEditorScene::AutoDetectPreferredIDE()
+{
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::vector<std::filesystem::path> settingsPaths = {
+        rootDir / "engine_content/editor/editor_settings.json",
+        GetAppDir() / "engine_content/editor/editor_settings.json"
+    };
+    for (const auto &sp : settingsPaths)
+    {
+        std::error_code ec;
+        if (std::filesystem::exists(sp, ec))
+        {
+            std::ifstream f(sp);
+            if (f.is_open())
+            {
+                try {
+                    nlohmann::json j = nlohmann::json::parse(f);
+                    if (j.contains("editor") && j["editor"].contains("preferredIDE"))
+                    {
+                        m_PreferredIDE = j["editor"]["preferredIDE"].get<std::string>();
+                        if (!m_PreferredIDE.empty()) break;
+                    }
+                } catch (...) {}
+            }
+        }
+    }
+
+    if (m_PreferredIDE.empty() || !IsExecutableInPath(m_PreferredIDE))
+    {
+        if (IsExecutableInPath("clion")) m_PreferredIDE = "clion";
+        else if (IsExecutableInPath("code")) m_PreferredIDE = "code";
+        else if (IsExecutableInPath("rider")) m_PreferredIDE = "rider";
+    }
+}
+
+void UIEditorScene::SyncFileToRuntime(const std::filesystem::path &sourceRelPath)
+{
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path srcFile = rootDir / sourceRelPath;
+    std::filesystem::path appDir = GetAppDir();
+    std::filesystem::path curDir = std::filesystem::current_path();
+
+    std::vector<std::filesystem::path> targets;
+    if (appDir != rootDir) targets.push_back(appDir / sourceRelPath);
+    if (curDir != rootDir && curDir != appDir) targets.push_back(curDir / sourceRelPath);
+
+    std::error_code ec;
+    if (std::filesystem::exists(srcFile, ec))
+    {
+        for (const auto &tgt : targets)
+        {
+            std::filesystem::create_directories(tgt.parent_path(), ec);
+            std::filesystem::copy_file(srcFile, tgt, std::filesystem::copy_options::overwrite_existing, ec);
+        }
+    }
+}
+
 void UIEditorScene::OnEnter()
 {
     std::cout << "[INFO] [UIEditorScene] Entered UI Editor\n";
+    AutoDetectPreferredIDE();
     UpdateBounds();
     SelectElement(nullptr);
     if (m_ContentBrowser) m_ContentBrowser->Refresh();
+
+    if (UIManager::Get().GetCurrentUIPath().empty())
+    {
+        std::filesystem::path rootDir = FindProjectRoot();
+        if (std::filesystem::exists(rootDir / "assets/scenes/game_ui.json"))
+            UIManager::Get().SetCurrentUIPath("assets/scenes/game_ui.json");
+    }
 }
 
 void UIEditorScene::OnExit() { std::cout << "[INFO] [UIEditorScene] Exited UI Editor\n"; }
@@ -281,23 +454,58 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
             {
                 if (m_DropdownRect.contains(m_MouseScreenPos) && m_SelectedElement)
                 {
-                    float y = m_DropdownRect.top + 4.f;
-                    for (const auto& opt : UTILITY_ACTIONS)
+                    if (m_ActiveDropdown == "script_select")
                     {
-                        sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
-                        if (r.contains(m_MouseScreenPos))
+                        auto scripts = GetAvailableScripts();
+                        std::vector<std::pair<std::string, std::string>> scriptOptions;
+                        scriptOptions.push_back({"assets/scripts/ui_interactions.lua", "+ ui_interactions.lua (Default)"});
+                        scriptOptions.push_back({"assets/scripts/" + m_SelectedElement->id + ".lua", "+ " + m_SelectedElement->id + ".lua (New)"});
+                        scriptOptions.push_back({"__browse__", "[.. Browse File on Disk...]"});
+                        for (const auto &s : scripts)
                         {
-                            if (m_ActiveDropdown == "onclick") {
-                                m_SelectedElement->onClickAction = opt.code;
-                                m_SelectedElement->onClickParam = opt.defaultParam;
-                            }
-                            else if (m_ActiveDropdown == "onhover") {
-                                m_SelectedElement->onHoverAction = opt.code;
-                                m_SelectedElement->onHoverParam = opt.defaultParam;
-                            }
-                            break;
+                            if (s != "assets/scripts/ui_interactions.lua" && s != "assets/scripts/" + m_SelectedElement->id + ".lua")
+                                scriptOptions.push_back({s, s});
                         }
-                        y += 24.f;
+
+                        float y = m_DropdownRect.top + 4.f;
+                        for (const auto &opt : scriptOptions)
+                        {
+                            sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
+                            if (r.contains(m_MouseScreenPos))
+                            {
+                                if (opt.first == "__browse__")
+                                {
+                                    HandleAction("browse_script_dialog");
+                                }
+                                else
+                                {
+                                    m_SelectedElement->scriptPath = opt.first;
+                                }
+                                break;
+                            }
+                            y += 24.f;
+                        }
+                    }
+                    else
+                    {
+                        float y = m_DropdownRect.top + 4.f;
+                        for (const auto& opt : UTILITY_ACTIONS)
+                        {
+                            sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
+                            if (r.contains(m_MouseScreenPos))
+                            {
+                                if (m_ActiveDropdown == "onclick") {
+                                    m_SelectedElement->onClickAction = opt.code;
+                                    m_SelectedElement->onClickParam = opt.defaultParam;
+                                }
+                                else if (m_ActiveDropdown == "onhover") {
+                                    m_SelectedElement->onHoverAction = opt.code;
+                                    m_SelectedElement->onHoverParam = opt.defaultParam;
+                                }
+                                break;
+                            }
+                            y += 24.f;
+                        }
                     }
                 }
                 m_ActiveDropdown = "";
@@ -878,6 +1086,13 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
             {
                 m_ActiveInputText.pop_back();
             }
+            if (m_SelectedElement)
+            {
+                if (m_ActiveField == EditField::Id) m_SelectedElement->id = m_ActiveInputText;
+                else if (m_ActiveField == EditField::UIText) m_SelectedElement->text = m_ActiveInputText;
+                else if (m_ActiveField == EditField::ScriptPath) m_SelectedElement->scriptPath = m_ActiveInputText;
+                else if (m_ActiveField == EditField::ScriptMethod) m_SelectedElement->scriptMethod = m_ActiveInputText;
+            }
         }
     }
 
@@ -893,13 +1108,16 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         char c = static_cast<char>(event.text.unicode);
         if (m_ActiveField == EditField::Id || m_ActiveField == EditField::UIText || 
             m_ActiveField == EditField::OnClickParam || m_ActiveField == EditField::OnHoverParam ||
-            m_ActiveField == EditField::Parent)
+            m_ActiveField == EditField::Parent || m_ActiveField == EditField::ScriptPath ||
+            m_ActiveField == EditField::ScriptMethod)
             m_ActiveInputText += c;
         else if (std::isdigit(c) || c == '-' || c == '.')
             m_ActiveInputText += c;
 
         if (m_ActiveField == EditField::Id) { m_SelectedElement->id = m_ActiveInputText; }
         else if (m_ActiveField == EditField::UIText) { m_SelectedElement->text = m_ActiveInputText; }
+        else if (m_ActiveField == EditField::ScriptPath) { m_SelectedElement->scriptPath = m_ActiveInputText; }
+        else if (m_ActiveField == EditField::ScriptMethod) { m_SelectedElement->scriptMethod = m_ActiveInputText; }
         else if (m_ActiveField == EditField::TransformX)
         {
             try { m_SelectedElement->position.x = std::stof(m_ActiveInputText); } catch (...) {}
@@ -1201,7 +1419,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
         if (m_Font) asText.setFont(*m_Font);
         asText.setCharacterSize(14);
         asText.setFillColor(C_TEXT_PRIMARY);
-        asText.setString("UI Saved successfully!");
+        asText.setString(m_FeedbackMessage.empty() ? "UI Saved successfully!" : m_FeedbackMessage);
 
         float tw = asText.getLocalBounds().width;
         float th = asText.getLocalBounds().height;
@@ -1821,8 +2039,30 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
             std::string hpDisplay = (m_ActiveField == EditField::OnHoverParam && !m_ActiveInputText.empty())
                                         ? m_ActiveInputText + "|"
                                         : (m_ActiveField == EditField::OnHoverParam ? "|" : m_SelectedElement->onHoverParam);
-            y = DrawEditableRow(window, "  Param", hpDisplay, "edit_hoverparam", px, y);
         }
+    }
+
+    y += 10.f;
+    y = DrawSectionHeader(window, "SCRIPT INTERACTION", sf::Color(120, 200, 255), px, y);
+
+    std::string scriptDisplay = (m_ActiveField == EditField::ScriptPath && !m_ActiveInputText.empty())
+                                    ? m_ActiveInputText + "|"
+                                    : (m_ActiveField == EditField::ScriptPath ? "|" : (m_SelectedElement->scriptPath.empty() ? "None (Click to set)" : m_SelectedElement->scriptPath));
+    y = DrawEditableRow(window, "Script File", scriptDisplay, "edit_script_path", px, y);
+
+    y = DrawActionButton(window, "Select Script File...", "browse_scripts", px + 10.f, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+    std::string defaultMethod = m_SelectedElement->scriptMethod.empty() ? GetDefaultMethodName(m_SelectedElement) : m_SelectedElement->scriptMethod;
+    std::string methodDisplay = (m_ActiveField == EditField::ScriptMethod && !m_ActiveInputText.empty())
+                                    ? m_ActiveInputText + "|"
+                                    : (m_ActiveField == EditField::ScriptMethod ? "|" : defaultMethod);
+    y = DrawEditableRow(window, "Method Name", methodDisplay, "edit_script_method", px, y);
+
+    y = DrawActionButton(window, "+ Insert Method into Script", "insert_script_method", px + 10.f, y, C_ACCENT_DIM, C_ACCENT);
+
+    if (!m_SelectedElement->scriptPath.empty())
+    {
+        y = DrawActionButton(window, "Open Script in Editor", "open_script", px + 10.f, y, C_BG_ELEVATED, C_BORDER_LIGHT);
     }
 
     float totalContentBottom = y + scrollOff;
@@ -1981,10 +2221,16 @@ void UIEditorScene::HandleAction(const std::string &action)
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
-        if (path.empty()) path = std::string(ASSET_PATH) + "/ui.json";
+        if (path.empty()) path = "assets/scenes/game_ui.json";
+        std::filesystem::path rootDir = FindProjectRoot();
+        std::filesystem::path fullPath = rootDir / path;
         try {
-            UIManager::Get().Save(path);
-            std::cout << "[INFO] [UIEditorScene] UI Saved to " << path << "\n";
+            std::error_code ec;
+            std::filesystem::create_directories(fullPath.parent_path(), ec);
+            UIManager::Get().Save(fullPath.string());
+            SyncFileToRuntime(path);
+            std::cout << "[INFO] [UIEditorScene] UI Saved to " << fullPath.string() << "\n";
+            m_FeedbackMessage = "UI Saved successfully!";
             m_SaveFeedbackTimer = 2.0f;
         } catch (const std::exception& e) {
             std::cerr << "[ERROR] [UIEditorScene] Failed to save UI: " << e.what() << "\n";
@@ -2460,6 +2706,70 @@ void UIEditorScene::HandleAction(const std::string &action)
     {
         m_SelectedElement->onHoverParam = (m_SelectedElement->onHoverParam == "true") ? "false" : "true";
     }
+    else if (action == "edit_script_path")
+    {
+        m_ActiveField = EditField::ScriptPath;
+        m_ActiveInputText = m_SelectedElement->scriptPath;
+    }
+    else if (action == "edit_script_method")
+    {
+        m_ActiveField = EditField::ScriptMethod;
+        m_ActiveInputText = m_SelectedElement->scriptMethod.empty() ? GetDefaultMethodName(m_SelectedElement) : m_SelectedElement->scriptMethod;
+    }
+    else if (action == "browse_scripts")
+    {
+        m_ActiveDropdown = "script_select";
+        for (auto &hb : m_InspectorHitboxes)
+        {
+            if (hb.action == "browse_scripts")
+            {
+                auto scripts = GetAvailableScripts();
+                float dropH = (scripts.size() + 3) * 24.f + 8.f;
+                float dropW = InspectorWidth - 28.f;
+                m_DropdownRect = sf::FloatRect(m_InspectorBounds.left + 14.f, hb.bounds.top + hb.bounds.height + 2.f, dropW, std::min(dropH, 240.f));
+                break;
+            }
+        }
+    }
+    else if (action == "browse_script_dialog")
+    {
+        if (m_SelectedElement)
+        {
+#ifdef _WIN32
+            std::string picked = OpenScriptFileDialog(reinterpret_cast<HWND>(m_Window.getSystemHandle()));
+            if (!picked.empty())
+            {
+                m_SelectedElement->scriptPath = picked;
+            }
+#endif
+        }
+    }
+    else if (action == "insert_script_method")
+    {
+        if (m_SelectedElement)
+        {
+            std::string path = m_SelectedElement->scriptPath.empty() ? "assets/scripts/ui_interactions.lua" : m_SelectedElement->scriptPath;
+            std::string method = m_SelectedElement->scriptMethod.empty() ? GetDefaultMethodName(m_SelectedElement) : m_SelectedElement->scriptMethod;
+            if (InsertScriptMethod(m_SelectedElement, path, method))
+            {
+                m_FeedbackMessage = "Inserted " + m_SelectedElement->scriptMethod + " into " + m_SelectedElement->scriptPath + "!";
+                m_SaveFeedbackTimer = 3.0f;
+                OpenScriptInIDE(m_SelectedElement->scriptPath);
+            }
+            else
+            {
+                m_FeedbackMessage = "Failed to insert script method!";
+                m_SaveFeedbackTimer = 3.0f;
+            }
+        }
+    }
+    else if (action == "open_script")
+    {
+        if (m_SelectedElement && !m_SelectedElement->scriptPath.empty())
+        {
+            OpenScriptInIDE(m_SelectedElement->scriptPath);
+        }
+    }
     else if (action == "edit_texturepath")
     {
         m_ActiveField = EditField::TexturePath;
@@ -2884,6 +3194,8 @@ static std::string GetUIInspectorTooltip(const std::string &key)
     if (key == "OnClick Action" || key == "onClick" || key == "Action") return "Action to trigger when clicked";
     if (key == "onHover") return "Action to trigger on hover";
     if (key.find("Param") != std::string::npos) return "Parameter value for the selected action";
+    if (key == "Script File") return "Target Lua script for handling this UI element's events";
+    if (key == "Method Name") return "Name of the handler function generated in the script";
     return "";
 }
 
@@ -3346,6 +3658,54 @@ void UIEditorScene::DrawDropdownOverlay(sf::RenderWindow &window)
 {
     if (m_ActiveDropdown.empty()) return;
 
+    if (m_ActiveDropdown == "script_select" && m_SelectedElement)
+    {
+        auto scripts = GetAvailableScripts();
+        std::vector<std::pair<std::string, std::string>> scriptOptions;
+        scriptOptions.push_back({"assets/scripts/ui_interactions.lua", "+ ui_interactions.lua (Default)"});
+        scriptOptions.push_back({"assets/scripts/" + m_SelectedElement->id + ".lua", "+ " + m_SelectedElement->id + ".lua (New)"});
+        scriptOptions.push_back({"__browse__", "[.. Browse File on Disk...]"});
+        for (const auto &s : scripts)
+        {
+            if (s != "assets/scripts/ui_interactions.lua" && s != "assets/scripts/" + m_SelectedElement->id + ".lua")
+                scriptOptions.push_back({s, s});
+        }
+
+        float totalH = std::min(static_cast<float>(scriptOptions.size() * 24.f + 8.f), 260.f);
+        sf::RectangleShape bg({m_DropdownRect.width, totalH});
+        bg.setFillColor(C_BG_ELEVATED);
+        bg.setOutlineColor(C_BORDER_LIGHT);
+        bg.setOutlineThickness(1.f);
+        bg.setPosition(m_DropdownRect.left, m_DropdownRect.top);
+        window.draw(bg);
+
+        float y = m_DropdownRect.top + 4.f;
+        for (const auto &opt : scriptOptions)
+        {
+            if (y + 24.f > m_DropdownRect.top + totalH) break;
+            sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
+            bool hov = r.contains(m_MouseScreenPos);
+            if (hov)
+            {
+                sf::RectangleShape hbg({m_DropdownRect.width - 4.f, 22.f});
+                hbg.setFillColor(C_ACCENT_DIM);
+                hbg.setPosition(m_DropdownRect.left + 2.f, y + 1.f);
+                window.draw(hbg);
+            }
+            sf::Text t;
+            t.setFont(*m_Font);
+            t.setCharacterSize(11);
+            t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+            std::string label = opt.second;
+            if (label.length() > 36) label = "..." + label.substr(label.length() - 33);
+            t.setString(label);
+            t.setPosition(m_DropdownRect.left + 8.f, y + 5.f);
+            window.draw(t);
+            y += 24.f;
+        }
+        return;
+    }
+
     sf::RectangleShape bg({m_DropdownRect.width, m_DropdownRect.height});
     bg.setFillColor(C_BG_ELEVATED);
     bg.setOutlineColor(C_BORDER_LIGHT);
@@ -3555,4 +3915,261 @@ void UIEditorScene::DrawTooltip(sf::RenderWindow &window)
 
     window.draw(bg);
     window.draw(text);
+}
+
+std::string UIEditorScene::NormalizeScriptPath(const std::string &rawPath) const
+{
+    if (rawPath.empty()) return "assets/scripts/ui_interactions.lua";
+
+    std::string p = rawPath;
+    for (char &c : p) { if (c == '\\') c = '/'; }
+    while (!p.empty() && p.front() == '/') p.erase(p.begin());
+
+    if (p.length() < 4 || p.substr(p.length() - 4) != ".lua")
+        p += ".lua";
+
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::error_code ec;
+
+    if (p.rfind("assets/", 0) == 0) return p;
+
+    if (std::filesystem::exists(rootDir / "assets" / p, ec))
+        return "assets/" + p;
+
+    if (std::filesystem::exists(rootDir / "assets/scripting" / p, ec))
+        return "assets/scripting/" + p;
+
+    if (std::filesystem::exists(rootDir / "assets/scripts" / p, ec))
+        return "assets/scripts/" + p;
+
+    return "assets/scripts/" + p;
+}
+
+void UIEditorScene::OpenScriptInIDE(const std::string &scriptPath)
+{
+    if (scriptPath.empty()) return;
+
+    std::string normPath = NormalizeScriptPath(scriptPath);
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path assetsPath = std::filesystem::absolute(rootDir / "assets");
+    std::filesystem::path absScript = std::filesystem::absolute(rootDir / normPath);
+
+    std::error_code ec;
+    if (!std::filesystem::exists(absScript, ec))
+    {
+        std::filesystem::create_directories(absScript.parent_path(), ec);
+        std::ofstream ofs(absScript);
+        if (ofs.is_open())
+        {
+            ofs << "-- UI Script generated by RayneEngine\n";
+            ofs.close();
+        }
+        SyncFileToRuntime(normPath);
+    }
+
+    std::string ide = m_PreferredIDE;
+    if (ide.empty() || !IsExecutableInPath(ide))
+    {
+        if (IsExecutableInPath("clion")) ide = "clion";
+        else if (IsExecutableInPath("code")) ide = "code";
+        else if (IsExecutableInPath("rider")) ide = "rider";
+        else ide = "";
+    }
+
+    if (!ide.empty())
+    {
+        std::string cmd = ide + " \"" + assetsPath.string() + "\" \"" + absScript.string() + "\"";
+        LaunchProcessDetached(cmd);
+        std::cout << "[INFO] [UIEditor] Opening script with " << ide << ": " << absScript.string() << " in " << assetsPath.string() << "\n";
+    }
+    else
+    {
+#ifdef _WIN32
+        ShellExecuteA(nullptr, "open", absScript.string().c_str(), nullptr, nullptr, SW_SHOW);
+#elif __APPLE__
+        system(("open \"" + absScript.string() + "\"").c_str());
+#else
+        system(("xdg-open \"" + absScript.string() + "\"").c_str());
+#endif
+    }
+}
+
+std::vector<std::string> UIEditorScene::GetAvailableScripts()
+{
+    std::vector<std::string> scripts;
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path assetsDir = rootDir / "assets";
+
+    std::error_code ec;
+    if (std::filesystem::exists(assetsDir, ec))
+    {
+        for (const auto &entry : std::filesystem::recursive_directory_iterator(assetsDir, ec))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == ".lua")
+            {
+                std::string fname = entry.path().filename().string();
+                if (fname == "api_stub.lua") continue;
+                std::string rel = std::filesystem::relative(entry.path(), rootDir, ec).generic_string();
+                scripts.push_back(rel);
+            }
+        }
+    }
+    return scripts;
+}
+
+std::string UIEditorScene::GetDefaultMethodName(const UIElement *el) const
+{
+    if (!el) return "On_UI_Interaction";
+    std::string safeId = el->id;
+    for (char &c : safeId) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_') c = '_';
+    }
+    if (el->type == UIElementType::Button) return "On_" + safeId + "_Clicked";
+    if (el->type == UIElementType::Checkbox) return "On_" + safeId + "_Toggled";
+    if (el->type == UIElementType::Slider) return "On_" + safeId + "_Changed";
+    if (el->type == UIElementType::TextInput) return "On_" + safeId + "_Submitted";
+    return "On_" + safeId + "_Interaction";
+}
+
+bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptPath, const std::string &methodName)
+{
+    if (!el) return false;
+
+    std::string normPath = NormalizeScriptPath(scriptPath);
+    std::string normMethod = methodName.empty() ? GetDefaultMethodName(el) : methodName;
+
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path fullPath = rootDir / normPath;
+    std::error_code ec;
+    std::filesystem::create_directories(fullPath.parent_path(), ec);
+
+    std::string content = "";
+    if (std::filesystem::exists(fullPath, ec))
+    {
+        std::ifstream ifs(fullPath);
+        if (ifs.is_open())
+        {
+            content = std::string((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+            ifs.close();
+        }
+    }
+    else
+    {
+        content = "-- UI Script generated by RayneEngine\n\n";
+    }
+
+    std::string paramName = "";
+    std::string logAction = "clicked!";
+    if (el->type == UIElementType::Slider) {
+        paramName = "value";
+        logAction = "value: \" .. tostring(value)";
+    } else if (el->type == UIElementType::Checkbox) {
+        paramName = "checked";
+        logAction = "checked: \" .. tostring(checked)";
+    } else if (el->type == UIElementType::TextInput) {
+        paramName = "text";
+        logAction = "submitted: \" .. tostring(text)";
+    }
+
+    // 1. Insert method stub if not present
+    if (content.find("function " + normMethod) == std::string::npos)
+    {
+        if (!content.empty() && content.back() != '\n') content += "\n";
+        content += "\n-- Handler for " + el->id + "\n";
+        content += "function " + normMethod + "(" + paramName + ")\n";
+        if (!paramName.empty()) {
+            content += "    print(\"" + el->id + " " + logAction + ")\n";
+        } else {
+            content += "    print(\"" + el->id + " " + logAction + "\")\n";
+        }
+        content += "end\n";
+    }
+
+    // 2. Global event hook
+    std::string hookFunc = "";
+    std::string hookParam = "";
+    std::string callArgs = "";
+    if (el->type == UIElementType::Button) {
+        hookFunc = "OnButtonClicked";
+        hookParam = "id";
+        callArgs = "";
+    } else if (el->type == UIElementType::Slider) {
+        hookFunc = "OnSliderChanged";
+        hookParam = "id, value";
+        callArgs = "value";
+    } else if (el->type == UIElementType::Checkbox) {
+        hookFunc = "OnCheckboxChanged";
+        hookParam = "id, checked";
+        callArgs = "checked";
+    } else if (el->type == UIElementType::TextInput) {
+        hookFunc = "OnTextInputSubmitted";
+        hookParam = "id, text";
+        callArgs = "text";
+    }
+
+    if (!hookFunc.empty())
+    {
+        std::string checkPattern = "id == \"" + el->id + "\"";
+        if (content.find(checkPattern) == std::string::npos)
+        {
+            size_t funcPos = content.find("function " + hookFunc);
+            if (funcPos != std::string::npos)
+            {
+                size_t endPos = content.find("\nend", funcPos);
+                if (endPos != std::string::npos)
+                {
+                    std::string dispatch = "    if id == \"" + el->id + "\" then\n        " + normMethod + "(" + callArgs + ")\n    end\n";
+                    content.insert(endPos + 1, dispatch);
+                }
+            }
+            else
+            {
+                if (!content.empty() && content.back() != '\n') content += "\n";
+                content += "\nfunction " + hookFunc + "(" + hookParam + ")\n";
+                content += "    if id == \"" + el->id + "\" then\n";
+                content += "        " + normMethod + "(" + callArgs + ")\n";
+                content += "    end\nend\n";
+            }
+        }
+    }
+
+    // Write updated content to source file
+    {
+        std::ofstream ofs(fullPath, std::ios::trunc);
+        if (!ofs.is_open())
+        {
+            std::cerr << "[ERROR] [UIEditor] Failed to open script for writing: " << fullPath << "\n";
+            return false;
+        }
+        ofs << content;
+        ofs.close();
+    }
+
+    // Sync to runtime directory immediately
+    SyncFileToRuntime(normPath);
+
+    // Also reload in LuaState if initialized
+    try {
+        LuaState::GetLua().safe_script(content);
+    } catch (...) {}
+
+    // Update UI element
+    el->scriptPath = normPath;
+    el->scriptMethod = normMethod;
+    if (el->type == UIElementType::Button)
+    {
+        el->onClickAction = normMethod;
+    }
+
+    // Auto-save UI
+    std::string uiPath = UIManager::Get().GetCurrentUIPath();
+    if (uiPath.empty()) uiPath = "assets/scenes/game_ui.json";
+    UIManager::Get().SetCurrentUIPath(uiPath);
+    std::filesystem::path fullUIPath = rootDir / uiPath;
+    std::filesystem::create_directories(fullUIPath.parent_path(), ec);
+    UIManager::Get().Save(fullUIPath.string());
+    SyncFileToRuntime(uiPath);
+
+    std::cout << "[INFO] [UIEditor] Successfully inserted " << normMethod << " into " << fullPath.string() << "\n";
+    return true;
 }

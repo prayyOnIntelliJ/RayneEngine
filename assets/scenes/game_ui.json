@@ -7,10 +7,15 @@
                 87,
                 255
             ],
-            "cornerRadius": 0.0,
             "fillTexturePath": "",
             "height": 103.08270263671875,
             "id": "ProgressBar_1",
+            "layoutPadding": 10.0,
+            "layoutSpacing": 8.0,
+            "onClickAction": "",
+            "onClickParam": "",
+            "onHoverAction": "",
+            "onHoverParam": "",
             "opacity": 255.0,
             "outlineColor": [
                 0,
@@ -19,8 +24,11 @@
                 0
             ],
             "outlineThickness": 0.0,
+            "parent": "",
             "progressMax": 1.0,
             "progressValue": 0.5,
+            "scriptMethod": "",
+            "scriptPath": "",
             "texturePath": "",
             "type": "progressbar",
             "visible": true,
@@ -43,7 +51,6 @@
                 90,
                 255
             ],
-            "cornerRadius": 0.0,
             "disabled": false,
             "disabledColor": [
                 60,
@@ -60,12 +67,18 @@
             ],
             "id": "Slider_2",
             "knobTexturePath": "",
+            "layoutPadding": 10.0,
+            "layoutSpacing": 8.0,
             "normalColor": [
                 200,
                 200,
                 210,
                 255
             ],
+            "onClickAction": "",
+            "onClickParam": "",
+            "onHoverAction": "",
+            "onHoverParam": "",
             "opacity": 255.0,
             "outlineColor": [
                 0,
@@ -74,12 +87,15 @@
                 0
             ],
             "outlineThickness": 0.0,
+            "parent": "",
             "pressedColor": [
                 80,
                 80,
                 80,
                 255
             ],
+            "scriptMethod": "",
+            "scriptPath": "",
             "sliderMax": 1.0,
             "sliderMin": 0.0,
             "sliderValue": 0.5,
@@ -106,7 +122,6 @@
                 255,
                 255
             ],
-            "cornerRadius": 0.0,
             "disabled": false,
             "disabledColor": [
                 60,
@@ -123,6 +138,8 @@
             ],
             "hoverTexturePath": "",
             "id": "Button_3",
+            "layoutPadding": 10.0,
+            "layoutSpacing": 8.0,
             "letterSpacing": 1.0,
             "lineSpacing": 1.0,
             "normalColor": [
@@ -131,7 +148,7 @@
                 100,
                 255
             ],
-            "onClickAction": "Log",
+            "onClickAction": "On_Button_3_Clicked",
             "onClickParam": "Hello from UI!",
             "onHoverAction": "",
             "onHoverParam": "",
@@ -143,6 +160,7 @@
                 0
             ],
             "outlineThickness": 0.0,
+            "parent": "",
             "pressedColor": [
                 80,
                 80,
@@ -150,6 +168,8 @@
                 255
             ],
             "pressedTexturePath": "",
+            "scriptMethod": "On_Button_3_Clicked",
+            "scriptPath": "assets/scripting/EnemyScript.lua",
             "text": "Button",
             "textAlign": 0,
             "textColor": [
@@ -169,6 +189,7 @@
             "textOutlineThickness": 0.0,
             "textStyle": 0,
             "textUpperCase": false,
+            "textVAlign": 1,
             "texturePath": "",
             "type": "button",
             "visible": true,

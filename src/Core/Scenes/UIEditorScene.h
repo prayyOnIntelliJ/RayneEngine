@@ -151,6 +151,8 @@ private:
         LayoutSpacing,
         LayoutPadding,
         Parent,
+        ScriptPath,
+        ScriptMethod,
     };
 
     EditField m_ActiveField = EditField::None;
@@ -192,6 +194,8 @@ private:
     float m_InspectorClipBottom = 99999.f;
 
     float m_SaveFeedbackTimer = 0.f;
+    std::string m_FeedbackMessage;
+    std::string m_PreferredIDE;
 
     void UpdateBounds();
 
@@ -240,6 +244,14 @@ private:
     void CopySelection();
     void PasteClipboard();
     std::unique_ptr<UIElement> m_ClipboardElement;
+
+    void OpenScriptInIDE(const std::string &scriptPath);
+    std::vector<std::string> GetAvailableScripts();
+    bool InsertScriptMethod(UIElement *el, const std::string &scriptPath, const std::string &methodName);
+    std::string GetDefaultMethodName(const UIElement *el) const;
+    std::string NormalizeScriptPath(const std::string &rawPath) const;
+    void SyncFileToRuntime(const std::filesystem::path &sourceRelPath);
+    void AutoDetectPreferredIDE();
 };
 
 #endif
