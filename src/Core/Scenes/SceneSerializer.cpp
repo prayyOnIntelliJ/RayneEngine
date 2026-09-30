@@ -350,7 +350,6 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
 
     HierarchySystem::UpdateWorldTransforms(registry);
 
-    // Call OnCreate() on all newly instantiated entities with ScriptComponent
     for (Entity e : createdEntities) {
         if (registry.HasComponent<ScriptComponent>(e)) {
             registry.GetComponent<ScriptComponent>(e).OnCreate();

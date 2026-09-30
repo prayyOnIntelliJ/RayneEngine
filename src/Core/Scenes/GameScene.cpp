@@ -12,6 +12,8 @@
 #include "../Scripting/TimerManager.h"
 #include "../Scripting/TweenManager.h"
 #include "../Audio/AudioManager.h"
+#include "../Input/InputManager.h"
+#include "../Scripting/LuaState.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -27,6 +29,178 @@ GameScene::GameScene(SceneManager &manager, sf::RenderWindow &window, Registry &
     m_DebugText.setCharacterSize(12);
     m_DebugText.setFillColor(sf::Color(180, 180, 180));
     m_DebugText.setPosition(8.f, 8.f);
+}
+
+static bool IsInputEvent(const sf::Event &event)
+{
+    switch (event.type)
+    {
+        case sf::Event::KeyPressed:
+        case sf::Event::KeyReleased:
+        case sf::Event::TextEntered:
+        case sf::Event::MouseButtonPressed:
+        case sf::Event::MouseButtonReleased:
+        case sf::Event::MouseMoved:
+        case sf::Event::MouseWheelScrolled:
+        case sf::Event::JoystickButtonPressed:
+        case sf::Event::JoystickButtonReleased:
+        case sf::Event::JoystickMoved:
+        case sf::Event::JoystickConnected:
+        case sf::Event::JoystickDisconnected:
+        case sf::Event::TouchBegan:
+        case sf::Event::TouchMoved:
+        case sf::Event::TouchEnded:
+        case sf::Event::SensorChanged:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static sol::table CreateInputEventTable(sol::state &lua, const sf::Event &event, const sf::RenderWindow &window, const sf::View &camera)
+{
+    sol::table t = lua.create_table();
+    t["isInput"] = true;
+    t["isPaused"] = (g_App && g_App->IsPaused());
+
+    switch (event.type)
+    {
+        case sf::Event::KeyPressed:
+        {
+            t["type"] = static_cast<int>(InputEventType::KeyDown);
+            t["typeName"] = "KeyDown";
+            t["typeStr"] = "key_pressed";
+            t["key"] = static_cast<int>(event.key.code);
+            t["keyCode"] = static_cast<int>(event.key.code);
+            t["keyName"] = InputManager::KeyToString(event.key.code);
+            t["alt"] = event.key.alt;
+            t["control"] = event.key.control;
+            t["shift"] = event.key.shift;
+            t["system"] = event.key.system;
+            break;
+        }
+        case sf::Event::KeyReleased:
+        {
+            t["type"] = static_cast<int>(InputEventType::KeyUp);
+            t["typeName"] = "KeyUp";
+            t["typeStr"] = "key_released";
+            t["key"] = static_cast<int>(event.key.code);
+            t["keyCode"] = static_cast<int>(event.key.code);
+            t["keyName"] = InputManager::KeyToString(event.key.code);
+            t["alt"] = event.key.alt;
+            t["control"] = event.key.control;
+            t["shift"] = event.key.shift;
+            t["system"] = event.key.system;
+            break;
+        }
+        case sf::Event::TextEntered:
+        {
+            t["type"] = static_cast<int>(InputEventType::TextEntered);
+            t["typeName"] = "TextEntered";
+            t["typeStr"] = "text_entered";
+            t["unicode"] = static_cast<uint32_t>(event.text.unicode);
+            if (event.text.unicode < 128)
+                t["text"] = std::string(1, static_cast<char>(event.text.unicode));
+            else
+                t["text"] = "";
+            break;
+        }
+        case sf::Event::MouseButtonPressed:
+        {
+            t["type"] = static_cast<int>(InputEventType::MouseDown);
+            t["typeName"] = "MouseDown";
+            t["typeStr"] = "mouse_pressed";
+            t["button"] = static_cast<int>(event.mouseButton.button);
+            t["buttonCode"] = static_cast<int>(event.mouseButton.button);
+            t["buttonName"] = InputManager::MouseButtonToString(event.mouseButton.button);
+            t["x"] = event.mouseButton.x;
+            t["y"] = event.mouseButton.y;
+            sf::Vector2f world = window.mapPixelToCoords({event.mouseButton.x, event.mouseButton.y}, camera);
+            t["worldX"] = world.x;
+            t["worldY"] = world.y;
+            break;
+        }
+        case sf::Event::MouseButtonReleased:
+        {
+            t["type"] = static_cast<int>(InputEventType::MouseUp);
+            t["typeName"] = "MouseUp";
+            t["typeStr"] = "mouse_released";
+            t["button"] = static_cast<int>(event.mouseButton.button);
+            t["buttonCode"] = static_cast<int>(event.mouseButton.button);
+            t["buttonName"] = InputManager::MouseButtonToString(event.mouseButton.button);
+            t["x"] = event.mouseButton.x;
+            t["y"] = event.mouseButton.y;
+            sf::Vector2f world = window.mapPixelToCoords({event.mouseButton.x, event.mouseButton.y}, camera);
+            t["worldX"] = world.x;
+            t["worldY"] = world.y;
+            break;
+        }
+        case sf::Event::MouseMoved:
+        {
+            t["type"] = static_cast<int>(InputEventType::MouseMove);
+            t["typeName"] = "MouseMove";
+            t["typeStr"] = "mouse_moved";
+            t["x"] = event.mouseMove.x;
+            t["y"] = event.mouseMove.y;
+            sf::Vector2f world = window.mapPixelToCoords({event.mouseMove.x, event.mouseMove.y}, camera);
+            t["worldX"] = world.x;
+            t["worldY"] = world.y;
+            break;
+        }
+        case sf::Event::MouseWheelScrolled:
+        {
+            t["type"] = static_cast<int>(InputEventType::MouseWheel);
+            t["typeName"] = "MouseWheel";
+            t["typeStr"] = "mouse_wheel";
+            t["delta"] = event.mouseWheelScroll.delta;
+            t["x"] = event.mouseWheelScroll.x;
+            t["y"] = event.mouseWheelScroll.y;
+            t["wheel"] = (event.mouseWheelScroll.wheel == sf::Mouse::VerticalWheel) ? "vertical" : "horizontal";
+            sf::Vector2f world = window.mapPixelToCoords({event.mouseWheelScroll.x, event.mouseWheelScroll.y}, camera);
+            t["worldX"] = world.x;
+            t["worldY"] = world.y;
+            break;
+        }
+        case sf::Event::JoystickButtonPressed:
+        {
+            t["type"] = static_cast<int>(InputEventType::JoystickPressed);
+            t["typeName"] = "JoystickPressed";
+            t["typeStr"] = "joystick_pressed";
+            t["joystickId"] = event.joystickButton.joystickId;
+            t["button"] = event.joystickButton.button;
+            t["buttonCode"] = static_cast<int>(event.joystickButton.button);
+            break;
+        }
+        case sf::Event::JoystickButtonReleased:
+        {
+            t["type"] = static_cast<int>(InputEventType::JoystickReleased);
+            t["typeName"] = "JoystickReleased";
+            t["typeStr"] = "joystick_released";
+            t["joystickId"] = event.joystickButton.joystickId;
+            t["button"] = event.joystickButton.button;
+            t["buttonCode"] = static_cast<int>(event.joystickButton.button);
+            break;
+        }
+        case sf::Event::JoystickMoved:
+        {
+            t["type"] = static_cast<int>(InputEventType::JoystickMoved);
+            t["typeName"] = "JoystickMoved";
+            t["typeStr"] = "joystick_moved";
+            t["joystickId"] = event.joystickMove.joystickId;
+            t["axis"] = static_cast<int>(event.joystickMove.axis);
+            t["position"] = event.joystickMove.position;
+            break;
+        }
+        default:
+        {
+            t["type"] = static_cast<int>(InputEventType::Unknown);
+            t["typeName"] = "Unknown";
+            t["typeStr"] = "unknown";
+            break;
+        }
+    }
+
+    return t;
 }
 
 void GameScene::OnEnter()
@@ -99,6 +273,30 @@ void GameScene::OnEnter()
         m_Registry.ForEach<ScriptComponent>([&id, focused](Entity, ScriptComponent &sc) {
             sc.OnUIFocus(id, focused);
         });
+    });
+
+    EventManager::Get().SubscribeInput([this](const sf::Event &event) {
+        sol::state &lua = LuaState::GetLua();
+        sol::table eventTable = CreateInputEventTable(lua, event, m_Window, m_Camera);
+        lua["__last_input_event"] = eventTable;
+
+        m_Registry.ForEach<ScriptComponent>([&eventTable](Entity, ScriptComponent &sc) {
+            sc.OnInputReceived(eventTable);
+        });
+
+        sol::object globalCb = lua["OnInputReceived"];
+        if (!globalCb.is<sol::protected_function>())
+            globalCb = lua["OnInputReceiced"];
+        if (globalCb.is<sol::protected_function>())
+        {
+            sol::protected_function pfn = globalCb.as<sol::protected_function>();
+            auto res = pfn(eventTable);
+            if (!res.valid())
+            {
+                sol::error err = res;
+                std::cerr << "[ERROR] [Script] Global OnInputReceived error: " << err.what() << "\n";
+            }
+        }
     });
 
     // Load any scripts bound to UI elements
@@ -268,6 +466,11 @@ void GameScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::KeyPressed &&
         event.key.code == sf::Keyboard::Escape) { m_Window.close(); }
 #endif
+
+    if (IsInputEvent(event))
+    {
+        EventManager::Get().FireInput(event);
+    }
 }
 
 void GameScene::Update(float deltaTime)

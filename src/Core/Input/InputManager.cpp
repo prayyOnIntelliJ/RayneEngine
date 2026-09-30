@@ -7,6 +7,7 @@ void InputManager::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::TextEntered)
     {
         m_TextEntered.push_back(event.text.unicode);
+        m_HasInputThisFrame = true;
     }
 
     if (event.type == sf::Event::KeyPressed)
@@ -15,6 +16,7 @@ void InputManager::HandleEvent(const sf::Event &event)
         if (!m_KeysDown.count(key))
             m_KeysPressed.insert(key);
         m_KeysDown.insert(key);
+        m_HasInputThisFrame = true;
     }
 
     if (event.type == sf::Event::KeyReleased)
@@ -22,6 +24,7 @@ void InputManager::HandleEvent(const sf::Event &event)
         const int key = static_cast<int>(event.key.code);
         m_KeysDown.erase(key);
         m_KeysReleased.insert(key);
+        m_HasInputThisFrame = true;
     }
 
     if (event.type == sf::Event::MouseButtonPressed)
@@ -30,6 +33,7 @@ void InputManager::HandleEvent(const sf::Event &event)
         if (!m_MouseDown.count(btn))
             m_MousePressed.insert(btn);
         m_MouseDown.insert(btn);
+        m_HasInputThisFrame = true;
     }
 
     if (event.type == sf::Event::MouseButtonReleased)
@@ -37,13 +41,27 @@ void InputManager::HandleEvent(const sf::Event &event)
         const int btn = static_cast<int>(event.mouseButton.button);
         m_MouseDown.erase(btn);
         m_MouseReleased.insert(btn);
+        m_HasInputThisFrame = true;
     }
 
     if (event.type == sf::Event::MouseMoved)
+    {
         m_MousePosition = {event.mouseMove.x, event.mouseMove.y};
+        m_HasInputThisFrame = true;
+    }
 
     if (event.type == sf::Event::MouseWheelScrolled)
+    {
         m_ScrollDelta = event.mouseWheelScroll.delta;
+        m_HasInputThisFrame = true;
+    }
+
+    if (event.type == sf::Event::JoystickButtonPressed ||
+        event.type == sf::Event::JoystickButtonReleased ||
+        event.type == sf::Event::JoystickMoved)
+    {
+        m_HasInputThisFrame = true;
+    }
 }
 
 void InputManager::EndFrame()
@@ -54,6 +72,7 @@ void InputManager::EndFrame()
     m_MousePressed.clear();
     m_MouseReleased.clear();
     m_ScrollDelta = 0.f;
+    m_HasInputThisFrame = false;
 }
 
 bool InputManager::IsKeyDown(sf::Keyboard::Key key) { return Get().m_KeysDown.count(static_cast<int>(key)) > 0; }
@@ -84,7 +103,7 @@ sf::Vector2i InputManager::MousePosition() { return Get().m_MousePosition; }
 
 float InputManager::MouseScrollDelta() { return Get().m_ScrollDelta; }
 
-static sf::Keyboard::Key StringToKey(std::string keyName)
+sf::Keyboard::Key InputManager::StringToKey(std::string keyName)
 {
     for (char &c: keyName) c = static_cast<char>(std::tolower(c));
 
@@ -117,18 +136,88 @@ static sf::Keyboard::Key StringToKey(std::string keyName)
     return sf::Keyboard::Unknown;
 }
 
-static sf::Mouse::Button StringToMouseButton(std::string btnName)
+std::string InputManager::KeyToString(sf::Keyboard::Key key)
+{
+    if (key >= sf::Keyboard::A && key <= sf::Keyboard::Z)
+        return std::string(1, static_cast<char>('A' + (key - sf::Keyboard::A)));
+    if (key >= sf::Keyboard::Num0 && key <= sf::Keyboard::Num9)
+        return std::string(1, static_cast<char>('0' + (key - sf::Keyboard::Num0)));
+    if (key >= sf::Keyboard::Numpad0 && key <= sf::Keyboard::Numpad9)
+        return "Numpad" + std::to_string(key - sf::Keyboard::Numpad0);
+    if (key >= sf::Keyboard::F1 && key <= sf::Keyboard::F15)
+        return "F" + std::to_string(1 + (key - sf::Keyboard::F1));
+
+    switch (key)
+    {
+        case sf::Keyboard::Space: return "Space";
+        case sf::Keyboard::Enter: return "Enter";
+        case sf::Keyboard::Escape: return "Escape";
+        case sf::Keyboard::LShift: return "LShift";
+        case sf::Keyboard::RShift: return "RShift";
+        case sf::Keyboard::LControl: return "LCtrl";
+        case sf::Keyboard::RControl: return "RCtrl";
+        case sf::Keyboard::LAlt: return "LAlt";
+        case sf::Keyboard::RAlt: return "RAlt";
+        case sf::Keyboard::LSystem: return "LSystem";
+        case sf::Keyboard::RSystem: return "RSystem";
+        case sf::Keyboard::Menu: return "Menu";
+        case sf::Keyboard::Left: return "Left";
+        case sf::Keyboard::Right: return "Right";
+        case sf::Keyboard::Up: return "Up";
+        case sf::Keyboard::Down: return "Down";
+        case sf::Keyboard::Tab: return "Tab";
+        case sf::Keyboard::Delete: return "Delete";
+        case sf::Keyboard::BackSpace: return "Backspace";
+        case sf::Keyboard::PageUp: return "PageUp";
+        case sf::Keyboard::PageDown: return "PageDown";
+        case sf::Keyboard::End: return "End";
+        case sf::Keyboard::Home: return "Home";
+        case sf::Keyboard::Insert: return "Insert";
+        case sf::Keyboard::Add: return "+";
+        case sf::Keyboard::Subtract: return "-";
+        case sf::Keyboard::Multiply: return "*";
+        case sf::Keyboard::Divide: return "/";
+        case sf::Keyboard::Pause: return "Pause";
+        default: return "Unknown";
+    }
+}
+
+sf::Mouse::Button InputManager::StringToMouseButton(std::string btnName)
 {
     for (char &c: btnName) c = static_cast<char>(std::tolower(c));
     if (btnName == "left" || btnName == "0") return sf::Mouse::Left;
     if (btnName == "right" || btnName == "1") return sf::Mouse::Right;
     if (btnName == "middle" || btnName == "2") return sf::Mouse::Middle;
+    if (btnName == "xbutton1" || btnName == "3") return sf::Mouse::XButton1;
+    if (btnName == "xbutton2" || btnName == "4") return sf::Mouse::XButton2;
     return sf::Mouse::Left;
+}
+
+std::string InputManager::MouseButtonToString(sf::Mouse::Button button)
+{
+    switch (button)
+    {
+        case sf::Mouse::Left: return "Left";
+        case sf::Mouse::Right: return "Right";
+        case sf::Mouse::Middle: return "Middle";
+        case sf::Mouse::XButton1: return "XButton1";
+        case sf::Mouse::XButton2: return "XButton2";
+        default: return "Unknown";
+    }
 }
 
 void InputManager::RegisterLua(sol::state &lua)
 {
     auto input = lua.create_named_table("Input");
+
+    input.set_function("HasInput", [] { return InputManager::Get().HasInputThisFrame(); });
+    input.set_function("KeyToString", [](int k) { return KeyToString(static_cast<sf::Keyboard::Key>(k)); });
+    input.set_function("MouseButtonToString", [](int b) { return MouseButtonToString(static_cast<sf::Mouse::Button>(b)); });
+    input.set_function("GetLastEvent", [&lua]() -> sol::object {
+        sol::object last = lua["__last_input_event"];
+        if (last.valid()) return last;
+        return sol::nil;
+    });
 
     input.set_function("IsKeyDown", sol::overload(
                            [](int k) { return IsKeyDown(static_cast<sf::Keyboard::Key>(k)); },
@@ -216,4 +305,52 @@ void InputManager::RegisterLua(sol::state &lua)
     mouse["Left"] = static_cast<int>(sf::Mouse::Left);
     mouse["Right"] = static_cast<int>(sf::Mouse::Right);
     mouse["Middle"] = static_cast<int>(sf::Mouse::Middle);
+
+    auto inputEvent = lua.create_named_table("InputEvent");
+    inputEvent["Unknown"] = static_cast<int>(InputEventType::Unknown);
+    inputEvent["KeyDown"] = static_cast<int>(InputEventType::KeyDown);
+    inputEvent["Keydown"] = static_cast<int>(InputEventType::KeyDown);
+    inputEvent["KeyPressed"] = static_cast<int>(InputEventType::KeyDown);
+
+    inputEvent["KeyUp"] = static_cast<int>(InputEventType::KeyUp);
+    inputEvent["Keyup"] = static_cast<int>(InputEventType::KeyUp);
+    inputEvent["KeyReleased"] = static_cast<int>(InputEventType::KeyUp);
+
+    inputEvent["MouseDown"] = static_cast<int>(InputEventType::MouseDown);
+    inputEvent["Mousedown"] = static_cast<int>(InputEventType::MouseDown);
+    inputEvent["MousePressed"] = static_cast<int>(InputEventType::MouseDown);
+
+    inputEvent["MouseUp"] = static_cast<int>(InputEventType::MouseUp);
+    inputEvent["Mouseup"] = static_cast<int>(InputEventType::MouseUp);
+    inputEvent["MouseReleased"] = static_cast<int>(InputEventType::MouseUp);
+
+    inputEvent["MouseMove"] = static_cast<int>(InputEventType::MouseMove);
+    inputEvent["Mousemove"] = static_cast<int>(InputEventType::MouseMove);
+    inputEvent["MouseMoved"] = static_cast<int>(InputEventType::MouseMove);
+
+    inputEvent["MouseWheel"] = static_cast<int>(InputEventType::MouseWheel);
+    inputEvent["Mousewheel"] = static_cast<int>(InputEventType::MouseWheel);
+    inputEvent["MouseScroll"] = static_cast<int>(InputEventType::MouseWheel);
+
+    inputEvent["TextEntered"] = static_cast<int>(InputEventType::TextEntered);
+    inputEvent["Text"] = static_cast<int>(InputEventType::TextEntered);
+
+    inputEvent["JoystickPressed"] = static_cast<int>(InputEventType::JoystickPressed);
+    inputEvent["JoystickReleased"] = static_cast<int>(InputEventType::JoystickReleased);
+    inputEvent["JoystickMoved"] = static_cast<int>(InputEventType::JoystickMoved);
+
+    // Also support string names for reverse lookup
+    inputEvent[static_cast<int>(InputEventType::KeyDown)] = "KeyDown";
+    inputEvent[static_cast<int>(InputEventType::KeyUp)] = "KeyUp";
+    inputEvent[static_cast<int>(InputEventType::MouseDown)] = "MouseDown";
+    inputEvent[static_cast<int>(InputEventType::MouseUp)] = "MouseUp";
+    inputEvent[static_cast<int>(InputEventType::MouseMove)] = "MouseMove";
+    inputEvent[static_cast<int>(InputEventType::MouseWheel)] = "MouseWheel";
+    inputEvent[static_cast<int>(InputEventType::TextEntered)] = "TextEntered";
+    inputEvent[static_cast<int>(InputEventType::JoystickPressed)] = "JoystickPressed";
+    inputEvent[static_cast<int>(InputEventType::JoystickReleased)] = "JoystickReleased";
+    inputEvent[static_cast<int>(InputEventType::JoystickMoved)] = "JoystickMoved";
+
+    lua["InputEventType"] = inputEvent;
+    lua["EventType"] = inputEvent;
 }

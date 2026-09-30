@@ -108,6 +108,18 @@ void EventManager::FireUIFocus(const std::string &elementId, bool focused)
         m_UIFocusCallbacks[i](elementId, focused);
 }
 
+void EventManager::SubscribeInput(std::function<void(const sf::Event &)> callback)
+{
+    m_InputCallbacks.push_back(std::move(callback));
+}
+
+void EventManager::FireInput(const sf::Event &event)
+{
+    const size_t count = m_InputCallbacks.size();
+    for (size_t i = 0; i < count && i < m_InputCallbacks.size(); ++i)
+        m_InputCallbacks[i](event);
+}
+
 void EventManager::Clear()
 {
     m_CollisionCallbacks.clear();
@@ -119,4 +131,5 @@ void EventManager::Clear()
     m_TextInputSubmitCallbacks.clear();
     m_UIHoverCallbacks.clear();
     m_UIFocusCallbacks.clear();
+    m_InputCallbacks.clear();
 }

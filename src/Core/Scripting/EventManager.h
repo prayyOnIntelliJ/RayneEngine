@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <SFML/Window/Event.hpp>
 
 #include "../ECS/Entity.h"
 
@@ -48,6 +49,9 @@ public:
     void SubscribeUIFocus(std::function<void(const std::string &, bool)> callback);
     void FireUIFocus(const std::string &elementId, bool focused);
 
+    void SubscribeInput(std::function<void(const sf::Event &)> callback);
+    void FireInput(const sf::Event &event);
+
     void Clear();
 
 private:
@@ -62,6 +66,7 @@ private:
     std::vector<std::function<void(const std::string &, const std::string &)> > m_TextInputSubmitCallbacks;
     std::vector<std::function<void(const std::string &, bool)> > m_UIHoverCallbacks;
     std::vector<std::function<void(const std::string &, bool)> > m_UIFocusCallbacks;
+    std::vector<std::function<void(const sf::Event &)> > m_InputCallbacks;
 };
 
 #endif

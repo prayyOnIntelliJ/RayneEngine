@@ -412,8 +412,8 @@ void Application::SetEvents()
             m_RenderWindow.close();
         }
 
-        m_SceneManager.HandleEvent(event);
         InputManager::Get().HandleEvent(event);
+        m_SceneManager.HandleEvent(event);
     }
 }
 

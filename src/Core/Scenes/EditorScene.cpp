@@ -3599,6 +3599,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawRow(window, "File", scriptName, panelX, y);
         y = DrawRow(window, "OnCreate", "bound", panelX, y);
         y = DrawRow(window, "OnUpdate", "bound", panelX, y);
+        y = DrawRow(window, "OnInputReceived", "bound", panelX, y);
         y += 8.f;
         if (!target->scriptProperties.empty())
         {

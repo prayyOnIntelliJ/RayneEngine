@@ -18,6 +18,7 @@
             52
         ],
         "gridOpacity": 255,
+        "preferredIDE": "code",
         "selectionOutlineColor": [
             255,
             220,

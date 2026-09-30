@@ -42,6 +42,13 @@
 ## Recent Changelog
 
 ### Added
+- **Event-Driven Input System (`OnInputReceived` / `OnInputReceiced`):**
+  - Added dedicated script callback `OnInputReceived(self, event)` (with `OnInputReceiced` alias) that triggers exclusively when hardware input arrives (keyboard, mouse, joystick, text) rather than polling every frame.
+  - Added typed enum table `InputEvent` (with aliases `InputEventType`, `EventType`) supporting enum comparisons like `if event.type == InputEvent.KeyDown` or `if event.type == InputEvent.Keydown`.
+  - Added `InputEventData` table fields: `type`, `typeName`, `typeStr`, `key`, `keyCode`, `keyName`, `button`, `buttonCode`, `buttonName`, `x`, `y`, `worldX` (camera-mapped), `worldY` (camera-mapped), `delta`, `wheel`, `text`, `unicode`, `alt`, `control`, `shift`, `system`, `joystickId`, `axis`, `position`, `isInput`, and `isPaused`.
+  - Added input helper functions: `Input.HasInput()`, `Input.GetLastEvent()`, `Input.KeyToString(key)`, and `Input.MouseButtonToString(button)`.
+  - Added Inspector SCRIPT section visual indicator for `OnInputReceived` callback hook.
+  - Added test scripts: `assets/scripting/InputTestScript.lua` and `assets/scripting/InteractiveInputDemo.lua`.
 - **2D Rigidbody Physics System & Impulse Solver:**
   - Added `Rigidbody2DComponent` with configurable `bodyType` (`Dynamic`, `Kinematic`, `Static`), `mass`, `gravityScale`, `restitution` (bounciness), `drag` (linear damping), and `freezeRotation`.
   - Added fixed-timestep physics simulation loop with sub-stepping (`PhysicsSystem`).
@@ -89,6 +96,8 @@
   - Added read-only file attributes for engine content and template files in standalone builds.
 
 ### Fixed
+- Fixed input event dispatch ordering in `Application::SetEvents` so `InputManager` processes events before scene event handling, ensuring `Input.HasInput()` and queries are immediately up-to-date during script callbacks.
+- Fixed editor crash when opening the UI Editor for the first time in standalone builds.
 - Fixed text underline disappearing when bold style is active in UIManager text rendering.
 - Fixed object rotation handle positioning and smooth angular dragging in the level editor viewport.
 - Fixed hit detection and selection on scaled entities to prevent miss-clicks and inaccurate marquee selection.
@@ -99,6 +108,7 @@
 - Fixed template asset path resolution to reliably locate project root using `FindProjectRoot()`.
 
 ### Removed
+- Removed requirement for magic string comparisons for input event types in Lua scripts in favor of `InputEvent` enum constants.
 - Removed legacy non-Lua comment cruft from `EditorScene`, `ContentBrowser`, `PhysicsSystem`, `SplashScreen`, and scripting manager classes.
 - Removed redundant `SetPathReadOnly` calls from `EditorScene` constructor.
 
@@ -365,6 +375,14 @@ function OnUpdate(self, dt)
     -- Invoked every simulation frame; dt represents delta time in seconds
 end
 
+function OnInputReceived(self, event)
+    -- Invoked strictly when hardware input arrives (keyboard, mouse, joystick, text)
+    -- (OnInputReceiced is also accepted as an alias)
+    if event.type == InputEvent.KeyDown and event.key == Key.Space then
+        print("Space key pressed!")
+    end
+end
+
 function OnCollisionEnter(self, other, normalX, normalY)
     -- Invoked upon physical contact with another entity, providing the collision normal
 end
@@ -554,6 +572,10 @@ Export = {
 | `Input.MouseX` | `() -> number` | Mouse horizontal position in screen space |
 | `Input.MouseY` | `() -> number` | Mouse vertical position in screen space |
 | `Input.MouseScroll` | `() -> number` | Mouse wheel scroll delta for current frame |
+| `Input.HasInput` | `() -> boolean` | True if any hardware input event occurred this frame |
+| `Input.GetLastEvent` | `() -> InputEventData \| nil` | Returns the most recently processed input event data |
+| `Input.KeyToString` | `(key: integer) -> string` | Converts a numeric key code to its human-readable name |
+| `Input.MouseButtonToString` | `(button: integer) -> string` | Converts a numeric mouse button code to its name |
 
 **Key Enums (`Key` / `KeyCode`):** `A` through `Z`, `Space`, `Enter`, `Escape`, `LShift`, `RShift`, `LCtrl`, `RCtrl`, `Left`, `Right`, `Up`, `Down`, `Tab`, `Delete`. (Both `Key.Space` and `KeyCode.Space` are supported).
 
@@ -561,6 +583,23 @@ Export = {
 
 **Mouse Enums (`Mouse`):** `Left`, `Right`, `Middle`.  
 Strings `"left"` / `"0"`, `"right"` / `"1"`, `"middle"` / `"2"` are also accepted.
+
+**Input Event Enums (`InputEvent` / `InputEventType` / `EventType`):**
+`KeyDown`, `KeyUp`, `MouseDown`, `MouseUp`, `MouseMove`, `MouseWheel`, `TextEntered`, `JoystickPressed`, `JoystickReleased`, `JoystickMoved`, `Unknown` (with lowercase and legacy aliases like `Keydown`, `Mousedown`, `KeyPressed`, `MouseScroll`, etc.).
+
+**InputEventData Fields:**
+- `type` (integer): Enum code from `InputEvent` (e.g. `InputEvent.KeyDown`)
+- `typeName` (string): Event name (e.g. `"KeyDown"`, `"MouseDown"`, `"MouseMove"`, `"TextEntered"`)
+- `key` / `keyCode` (integer) & `keyName` (string): Key information
+- `button` / `buttonCode` (integer) & `buttonName` (string): Mouse button information
+- `x`, `y` (number): Screen mouse coordinates
+- `worldX`, `worldY` (number): Camera-mapped world coordinates
+- `delta` (number), `wheel` (string): Mouse wheel delta and orientation (`"vertical"` or `"horizontal"`)
+- `text` (string), `unicode` (integer): Typed character and codepoint for `TextEntered`
+- `alt`, `control`, `shift`, `system` (boolean): Modifier key states
+- `joystickId`, `axis`, `position`: Gamepad / joystick values
+- `isInput` (boolean): Always true
+- `isPaused` (boolean): Current engine pause status
 
 ---
 

@@ -69,6 +69,10 @@ bool ScriptComponent::Reload()
     m_OnTextInputSubmitted = m_Env["OnTextInputSubmitted"];
     m_OnUIHover = m_Env["OnUIHover"];
     m_OnUIFocus = m_Env["OnUIFocus"];
+    m_OnInputReceived = m_Env["OnInputReceived"];
+    if (!m_OnInputReceived.valid())
+        m_OnInputReceived = m_Env["OnInputReceiced"];
+    m_OnInputReceiced = m_Env["OnInputReceiced"];
     return true;
 }
 
@@ -342,6 +346,47 @@ void ScriptComponent::OnUIFocus(const std::string &elementId, bool focused) cons
             {
                 sol::error err = res;
                 std::cerr << "[ERROR] [Script] UI.OnUIFocus execution error (" << m_Path << "): " << err.what() << "\n";
+            }
+        }
+    }
+}
+
+void ScriptComponent::OnInputReceived(const sol::table &eventTable) const
+{
+    if (m_OnInputReceived.valid())
+    {
+        auto res = m_OnInputReceived(m_Env["self"].get_or(0), eventTable);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnInputReceived execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+    else if (m_OnInputReceiced.valid())
+    {
+        auto res = m_OnInputReceiced(m_Env["self"].get_or(0), eventTable);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnInputReceiced execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+
+    sol::object uiObj = m_Env["UI"];
+    if (uiObj.is<sol::table>())
+    {
+        sol::table uiTable = uiObj.as<sol::table>();
+        sol::object cb = uiTable["OnInputReceived"];
+        if (!cb.is<sol::protected_function>())
+            cb = uiTable["OnInputReceiced"];
+        if (cb.is<sol::protected_function>())
+        {
+            sol::protected_function pfn = cb.as<sol::protected_function>();
+            auto res = pfn(eventTable);
+            if (!res.valid())
+            {
+                sol::error err = res;
+                std::cerr << "[ERROR] [Script] UI.OnInputReceived execution error (" << m_Path << "): " << err.what() << "\n";
             }
         }
     }

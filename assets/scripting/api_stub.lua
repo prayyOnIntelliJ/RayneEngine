@@ -116,6 +116,77 @@ function OnCreate(self) end
 ---@param dt number
 function OnUpdate(self, dt) end
 
+---@class InputEventEnum
+---@field Unknown integer
+---@field KeyDown integer
+---@field Keydown integer
+---@field KeyPressed integer
+---@field KeyUp integer
+---@field Keyup integer
+---@field KeyReleased integer
+---@field MouseDown integer
+---@field Mousedown integer
+---@field MousePressed integer
+---@field MouseUp integer
+---@field Mouseup integer
+---@field MouseReleased integer
+---@field MouseMove integer
+---@field Mousemove integer
+---@field MouseMoved integer
+---@field MouseWheel integer
+---@field Mousewheel integer
+---@field MouseScroll integer
+---@field TextEntered integer
+---@field Text integer
+---@field JoystickPressed integer
+---@field JoystickReleased integer
+---@field JoystickMoved integer
+InputEvent = {}
+
+---@type InputEventEnum
+InputEventType = InputEvent
+
+---@type InputEventEnum
+EventType = InputEvent
+
+---@class InputEventData
+---@field type integer Event type ID (compare with InputEvent.KeyDown / InputEvent.Keydown, InputEvent.MouseDown etc.)
+---@field typeName string Human-readable type ("KeyDown", "KeyUp", "MouseDown", "MouseUp", "MouseMove", "MouseWheel", "TextEntered")
+---@field typeStr string Legacy string type ("key_pressed", "key_released", "mouse_pressed", "mouse_released", "mouse_moved", "mouse_wheel", "text_entered")
+---@field key? integer Key code integer (compare with Key.Space, Key.W etc.)
+---@field keyCode? integer Numeric key code
+---@field keyName? string Name of key (e.g. "Space", "W", "Escape")
+---@field button? integer Mouse button integer (compare with Mouse.Left, Mouse.Right, Mouse.Middle)
+---@field buttonCode? integer Numeric mouse button code
+---@field buttonName? string Name of mouse button ("Left", "Right", "Middle")
+---@field x? number Screen mouse X position
+---@field y? number Screen mouse Y position
+---@field worldX? number World coordinate X mapped to camera view
+---@field worldY? number World coordinate Y mapped to camera view
+---@field delta? number Scroll wheel delta
+---@field wheel? string "vertical" or "horizontal"
+---@field text? string Character entered (for text_entered)
+---@field unicode? integer Unicode codepoint
+---@field alt? boolean Alt key state
+---@field control? boolean Control key state
+---@field shift? boolean Shift key state
+---@field system? boolean System / Super key state
+---@field joystickId? integer Joystick ID
+---@field axis? integer Joystick axis index
+---@field position? number Joystick axis position (-100 to 100)
+---@field isInput boolean Always true
+---@field isPaused boolean True if the game is currently paused
+
+---Called only when input arrives (keyboard, mouse, joystick, text)
+---@param self Entity
+---@param event InputEventData Event details table
+function OnInputReceived(self, event) end
+
+---Alias for OnInputReceived (supports alternate spelling)
+---@param self Entity
+---@param event InputEventData Event details table
+function OnInputReceiced(self, event) end
+
 ---Called when this entity collides with another
 ---@param self Entity
 ---@param other Entity
@@ -698,6 +769,24 @@ function Input.MouseY() end
 ---Returns the mouse scroll delta this frame
 ---@return number
 function Input.MouseScroll() end
+
+---Returns whether any input event was received in the current frame
+---@return boolean
+function Input.HasInput() end
+
+---Returns the last input event received
+---@return InputEventData|nil
+function Input.GetLastEvent() end
+
+---Converts a KeyCode integer to a human-readable key name
+---@param key integer
+---@return string
+function Input.KeyToString(key) end
+
+---Converts a Mouse button integer to a human-readable button name
+---@param button integer
+---@return string
+function Input.MouseButtonToString(button) end
 
 ---@class Key
 ---@field A number

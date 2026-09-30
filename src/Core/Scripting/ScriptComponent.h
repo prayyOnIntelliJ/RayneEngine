@@ -27,6 +27,7 @@ public:
     void OnTextInputSubmitted(const std::string &inputId, const std::string &text) const;
     void OnUIHover(const std::string &elementId, bool hovered) const;
     void OnUIFocus(const std::string &elementId, bool focused) const;
+    void OnInputReceived(const sol::table &eventTable) const;
 
     void SetEntity(Entity e);
 
@@ -73,6 +74,8 @@ private:
     sol::function m_OnTextInputSubmitted;
     sol::function m_OnUIHover;
     sol::function m_OnUIFocus;
+    sol::function m_OnInputReceived;
+    sol::function m_OnInputReceiced;
 };
 
 #endif
