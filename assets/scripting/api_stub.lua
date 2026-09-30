@@ -102,6 +102,18 @@ function OnUpdate(self, dt) end
 ---@param other Entity
 function OnCollision(self, other) end
 
+---Called when a solid physical collision begins with another entity
+---@param self Entity
+---@param other Entity The colliding entity
+---@param normalX number Collision contact normal X
+---@param normalY number Collision contact normal Y
+function OnCollisionEnter(self, other, normalX, normalY) end
+
+---Called when entering a trigger / sensor collider
+---@param self Entity
+---@param other Entity The trigger entity entered
+function OnTriggerEnter(self, other) end
+
 ---Called when an Entity or scene is destroyed / unloaded
 ---@param self Entity
 function OnDestroy(self) end
@@ -284,6 +296,48 @@ function SetPosition(e, x, y)  end
 ---@param path string Path to the .template file (e.g. "assets/templates/bullet.template")
 ---@return Template
 function Template(path) end
+
+---@class Image
+---@field __type string
+---@field path string Path to the image asset file
+
+---Creates an Image reference (used for export variables or texture paths)
+---@param path? string Path to the image file (e.g. "assets/sprites/character.png")
+---@return Image
+function Image(path) end
+
+---@class Vec2
+---@field __type string
+---@field x number
+---@field y number
+
+---Creates a 2D Vector (used for export variables or coordinates)
+---@param x? number X coordinate (defaults to 0.0)
+---@param y? number Y coordinate (defaults to 0.0)
+---@return Vec2
+function Vec2(x, y) end
+
+---@class Color
+---@field __type string
+---@field r integer Red component (0-255)
+---@field g integer Green component (0-255)
+---@field b integer Blue component (0-255)
+
+---Creates a Color value (used for export variables pickable via the Inspector)
+---@param r? integer Red component (defaults to 255)
+---@param g? integer Green component (defaults to 255)
+---@param b? integer Blue component (defaults to 255)
+---@return Color
+function Color(r, g, b) end
+
+---@class EntityRef
+---@field __type string
+---@field name string Entity name in the hierarchy
+
+---Creates an Entity reference (used for export variables referencing scene objects)
+---@param name? string The name of the target entity in the scene
+---@return EntityRef
+function Entity(name) end
 
 ---Instantiates an entity from a template at the specified coordinates
 ---@param template Template|string The template object or path string
@@ -1071,6 +1125,46 @@ function UI_SetOutline(id, r, g, b, a, thickness) end
 ---@param disabled boolean True to disable, false to enable.
 function UI_SetDisabled(id, disabled) end
 
+---@enum BodyType
+BodyType = {
+    Dynamic = 0,
+    Kinematic = 1,
+    Static = 2,
+}
+
+---@enum ColliderShape
+ColliderShape = {
+    Box = 0,
+    Circle = 1,
+}
+
+---@class Rigidbody2D
+---@field bodyType BodyType|integer 0 = Dynamic, 1 = Kinematic, 2 = Static
+---@field mass number Mass in kilograms (default: 1.0)
+---@field gravityScale number Multiplier for gravity acceleration (default: 1.0)
+---@field restitution number Coefficient of restitution / bounciness (0.0 to 1.0)
+---@field drag number Linear velocity damping factor (default: 0.0)
+---@field freezeRotation boolean If true, rotation is locked
+Rigidbody2D = {}
+
+---Adds a 2D Rigidbody component to an entity
+---@param entity Entity The entity to attach the rigidbody to
+---@param bodyType? BodyType|integer Optional body type (0=Dynamic, 1=Kinematic, 2=Static, default: Dynamic)
+---@param mass? number Optional mass in kg (default: 1.0)
+---@param gravityScale? number Optional gravity scale multiplier (default: 1.0)
+---@return Rigidbody2D
+function AddRigidbody(entity, bodyType, mass, gravityScale) end
+
+---Gets the 2D Rigidbody component of an entity, or nil if none exists
+---@param entity Entity The entity to query
+---@return Rigidbody2D|nil
+function GetRigidbody(entity) end
+
+---Returns whether an entity has a 2D Rigidbody component
+---@param entity Entity The entity to check
+---@return boolean
+function HasRigidbody(entity) end
+
 ---@class RaycastResult
 ---@field hit boolean
 ---@field entity Entity
@@ -1085,11 +1179,51 @@ RaycastResult = {}
 Physics = {}
 
 ---Casts a ray into the scene and returns the closest hit
----@param startX number
----@param startY number
----@param dirX number
----@param dirY number
----@param distance number
----@param channel? integer
+---@param startX number Ray start X
+---@param startY number Ray start Y
+---@param dirX number Ray direction X (will be normalized)
+---@param dirY number Ray direction Y (will be normalized)
+---@param distance number Maximum raycast distance
+---@param channel? integer Optional collision channel filter (-1 for all)
 ---@return RaycastResult
-function Physics.Raycast(startX, startY, dirX, dirY, distance, channel) end
+function Physics.Raycast(startX, startY, dirX, dirY, distance, channel) end
+
+---Applies a continuous force to an entity's Rigidbody (accumulated for the next physics step)
+---@param entity Entity The entity to apply force to
+---@param fx number Force along X axis
+---@param fy number Force along Y axis
+function Physics.ApplyForce(entity, fx, fy) end
+
+---Applies an instant impulse to an entity (directly modifies velocity: v += impulse / mass)
+---@param entity Entity The entity to apply impulse to
+---@param ix number Impulse along X axis
+---@param iy number Impulse along Y axis
+function Physics.ApplyImpulse(entity, ix, iy) end
+
+---Sets the velocity of an entity directly
+---@param entity Entity The entity
+---@param vx number Velocity along X axis
+---@param vy number Velocity along Y axis
+function Physics.SetVelocity(entity, vx, vy) end
+
+---Gets the current velocity of an entity
+---@param entity Entity The entity
+---@return number vx, number vy The current linear velocity components
+function Physics.GetVelocity(entity) end
+
+---Sets the global physics gravity vector
+---@param gx number Gravity acceleration along X axis
+---@param gy number Gravity acceleration along Y axis (default: 980.0)
+function Physics.SetGravity(gx, gy) end
+
+---Gets the current global physics gravity vector
+---@return number gx, number gy The current gravity acceleration components
+function Physics.GetGravity() end
+
+---Sets the fixed simulation timestep for physics
+---@param dt number Timestep duration in seconds (default: 1/60 ~ 0.01667)
+function Physics.SetFixedTimestep(dt) end
+
+---Gets the fixed simulation timestep for physics
+---@return number dt The timestep duration in seconds
+function Physics.GetFixedTimestep() end
