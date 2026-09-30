@@ -30,14 +30,16 @@ public:
 
     sol::environment &GetEnv() { return m_Env; }
 
-    enum class PropertyType { Unknown, Int, Float, Bool, String, Template };
+    enum class PropertyType { Unknown, Int, Float, Bool, String, Template, Image, Vec2, Color, Entity };
     struct Property {
         std::string name;
         PropertyType type;
-        std::string stringVal;
-        float floatVal = 0.0f;
+        std::string stringVal;   // Image path, Template path, Entity name, String value
+        float floatVal = 0.0f;   // also x component for Vec2
         int intVal = 0;
         bool boolVal = false;
+        float vec2Y = 0.0f;      // y component for Vec2
+        int colorR = 255, colorG = 255, colorB = 255;  // Color components
     };
 
     std::vector<Property> GetExportedProperties();

@@ -183,6 +183,8 @@ private:
     sf::FloatRect m_BrowserBounds;
     sf::FloatRect m_HierarchyBounds;
     float m_HierarchyScrollY = 0.f;
+    float m_InspectorScrollY = 0.f;
+    float m_InspectorContentHeight = 0.f;
 
     std::vector<InspectorButton> m_InspectorButtons;
     std::vector<std::pair<sf::FloatRect, EditorObject *> > m_HierarchyHitboxes;

@@ -67,6 +67,38 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return t;
     });
 
+    s_Lua.set_function("Image", [](sol::optional<std::string> pathOpt) -> sol::table {
+        sol::table t = LuaState::GetLua().create_table();
+        t["__type"] = "image";
+        t["path"] = pathOpt.value_or("");
+        return t;
+    });
+
+    s_Lua.set_function("Vec2", [](sol::optional<float> xOpt, sol::optional<float> yOpt) -> sol::table {
+        sol::table t = LuaState::GetLua().create_table();
+        t["__type"] = "vec2";
+        t["x"] = xOpt.value_or(0.f);
+        t["y"] = yOpt.value_or(0.f);
+        return t;
+    });
+
+    s_Lua.set_function("Color", [](sol::optional<int> rOpt, sol::optional<int> gOpt, sol::optional<int> bOpt) -> sol::table {
+        sol::table t = LuaState::GetLua().create_table();
+        t["__type"] = "color";
+        t["r"] = rOpt.value_or(255);
+        t["g"] = gOpt.value_or(255);
+        t["b"] = bOpt.value_or(255);
+        return t;
+    });
+
+    s_Lua.set_function("Entity", [](sol::optional<std::string> nameOpt) -> sol::table {
+        sol::table t = LuaState::GetLua().create_table();
+        t["__type"] = "entity";
+        t["name"] = nameOpt.value_or("");
+        return t;
+    });
+
+
     s_Lua.set_function("Instantiate", [&registry](sol::object templateObj, float x, float y, sol::optional<Entity> parent) -> Entity {
         std::string templatePath;
         if (templateObj.is<std::string>()) {

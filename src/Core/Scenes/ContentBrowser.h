@@ -96,6 +96,7 @@ public:
     void RenderDragGhost(sf::RenderWindow &window);
 
     void Refresh();
+    const std::string &GetRootPath() const { return m_RootPath; }
 
     bool IsReadOnlyPath(const std::string &path) const;
     bool IsCurrentPathReadOnly() const;

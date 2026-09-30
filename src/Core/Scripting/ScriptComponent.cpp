@@ -367,6 +367,29 @@ std::vector<ScriptComponent::Property> ScriptComponent::GetExportedProperties()
                         prop.type = PropertyType::Template;
                         prop.stringVal = t["path"].get_or(std::string(""));
                     }
+                    else if (typeObj.is<std::string>() && typeObj.as<std::string>() == "image")
+                    {
+                        prop.type = PropertyType::Image;
+                        prop.stringVal = t["path"].get_or(std::string(""));
+                    }
+                    else if (typeObj.is<std::string>() && typeObj.as<std::string>() == "vec2")
+                    {
+                        prop.type = PropertyType::Vec2;
+                        prop.floatVal = t["x"].get_or(0.f);
+                        prop.vec2Y = t["y"].get_or(0.f);
+                    }
+                    else if (typeObj.is<std::string>() && typeObj.as<std::string>() == "color")
+                    {
+                        prop.type = PropertyType::Color;
+                        prop.colorR = t["r"].get_or(255);
+                        prop.colorG = t["g"].get_or(255);
+                        prop.colorB = t["b"].get_or(255);
+                    }
+                    else if (typeObj.is<std::string>() && typeObj.as<std::string>() == "entity")
+                    {
+                        prop.type = PropertyType::Entity;
+                        prop.stringVal = t["name"].get_or(std::string(""));
+                    }
                 }
                 else if (val.is<int>()) { prop.type = PropertyType::Int; prop.intVal = val.as<int>(); prop.floatVal = val.as<float>(); }
                 else if (val.is<float>()) { prop.type = PropertyType::Float; prop.floatVal = val.as<float>(); }
@@ -393,6 +416,37 @@ void ScriptComponent::SetExportedProperty(const Property& prop)
         sol::table t = m_Env.create();
         t["__type"] = "template";
         t["path"] = prop.stringVal;
+        m_Env[prop.name] = t;
+    }
+    else if (prop.type == PropertyType::Image)
+    {
+        sol::table t = m_Env.create();
+        t["__type"] = "image";
+        t["path"] = prop.stringVal;
+        m_Env[prop.name] = t;
+    }
+    else if (prop.type == PropertyType::Vec2)
+    {
+        sol::table t = m_Env.create();
+        t["__type"] = "vec2";
+        t["x"] = prop.floatVal;
+        t["y"] = prop.vec2Y;
+        m_Env[prop.name] = t;
+    }
+    else if (prop.type == PropertyType::Color)
+    {
+        sol::table t = m_Env.create();
+        t["__type"] = "color";
+        t["r"] = prop.colorR;
+        t["g"] = prop.colorG;
+        t["b"] = prop.colorB;
+        m_Env[prop.name] = t;
+    }
+    else if (prop.type == PropertyType::Entity)
+    {
+        sol::table t = m_Env.create();
+        t["__type"] = "entity";
+        t["name"] = prop.stringVal;
         m_Env[prop.name] = t;
     }
 }
