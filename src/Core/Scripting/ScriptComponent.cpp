@@ -413,10 +413,6 @@ std::vector<ScriptComponent::Property> ScriptComponent::GetExportedProperties()
                 Property prop;
                 prop.name = propName;
                 sol::object val = m_Env[propName];
-                
-                // Int must be checked before float, or we can just use float. Actually Lua only has numbers.
-                // Sol2 can check is<int>() or is<float>(). Let's use is<float>() since Lua numbers are doubles.
-                // Actually, Sol2 can distinguish integers in 5.3+.
                 if (val.is<sol::table>())
                 {
                     sol::table t = val.as<sol::table>();

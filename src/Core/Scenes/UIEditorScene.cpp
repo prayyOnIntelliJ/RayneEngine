@@ -4436,8 +4436,6 @@ bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptP
         paramName = "text";
         logAction = "submitted: \" .. tostring(text)";
     }
-
-    // 1. Insert method stub if not present
     if (content.find("function " + normMethod) == std::string::npos)
     {
         if (!content.empty() && content.back() != '\n') content += "\n";
@@ -4450,8 +4448,6 @@ bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptP
         }
         content += "end\n";
     }
-
-    // 2. Global event hook
     std::string hookFunc = "";
     std::string hookParam = "";
     std::string callArgs = "";
@@ -4498,8 +4494,6 @@ bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptP
             }
         }
     }
-
-    // Write updated content to source file
     {
         std::ofstream ofs(fullPath, std::ios::trunc);
         if (!ofs.is_open())
@@ -4510,24 +4504,16 @@ bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptP
         ofs << content;
         ofs.close();
     }
-
-    // Sync to runtime directory immediately
     SyncFileToRuntime(normPath);
-
-    // Also reload in LuaState if initialized
     try {
         LuaState::GetLua().safe_script(content);
     } catch (...) {}
-
-    // Update UI element
     el->scriptPath = normPath;
     el->scriptMethod = normMethod;
     if (el->type == UIElementType::Button)
     {
         el->onClickAction = normMethod;
     }
-
-    // Auto-save UI
     std::string uiPath = UIManager::Get().GetCurrentUIPath();
     if (uiPath.empty()) uiPath = "assets/scenes/game_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);

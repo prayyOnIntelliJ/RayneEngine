@@ -18,7 +18,6 @@ struct TransformComponent
     float scaleX = 1.f;
     float scaleY = 1.f;
 
-    // Computed world transform
     float worldX = 0.f;
     float worldY = 0.f;
     float worldRotation = 0.f;
@@ -97,11 +96,10 @@ struct Rigidbody2DComponent
     BodyType bodyType = BodyType::Dynamic;
     float mass = 1.0f;
     float gravityScale = 1.0f;
-    float restitution = 0.0f; // Bounciness (0 = no bounce, 1 = elastic)
-    float drag = 0.05f;       // Linear drag / damping
+    float restitution = 0.0f;
+    float drag = 0.05f;
     bool freezeRotation = true;
 
-    // Accumulated external continuous forces
     float forceX = 0.f;
     float forceY = 0.f;
 };

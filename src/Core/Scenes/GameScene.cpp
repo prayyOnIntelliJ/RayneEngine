@@ -298,8 +298,6 @@ void GameScene::OnEnter()
             }
         }
     });
-
-    // Load any scripts bound to UI elements
     for (const auto &el : UIManager::Get().GetElements())
     {
         if (!el.scriptPath.empty())

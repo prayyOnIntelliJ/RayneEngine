@@ -37,12 +37,12 @@ public:
     struct Property {
         std::string name;
         PropertyType type;
-        std::string stringVal;   // Image path, Template path, Entity name, String value
-        float floatVal = 0.0f;   // also x component for Vec2
+        std::string stringVal;
+        float floatVal = 0.0f;
         int intVal = 0;
         bool boolVal = false;
-        float vec2Y = 0.0f;      // y component for Vec2
-        int colorR = 255, colorG = 255, colorB = 255;  // Color components
+        float vec2Y = 0.0f;
+        int colorR = 255, colorG = 255, colorB = 255;
     };
 
     std::vector<Property> GetExportedProperties();

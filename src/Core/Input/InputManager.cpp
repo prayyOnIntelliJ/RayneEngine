@@ -338,8 +338,6 @@ void InputManager::RegisterLua(sol::state &lua)
     inputEvent["JoystickPressed"] = static_cast<int>(InputEventType::JoystickPressed);
     inputEvent["JoystickReleased"] = static_cast<int>(InputEventType::JoystickReleased);
     inputEvent["JoystickMoved"] = static_cast<int>(InputEventType::JoystickMoved);
-
-    // Also support string names for reverse lookup
     inputEvent[static_cast<int>(InputEventType::KeyDown)] = "KeyDown";
     inputEvent[static_cast<int>(InputEventType::KeyUp)] = "KeyUp";
     inputEvent[static_cast<int>(InputEventType::MouseDown)] = "MouseDown";

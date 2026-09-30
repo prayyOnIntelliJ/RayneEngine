@@ -20,15 +20,15 @@ static const sf::Color C_DANGER = sf::Color(241, 104, 94);
 static const sf::Color C_ACCENT = sf::Color(124, 108, 240);
 static const sf::Color C_ACCENT_HOV = sf::Color(146, 132, 245);
 
-static const sf::Color C_LUA_LOG = sf::Color(45, 212, 191);          // Vibrant Teal / Aqua (#2DD4BF)
-static const sf::Color C_LUA_LOG_BG = sf::Color(45, 212, 191, 26);   // Subtle row highlight glow
-static const sf::Color C_LUA_LOG_TEXT = sf::Color(153, 246, 228);    // Luminous cyan-white text (#99F6E4)
-static const sf::Color C_WARN = sf::Color(251, 191, 36);             // Amber / Gold (#FBBF24)
+static const sf::Color C_LUA_LOG = sf::Color(45, 212, 191);
+static const sf::Color C_LUA_LOG_BG = sf::Color(45, 212, 191, 26);
+static const sf::Color C_LUA_LOG_TEXT = sf::Color(153, 246, 228);
+static const sf::Color C_WARN = sf::Color(251, 191, 36);
 static const sf::Color C_WARN_BG = sf::Color(251, 191, 36, 18);
 static const sf::Color C_WARN_TEXT = sf::Color(254, 240, 138);
 static const sf::Color C_ERROR_BG = sf::Color(241, 104, 94, 22);
 static const sf::Color C_ERROR_TEXT = sf::Color(254, 202, 202);
-static const sf::Color C_CMD = sf::Color(167, 139, 250);             // Violet (#A78BFA)
+static const sf::Color C_CMD = sf::Color(167, 139, 250);
 
 ConsoleRedirector::ConsoleRedirector(std::ostream& stream, std::function<void(const std::string&, bool)> callback, bool isError)
     : m_Stream(stream), m_Callback(std::move(callback)), m_IsError(isError)
@@ -321,7 +321,6 @@ void ConsolePanel::ExecuteCommand(const std::string& rawCommand)
     }
     else
     {
-        // Execute as Lua code fallback
         std::string luaCode = (lowerCmd == "lua") ? args : command;
         if (!luaCode.empty())
         {
@@ -522,13 +521,10 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
 
             if (isLuaLog)
             {
-                // Subtle row glow
                 sf::RectangleShape rowBg({width, lh});
                 rowBg.setPosition(0.f, currentY);
                 rowBg.setFillColor(C_LUA_LOG_BG);
                 window.draw(rowBg);
-
-                // Left accent bar
                 sf::RectangleShape indicator({3.f, lh - 2.f});
                 indicator.setPosition(2.f, currentY + 1.f);
                 indicator.setFillColor(C_LUA_LOG);
@@ -542,8 +538,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
                 std::string content = (msg.text.size() > prefixLen && msg.text[prefixLen] == ' ')
                     ? msg.text.substr(prefixLen + 1)
                     : (msg.text.size() > prefixLen ? msg.text.substr(prefixLen) : "");
-
-                // Tag badge
                 sf::Text tagText;
                 tagText.setFont(m_Font);
                 tagText.setCharacterSize(10);
@@ -559,8 +553,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
 
                 tagText.setPosition(13.f, currentY + 1.f);
                 window.draw(tagText);
-
-                // Highlighted message text
                 logText.setString(content);
                 logText.setFillColor(C_LUA_LOG_TEXT);
                 logText.setPosition(8.f + tagW + 6.f, currentY);
@@ -568,7 +560,6 @@ void ConsolePanel::Render(sf::RenderWindow& window, float x, float y, float widt
             }
             else if (isError)
             {
-                // Row glow & indicator
                 sf::RectangleShape rowBg({width, lh});
                 rowBg.setPosition(0.f, currentY);
                 rowBg.setFillColor(C_ERROR_BG);

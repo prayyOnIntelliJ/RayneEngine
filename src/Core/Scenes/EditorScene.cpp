@@ -1081,7 +1081,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 EditorObject* dropTarget = inInspector ? GetInspectedObject() : m_Selected;
                 if (dropTarget)
                 {
-                    // First check if there's an Image export property to receive the drop
                     bool droppedOnImageProp = false;
                     if (inInspector)
                     {
@@ -1376,7 +1375,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ScriptProperty)
                 {
-                    // Check if it's a Vec2 sub-property
                     bool handledAsVec2 = false;
                     if (m_ActiveScriptProperty.size() > 2)
                     {
@@ -2951,8 +2949,6 @@ void EditorScene::DrawInspectorHeader(sf::RenderWindow &window, float panelX, fl
     }
     title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
     window.draw(title);
-
-    // --- Lock Button at top right ---
     const float btnSize = 22.f;
     const sf::FloatRect lockBtnRect(panelX + InspectorWidth - btnSize - 8.f, panelY + 7.f, btnSize, btnSize);
     const bool lockHov = lockBtnRect.contains(m_MouseScreenPos);
@@ -2969,8 +2965,6 @@ void EditorScene::DrawInspectorHeader(sf::RenderWindow &window, float panelX, fl
             m_ActiveTooltip = target ? ("Lock Inspector to " + target->id) : "Select an object to lock Inspector";
         }
     }
-
-    // Lock button background
     sf::RectangleShape lockBg({btnSize, btnSize});
     lockBg.setPosition(lockBtnRect.left, lockBtnRect.top);
     if (m_InspectorLocked)
@@ -2986,34 +2980,24 @@ void EditorScene::DrawInspectorHeader(sf::RenderWindow &window, float panelX, fl
         lockBg.setOutlineThickness(1.f);
     }
     window.draw(lockBg);
-
-    // Lock icon graphics
     const sf::Color lockColor = m_InspectorLocked ? sf::Color(255, 215, 80) : (lockHov ? C_TEXT_PRIMARY : sf::Color(140, 145, 160));
-
-    // Lock body
     sf::RectangleShape lockBody({10.f, 8.f});
     lockBody.setPosition(lockBtnRect.left + 6.f, lockBtnRect.top + 10.f);
     lockBody.setFillColor(lockColor);
     window.draw(lockBody);
-
-    // Lock shackle (loop)
     sf::RectangleShape shackle({6.f, 6.f});
     if (m_InspectorLocked)
     {
-        // Closed shackle centered above body
         shackle.setPosition(lockBtnRect.left + 8.f, lockBtnRect.top + 5.f);
     }
     else
     {
-        // Open shackle shifted up and slightly to the right
         shackle.setPosition(lockBtnRect.left + 9.5f, lockBtnRect.top + 3.5f);
     }
     shackle.setFillColor(sf::Color::Transparent);
     shackle.setOutlineColor(lockColor);
     shackle.setOutlineThickness(1.5f);
     window.draw(shackle);
-
-    // Tiny keyhole on lock body
     sf::RectangleShape keyhole({2.f, 3.f});
     keyhole.setPosition(lockBtnRect.left + 10.f, lockBtnRect.top + 12.f);
     keyhole.setFillColor(sf::Color(20, 22, 28));
@@ -3030,8 +3014,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     const float panelX = m_InspectorBounds.left;
     const float panelY = m_InspectorBounds.top;
     const float panelH = m_InspectorBounds.height;
-
-    // Clamp scroll every frame
     float maxScroll = std::max(0.f, m_InspectorContentHeight - (panelH - 42.f));
     m_InspectorScrollY = std::max(0.f, std::min(m_InspectorScrollY, maxScroll));
 
@@ -3043,8 +3025,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     leftBorder.setFillColor(C_BORDER);
     leftBorder.setPosition(panelX, panelY);
     window.draw(leftBorder);
-
-    // --- Set up clipping view for scrollable content below the header ---
     sf::View origView = window.getView();
     window.setView(window.getDefaultView());
 
@@ -3222,8 +3202,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             window.draw(empty);
             m_InspectorContentHeight = 0.f;
         }
-
-        // Restore view and redraw header on top
         window.setView(origView);
         DrawInspectorHeader(window, panelX, panelY);
         return;
@@ -3647,7 +3625,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                     }
                     else if (prop.type == ScriptComponent::PropertyType::Vec2)
                     {
-                        // Draw two editable rows for x and y
                         std::string xPropKey = prop.name + "_x";
                         std::string yPropKey = prop.name + "_y";
                         std::string xValStr = (m_ActiveField == EditField::ScriptProperty && m_ActiveScriptProperty == xPropKey)
@@ -3662,7 +3639,6 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                     }
                     else if (prop.type == ScriptComponent::PropertyType::Color)
                     {
-                        // Draw a color swatch row
                         float rowY = y;
                         sf::Text lbl;
                         lbl.setFont(*m_Font);
@@ -3698,11 +3674,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         if (m_ActiveField == EditField::Script)
             DrawScriptInput(window, panelX, y);
     }
-
-    // Track total content height
     m_InspectorContentHeight = (y - contentStartY) + m_InspectorScrollY;
-
-    // Restore original view and redraw header on top so it's always visible
     window.setView(origView);
     DrawInspectorHeader(window, panelX, panelY);
 }
@@ -4291,8 +4263,6 @@ float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string 
     {
         m_InspectorButtons.push_back({boxRect, action});
     }
-
-    // Card background
     sf::RectangleShape card({previewW, previewH});
     card.setPosition(x, y);
     card.setFillColor(hovered ? sf::Color(32, 38, 48) : C_BG_INPUT);
@@ -4321,8 +4291,6 @@ float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string 
     const float thumbSize = previewH - 10.f;
     const float thumbX = x + 5.f;
     const float thumbY = y + 5.f;
-
-    // Thumbnail background
     sf::RectangleShape thumbBg({thumbSize, thumbSize});
     thumbBg.setPosition(thumbX, thumbY);
     thumbBg.setFillColor(sf::Color(16, 18, 22));
@@ -4344,8 +4312,6 @@ float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string 
         window.draw(sprite);
 
         float textX = thumbX + thumbSize + 8.f;
-
-        // Filename
         std::string filename = p.filename().string();
         if (filename.length() > 20) filename = filename.substr(0, 17) + "...";
         sf::Text nameText;
@@ -4356,8 +4322,6 @@ float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string 
         nameText.setString(filename);
         nameText.setPosition(textX, y + 6.f);
         window.draw(nameText);
-
-        // Resolution
         sf::Text resText;
         resText.setFont(*m_Font);
         resText.setCharacterSize(10);
@@ -4365,8 +4329,6 @@ float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string 
         resText.setString(std::to_string(ts.x) + " x " + std::to_string(ts.y) + " px");
         resText.setPosition(textX, y + 21.f);
         window.draw(resText);
-
-        // Tag
         sf::Text tagText;
         tagText.setFont(*m_Font);
         tagText.setCharacterSize(9);
@@ -4423,8 +4385,6 @@ float EditorScene::DrawTemplatePreview(sf::RenderWindow &window, const std::stri
     {
         m_InspectorButtons.push_back({boxRect, action});
     }
-
-    // Card background
     sf::RectangleShape card({previewW, previewH});
     card.setPosition(x, y);
     card.setFillColor(hovered ? sf::Color(26, 36, 48) : sf::Color(20, 24, 30));
@@ -4674,8 +4634,6 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             }
             return;
         }
-
-        // Skip buttons scrolled outside the visible inspector content area
         float clipTop = m_InspectorBounds.top + 36.f;
         float clipBot = m_InspectorBounds.top + m_InspectorBounds.height;
         if (btn.bounds.top + btn.bounds.height < clipTop || btn.bounds.top > clipBot) continue;
@@ -4823,8 +4781,6 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::ScriptProperty;
             m_ActiveScriptProperty = btn.action.substr(17);
-
-            // Check if it's a Vec2 sub-property (name_x or name_y)
             bool isVec2Sub = false;
             std::string vec2BaseName;
             bool isXComp = false;
@@ -5443,13 +5399,9 @@ void EditorScene::LoadFromJson(const std::string &path)
             auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(obj.entity);
             obj.scriptPath = sp;
-
-            // 1. Populate defaults from script
             for (const auto& prop : sc.GetExportedProperties()) {
                 obj.scriptProperties[prop.name] = prop;
             }
-
-            // 2. Override with saved properties
             if (j.contains("scriptProperties")) {
                 for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
                     ScriptComponent::Property prop;
@@ -5787,13 +5739,9 @@ void EditorScene::RestoreSnapshot()
             auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
             sc.SetEntity(obj.entity);
             obj.scriptPath = sp;
-
-            // 1. Populate defaults from script
             for (const auto& prop : sc.GetExportedProperties()) {
                 obj.scriptProperties[prop.name] = prop;
             }
-
-            // 2. Override with saved snapshot properties
             if (j.contains("scriptProperties")) {
                 for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
                     ScriptComponent::Property prop;
@@ -5976,22 +5924,16 @@ void EditorScene::DrawWorldAxes(sf::RenderWindow &window)
     const float pixelWidth = std::max(1.f, std::abs(wOne.x - wZero.x));
 
     const float axisThickness = std::max(1.5f, pixelWidth * 1.5f);
-
-    // X-Axis (Red): along y = 0
     sf::RectangleShape xAxis({right - left, axisThickness});
     xAxis.setOrigin(0.f, axisThickness * 0.5f);
     xAxis.setPosition(left, 0.f);
     xAxis.setFillColor(sf::Color(220, 60, 60, 200));
     window.draw(xAxis);
-
-    // Y-Axis (Green): along x = 0
     sf::RectangleShape yAxis({axisThickness, bottom - top});
     yAxis.setOrigin(axisThickness * 0.5f, 0.f);
     yAxis.setPosition(0.f, top);
     yAxis.setFillColor(sf::Color(60, 200, 60, 200));
     window.draw(yAxis);
-
-    // World origin marker at (0, 0)
     const float markerRadius = std::max(3.f, pixelWidth * 3.5f);
     sf::CircleShape originMarker(markerRadius);
     originMarker.setOrigin(markerRadius, markerRadius);
@@ -7422,13 +7364,9 @@ void EditorScene::DeserializeObject(const json& j) {
         auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
         sc.SetEntity(obj.entity);
         obj.scriptPath = sp;
-
-        // 1. Populate defaults from script
         for (const auto& prop : sc.GetExportedProperties()) {
             obj.scriptProperties[prop.name] = prop;
         }
-
-        // 2. Override with saved properties
         if (j.contains("scriptProperties")) {
             for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
                 ScriptComponent::Property prop;
@@ -7560,7 +7498,7 @@ void EditorScene::SelectObject(EditorObject* obj, bool multi) {
         m_Selected = m_SelectedObjects.size() == 1 ? m_SelectedObjects.back() : nullptr;
         if (!m_InspectorLocked)
         {
-            m_InspectorScrollY = 0.f;  // Reset scroll on new selection
+            m_InspectorScrollY = 0.f;
         }
     }
 }
@@ -8524,8 +8462,6 @@ void EditorScene::SaveAsTemplate(EditorObject *obj, const std::string &name)
     }
     out << data.dump(4);
     out.close();
-
-    // Store relative path from assets root if possible
     std::string relPath = std::filesystem::proximate(targetFile, rootDir, ec).generic_string();
     obj->templatePath = ec ? targetFile.generic_string() : ("assets/" + relPath);
     if (m_ContentBrowser)
@@ -8753,8 +8689,6 @@ void EditorScene::DrawSaveTemplateModal(sf::RenderWindow &window)
     float btnCancelX = pX + pW - 20.f - btnW;
 
     sf::Vector2f mPos = {(float)sf::Mouse::getPosition(window).x, (float)sf::Mouse::getPosition(window).y};
-
-    // Save Button
     sf::RectangleShape btnSave(sf::Vector2f(btnW, btnH));
     btnSave.setPosition(btnSaveX, btnY);
     bool hoverSave = btnSave.getGlobalBounds().contains(mPos);
@@ -8766,8 +8700,6 @@ void EditorScene::DrawSaveTemplateModal(sf::RenderWindow &window)
     saveText.setPosition(btnSaveX + (btnW - stBounds.width) / 2.f, btnY + (btnH - stBounds.height) / 2.f - 2.f);
     saveText.setFillColor(sf::Color::White);
     window.draw(saveText);
-
-    // Cancel Button
     sf::RectangleShape btnCancel(sf::Vector2f(btnW, btnH));
     btnCancel.setPosition(btnCancelX, btnY);
     bool hoverCancel = btnCancel.getGlobalBounds().contains(mPos);

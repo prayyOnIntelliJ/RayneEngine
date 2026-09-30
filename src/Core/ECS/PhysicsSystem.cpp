@@ -120,7 +120,6 @@ static bool TestCircleCircle(const ColliderInfo& a, const ColliderInfo& b, sf::V
     return true;
 }
 
-// normal points from box to circle
 static bool TestCircleBox(const ColliderInfo& circle, const ColliderInfo& box, sf::Vector2f& normal, float& penetration)
 {
     float dx = circle.center.x - box.center.x;
@@ -205,7 +204,7 @@ RaycastResult PhysicsSystem::Raycast(Registry& registry, float startX, float sta
 void PhysicsSystem::Step(Registry& registry, float dt)
 {
     s_Accumulator += dt;
-    if (s_Accumulator > 0.2f) s_Accumulator = 0.2f; // Clamp to avoid freeze / spiral of death
+    if (s_Accumulator > 0.2f) s_Accumulator = 0.2f;
 
     while (s_Accumulator >= s_FixedDeltaTime)
     {
@@ -216,7 +215,6 @@ void PhysicsSystem::Step(Registry& registry, float dt)
 
 void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
 {
-    // 1. Integration: Update velocities and positions
     registry.ForEach<TransformComponent, VelocityComponent>(
         [&registry, fixedDt](Entity e, TransformComponent& t, VelocityComponent& v) {
             if (registry.HasComponent<Rigidbody2DComponent>(e))
@@ -246,7 +244,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
                     t.x += v.dx * fixedDt;
                     t.y += v.dy * fixedDt;
                 }
-                else // Static
+                else
                 {
                     v.dx = 0.f;
                     v.dy = 0.f;
@@ -254,15 +252,12 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
             }
             else
             {
-                // Simple mover without Rigidbody
                 t.x += v.dx * fixedDt;
                 t.y += v.dy * fixedDt;
             }
         });
 
     HierarchySystem::UpdateWorldTransforms(registry);
-
-    // 2. Collision Detection & Resolution
     std::vector<ColliderInfo> colliders;
     registry.ForEach<TransformComponent, CollisionComponent>(
         [&registry, &colliders](Entity e, TransformComponent& t, CollisionComponent& col) {
@@ -306,7 +301,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
 
             if (a.channel != b.channel) continue;
 
-            sf::Vector2f normal(0.f, 0.f); // points from a to b
+            sf::Vector2f normal(0.f, 0.f);
             float penetration = 0.0f;
             bool hit = false;
 
@@ -320,13 +315,11 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
             }
             else if (a.shape == ColliderShape::Circle && b.shape == ColliderShape::Box)
             {
-                // TestCircleBox gives box -> circle normal, so negate it to get a (circle) -> b (box)
                 hit = TestCircleBox(a, b, normal, penetration);
                 normal = -normal;
             }
             else if (a.shape == ColliderShape::Box && b.shape == ColliderShape::Circle)
             {
-                // TestCircleBox(b, a) gives box (a) -> circle (b) normal
                 hit = TestCircleBox(b, a, normal, penetration);
             }
 
@@ -359,8 +352,6 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
                         registry.GetComponent<ScriptComponent>(b.entity).OnCollisionEnter(a.entity, normal.x, normal.y);
                 }
             }
-
-            // Physical response if solid
             if (!isTriggerContact && (a.type == CollisionType::Solid || b.type == CollisionType::Solid))
             {
                 Rigidbody2DComponent* rbA = registry.HasComponent<Rigidbody2DComponent>(a.entity) 
@@ -380,8 +371,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
 
                 if (invMassSum > 0.00001f)
                 {
-                    // 1. Positional Separation
-                    const float percent = 0.8f; // penetration resolution factor
+                    const float percent = 0.8f;
                     const float slop = 0.01f;
                     float correctionMag = std::max(penetration - slop, 0.0f) / invMassSum * percent;
                     sf::Vector2f correction = normal * correctionMag;
@@ -396,9 +386,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
                         tB.x += correction.x * invMassB;
                         tB.y += correction.y * invMassB;
                     }
-
-                    // 2. Velocity Impulse
-                    VelocityComponent* vA = registry.HasComponent<VelocityComponent>(a.entity) 
+                    VelocityComponent* vA = registry.HasComponent<VelocityComponent>(a.entity)
                         ? &registry.GetComponent<VelocityComponent>(a.entity) : nullptr;
                     VelocityComponent* vB = registry.HasComponent<VelocityComponent>(b.entity) 
                         ? &registry.GetComponent<VelocityComponent>(b.entity) : nullptr;
@@ -427,7 +415,6 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
                             vB->dy += impulse.y * invMassB;
                         }
 
-                        // Tangential friction impulse
                         sf::Vector2f tangent = relVel - normal * velAlongNormal;
                         float tangentLen = std::sqrt(tangent.x * tangent.x + tangent.y * tangent.y);
                         if (tangentLen > 0.0001f)
@@ -615,7 +602,6 @@ void PhysicsSystem::RegisterLua(sol::state& lua, Registry& registry)
         return GetFixedTimestep();
     });
 
-    // Helper functions for entity Rigidbody in Lua
     lua.set_function("AddRigidbody", [&registry](Entity e, sol::optional<int> bodyType, sol::optional<float> mass, sol::optional<float> gravityScale) -> Rigidbody2DComponent& {
         Rigidbody2DComponent rb;
         if (bodyType.has_value()) rb.bodyType = static_cast<BodyType>(bodyType.value());

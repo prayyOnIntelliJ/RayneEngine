@@ -143,6 +143,6 @@ inline void SetParent(Registry &registry, Entity child, Entity newParent, bool k
     UpdateWorldTransforms(registry);
 }
 
-} // namespace HierarchySystem
+}
 
-#endif // RAYNEENGINE_HIERARCHYSYSTEM_H
+#endif
