@@ -1,7 +1,7 @@
 # RayneEngine
 
 <p align="center">
-  <img width="100%" alt="RayneEngine Cover" src="https://github.com/user-attachments/assets/98536ef6-3e47-4e01-a0af-c2e264530ad6" />
+  <img width="1024" height="1024" alt="rayne_icon" src="https://github.com/user-attachments/assets/528b554f-836c-4fa4-918d-ef9f790e1cac" />
 </p>
 
 <p align="center">
