@@ -887,6 +887,12 @@ void UIManager::Save(const std::string &path)
         data["ui_elements"].push_back(j);
     }
 
+    std::error_code ec;
+    std::filesystem::path fp(path);
+    if (fp.has_parent_path()) {
+        std::filesystem::create_directories(fp.parent_path(), ec);
+    }
+
     std::ofstream file(path);
     if (file.is_open())
         file << data.dump(4, ' ', false, json::error_handler_t::replace);
@@ -898,13 +904,24 @@ void UIManager::Load(const std::string &path)
     m_Elements.clear();
 
     std::ifstream file(path);
+    if (!file.is_open())
+    {
+        std::error_code ec;
+        auto cur = std::filesystem::current_path(ec);
+        if (std::filesystem::exists(cur / path, ec))
+            file.open(cur / path);
+        else if (std::filesystem::exists(cur.parent_path() / path, ec))
+            file.open(cur.parent_path() / path);
+    }
     if (!file.is_open()) return;
 
     json data;
     try { data = json::parse(file); } catch (...) { return; }
 
-    if (!data.contains("ui_elements")) return;
+    if (!data.contains("ui_elements") || !data["ui_elements"].is_array()) return;
 
+    try
+    {
     for (auto &j: data["ui_elements"])
     {
         UIElement el;
@@ -1055,6 +1072,15 @@ void UIManager::Load(const std::string &path)
         el.font = m_DefaultFont;
         el.UpdateDrawables();
         m_Elements.push_back(el);
+    }
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[ERROR] [UIManager] Exception while parsing UI elements: " << e.what() << "\n";
+    }
+    catch (...)
+    {
+        std::cerr << "[ERROR] [UIManager] Unknown exception while parsing UI elements\n";
     }
     m_SortDirty = true;
     ApplyLayouts();

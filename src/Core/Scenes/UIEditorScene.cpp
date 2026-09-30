@@ -263,7 +263,21 @@ UIEditorScene::UIEditorScene(SceneManager &manager, sf::RenderWindow &window)
 {
     m_Font = ResourceManager::Get().GetFont(ENGINE_ASSET_PATH "/fonts/Merriweather.ttf");
     m_CanvasView = window.getDefaultView();
-    m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, ASSET_PATH);
+    std::filesystem::path projRoot = FindProjectRoot();
+    m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, (projRoot / "assets").string());
+    m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
+        std::error_code ec;
+        std::filesystem::path p(path);
+        std::filesystem::path rootDir = FindProjectRoot();
+        std::string relPath = std::filesystem::relative(p, rootDir, ec).generic_string();
+        if (ec || relPath.empty()) relPath = path;
+
+        UIManager::Get().SetCurrentUIPath(relPath);
+        UIManager::Get().Load(path);
+        SelectElement(nullptr);
+        SetDirty(false);
+        std::cout << "[INFO] [UIEditorScene] Loaded UI scene from browser: " << relPath << "\n";
+    };
     InitMenus();
     UpdateBounds();
 }
@@ -331,14 +345,57 @@ void UIEditorScene::OnEnter()
     AutoDetectPreferredIDE();
     UpdateBounds();
     SelectElement(nullptr);
-    if (m_ContentBrowser) m_ContentBrowser->Refresh();
 
-    if (UIManager::Get().GetCurrentUIPath().empty())
+    std::string currentPath = UIManager::Get().GetCurrentUIPath();
+    if (currentPath.empty())
     {
-        std::filesystem::path rootDir = FindProjectRoot();
-        if (std::filesystem::exists(rootDir / "assets/scenes/game_ui.json"))
-            UIManager::Get().SetCurrentUIPath("assets/scenes/game_ui.json");
+        currentPath = "assets/scenes/game_ui.json";
+        UIManager::Get().SetCurrentUIPath(currentPath);
     }
+
+    std::filesystem::path rootDir = FindProjectRoot();
+    std::filesystem::path fullPath = rootDir / currentPath;
+    std::error_code ec;
+
+    if (!std::filesystem::exists(fullPath, ec))
+    {
+        std::cout << "[INFO] [UIEditorScene] UI scene file does not exist, creating initial scene: " << fullPath.string() << "\n";
+        std::filesystem::create_directories(fullPath.parent_path(), ec);
+        std::ofstream ofs(fullPath);
+        if (ofs.is_open())
+        {
+            ofs << "{\n    \"ui_elements\": []\n}\n";
+            ofs.close();
+        }
+        SyncFileToRuntime(currentPath);
+    }
+
+    std::filesystem::path curDir = std::filesystem::current_path();
+    if (curDir != rootDir)
+    {
+        std::filesystem::path curFilePath = curDir / currentPath;
+        if (!std::filesystem::exists(curFilePath, ec))
+        {
+            std::filesystem::create_directories(curFilePath.parent_path(), ec);
+            std::ofstream ofs(curFilePath);
+            if (ofs.is_open())
+            {
+                ofs << "{\n    \"ui_elements\": []\n}\n";
+                ofs.close();
+            }
+        }
+    }
+
+    if (std::filesystem::exists(fullPath, ec))
+    {
+        UIManager::Get().Load(fullPath.string());
+    }
+    else
+    {
+        UIManager::Get().Load(currentPath);
+    }
+
+    if (m_ContentBrowser) m_ContentBrowser->Refresh();
     SetDirty(false);
 }
 
@@ -2430,7 +2487,10 @@ void UIEditorScene::HandleAction(const std::string &action)
     if (action == "back") { m_manager.SwitchSceneTo("editor"); } else if (action == "save")
     {
         std::string path = UIManager::Get().GetCurrentUIPath();
-        if (path.empty()) path = "assets/scenes/game_ui.json";
+        if (path.empty()) {
+            path = "assets/scenes/game_ui.json";
+            UIManager::Get().SetCurrentUIPath(path);
+        }
         std::filesystem::path rootDir = FindProjectRoot();
         std::filesystem::path fullPath = rootDir / path;
         try {

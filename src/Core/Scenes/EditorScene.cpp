@@ -227,13 +227,20 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, (projRoot / "assets").string());
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
-        this->LoadFromJson(path);
         std::error_code ec;
         std::filesystem::path p(path);
         std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
         std::string relPath = std::filesystem::proximate(p, root, ec).generic_string();
         if (ec) relPath = p.filename().string();
         
+        if (path.find("_ui.json") != std::string::npos || relPath.find("_ui.json") != std::string::npos)
+        {
+            UIManager::Get().SetCurrentUIPath(relPath);
+            m_manager.SwitchSceneTo("ui_editor");
+            return;
+        }
+
+        this->LoadFromJson(path);
         this->m_SceneSavePath = relPath;
         this->SaveSettings();
         std::cout << "[INFO] [EditorScene] Loaded scene from browser. Set active path to: " << relPath << "\n";
@@ -295,6 +302,16 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
         std::cout << "[INFO] [EditorScene] Default scene not found, creating new empty scene at " << defaultScenePath <<
                 "...\n";
         SaveToJson(defaultScenePath);
+        std::string defaultUIPath = defaultScenePath.substr(0, defaultScenePath.find_last_of('.')) + "_ui.json";
+        if (!std::filesystem::exists(defaultUIPath))
+        {
+            std::ofstream uiFile(defaultUIPath);
+            if (uiFile.is_open())
+            {
+                uiFile << "{\n    \"ui_elements\": []\n}\n";
+                uiFile.close();
+            }
+        }
     }
 }
 
@@ -5266,6 +5283,18 @@ void EditorScene::SaveToJson(const std::string &path)
 {
     std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
+    if (!std::filesystem::exists(uiPath))
+    {
+        std::error_code ec;
+        std::filesystem::path uip(uiPath);
+        if (uip.has_parent_path()) std::filesystem::create_directories(uip.parent_path(), ec);
+        std::ofstream uiFile(uiPath);
+        if (uiFile.is_open())
+        {
+            uiFile << "{\n    \"ui_elements\": []\n}\n";
+            uiFile.close();
+        }
+    }
 
     json data;
     data["name"] = "game";
@@ -5291,6 +5320,18 @@ void EditorScene::LoadFromJson(const std::string &path)
 {
     std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
+    if (!std::filesystem::exists(uiPath))
+    {
+        std::error_code ec;
+        std::filesystem::path uip(uiPath);
+        if (uip.has_parent_path()) std::filesystem::create_directories(uip.parent_path(), ec);
+        std::ofstream uiFile(uiPath);
+        if (uiFile.is_open())
+        {
+            uiFile << "{\n    \"ui_elements\": []\n}\n";
+            uiFile.close();
+        }
+    }
     UIManager::Get().Load(uiPath);
 
     std::ifstream file(path);
@@ -5309,7 +5350,20 @@ void EditorScene::LoadFromJson(const std::string &path)
     m_UndoStack.clear();
     m_RedoStack.clear();
 
-    json data = json::parse(file);
+    json data;
+    try {
+        data = json::parse(file);
+    } catch (const std::exception &e) {
+        std::cerr << "[ERROR] [EditorScene] Failed to parse scene JSON: " << e.what() << "\n";
+        return;
+    }
+
+    if (!data.contains("objects") || !data["objects"].is_array())
+    {
+        std::cerr << "[WARN] [EditorScene] Scene file has no 'objects' array: " << path << "\n";
+        return;
+    }
+
     for (auto &j: data["objects"])
     {
         EditorObject obj;
