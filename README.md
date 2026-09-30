@@ -23,16 +23,84 @@
 **RayneEngine** is a modular 2D game engine built with modern C++20 and [SFML](https://www.sfml-dev.org/). Designed as an in-depth portfolio project during game engineering training, it focuses on exploring clean software design patterns, high performance, and core engine subsystems from first principles:
 
 - Custom, cache-conscious **Entity Component System (ECS)** supporting up to 5 000 entities
+- **2D Rigidbody Physics System** with impulse-based collision response, friction, triggers, and raycasting
+- **Template (Prefab) System** for saving reusable entity blueprints and instantiating them dynamically
+- **Parent-Child Entity Hierarchy** with local and world transform propagation and drag-and-drop tree editing
 - **Project Hub** first-run setup modal for easily configuring project settings and standalone target specs
-- Native **Visual Level Editor** with live property inspection, grid snapping, and undo/redo
+- Native **Visual Level Editor** with live property inspection, Inspector Lock, smooth scrolling, grid snapping, and undo/redo
+- **Script Export Variables** supporting `Image`, `Vec2`, `Color`, `Entity`, and `Template` with live thumbnail previews and color picker
 - Dedicated **UI Editor** for designing game HUDs visually on a fixed 1920×1080 canvas
 - **In-Editor Console Panel** with live stdout/stderr capture, scrollable log, and command input
 - Embedded **Lua 5.4 scripting environment** via `sol2` with lifecycle events and hot-reload
-- **Solid & Static AABB Collision Detection** with multi-channel filtering and physical push-apart resolution
 - Multi-channel **Audio Engine** and hardware input polling
 - Complete **JSON Scene & UI Serialization** and project auto-saving
 - **UI Manager** for runtime Text, Panel, and Button elements controlled from Lua
 - **Standalone Game Export** creating an optimized `RayneGame` executable using your project settings
+
+---
+
+## Recent Changelog
+
+### Added
+- **2D Rigidbody Physics System & Impulse Solver:**
+  - Added `Rigidbody2DComponent` with configurable `bodyType` (`Dynamic`, `Kinematic`, `Static`), `mass`, `gravityScale`, `restitution` (bounciness), `drag` (linear damping), and `freezeRotation`.
+  - Added fixed-timestep physics simulation loop with sub-stepping (`PhysicsSystem`).
+  - Added impulse-based physical collision resolution with coefficient of restitution and tangential surface friction.
+  - Added trigger / sensor collider support (`isTrigger`) with zero-impulse passthrough and event dispatch.
+  - Added physics lifecycle callbacks in Lua: `OnCollisionEnter(self, other, normalX, normalY)` and `OnTriggerEnter(self, other)`.
+  - Added full Lua `Physics` library: `Physics.Raycast`, `Physics.ApplyForce`, `Physics.ApplyImpulse`, `Physics.SetVelocity`, `Physics.GetVelocity`, `Physics.SetGravity`, `Physics.GetGravity`, `Physics.SetFixedTimestep`, and `Physics.GetFixedTimestep`.
+  - Added global entity Rigidbody Lua helpers: `AddRigidbody(entity, bodyType, mass, gravityScale)`, `GetRigidbody(entity)`, and `HasRigidbody(entity)`.
+  - Added dedicated Rigidbody 2D property inspector with real-time controls, body type selectors, and rotation locks.
+- **Inspector Lock Feature:**
+  - Added Unity-style lock toggle button in the top-right corner of the Inspector panel.
+  - Freezes the active inspector view on the selected object so clicking other entities in the viewport or hierarchy does not deselect or alter the inspector view.
+- **Script Export Variables Expansion & Visual Previews:**
+  - Added first-class export variable constructors in Lua: `Image(path)`, `Vec2(x, y)`, `Color(r, g, b)`, `Entity(name)`, and `Template(path)`.
+  - Added live thumbnail rendering directly inside the Inspector for `Image` texture assets and `Template` prefabs.
+  - Added native Windows color picker integration (`ChooseColor`) for `Color` export properties.
+  - Added drag-and-drop targeting: drag images and templates from the Content Browser, or entities from the Hierarchy tree, directly into matching export property slots.
+  - Added complete JSON serialization and deserialization for all script export property types.
+- **Inspector Scrolling & Content Clipping:**
+  - Added smooth mouse-wheel scrolling for the Inspector panel when content exceeds viewport height.
+  - Added viewport scissor clipping below the fixed title header to keep content cleanly contained within the panel.
+- **Template (Prefab) System:**
+  - Added support for saving entity hierarchies as reusable `.template` asset files.
+  - Added template instantiation from Lua via `Instantiate(template, x, y, [parent])` and `Template(path):Instantiate(...)`.
+  - Added circular reference detection and nested prefab dependency warnings.
+- **Parent-Child Hierarchy System:**
+  - Added complete transform parenting system (`HierarchySystem`) supporting local and world coordinate spaces.
+  - Added Lua hierarchy APIs: `SetParent(child, parent, [keepWorldTransform])`, `GetParent(child)`, `GetChildren(parent)`, `GetWorldPosition(e)`, `GetWorldRotation(e)`, and `GetWorldScale(e)`.
+  - Added drag-and-drop reparenting inside the Hierarchy tree with visual feedback.
+  - Added unsaved changes dirty indicator (`*`) across scenes, UI layouts, and scripts.
+- **UI Editor Enhancements & Layout Containers:**
+  - Added `VerticalBox` and `HorizontalBox` layout elements with automatic element spacing and alignment.
+  - Added progress bar elements with `SetProgressValue` / `GetProgressValue`.
+  - Added slider min/max boundary configuration (`SetSliderMin`, `SetSliderMax`, `GetSliderMin`, `GetSliderMax`).
+  - Added vertical text alignment (`SetTextVAlign`) and auto-wrapping labels in the UI inspector.
+  - Added UI element focus management (`SetFocused`, `GetFocused`, `OnUIFocus`).
+  - Added script method stub insertion, asset synchronization, and IDE workflow directly from the UI Editor.
+- **Editor Tooling & Visual Feedback:**
+  - Added viewport world coordinate axes and origin marker (0, 0).
+  - Added automatic scene saving on Play Mode launch (`F5`).
+  - Added hot-reloading and inspector property refreshing for exported script variables.
+  - Added on-screen notification toasts via `Engine.LogToScreen` and `LogToScreen` during play mode.
+  - Added color-coded console badges for `Engine.Log` (teal), `Engine.LogWarning` (amber), and `Engine.LogError` (red).
+  - Added `.jfif` image format loading support.
+  - Added read-only file attributes for engine content and template files in standalone builds.
+
+### Fixed
+- Fixed text underline disappearing when bold style is active in UIManager text rendering.
+- Fixed object rotation handle positioning and smooth angular dragging in the level editor viewport.
+- Fixed hit detection and selection on scaled entities to prevent miss-clicks and inaccurate marquee selection.
+- Fixed non-uniform edge scaling and ellipse stretching for circle primitives across both editor and runtime.
+- Fixed IDE launch command to run detached without spawning extraneous console windows.
+- Fixed UI button click handling in standalone builds and ensured all audio channels stop when exiting play mode.
+- Fixed startup freeze/hang in `EditorScene` and revealed hidden scripting directories in build mode.
+- Fixed template asset path resolution to reliably locate project root using `FindProjectRoot()`.
+
+### Removed
+- Removed legacy non-Lua comment cruft from `EditorScene`, `ContentBrowser`, `PhysicsSystem`, `SplashScreen`, and scripting manager classes.
+- Removed redundant `SetPathReadOnly` calls from `EditorScene` constructor.
 
 ---
 
@@ -45,7 +113,8 @@ RayneEngine
 |-- Core/
 |   |-- Application/     Main loop, DPI awareness, window management, engine versioning
 |   |-- Audio/           AudioManager sound effect pool (32 channels) and music streaming
-|   |-- ECS/             Registry, component pools, view iterators, entity handles
+|   |-- ECS/             Registry, component pools, view iterators, entity handles,
+|   |                    PhysicsSystem (Rigidbody2D solver), HierarchySystem (parenting)
 |   |-- Input/           InputManager keyboard & mouse tracking with frame edge detection
 |   |-- Math/            MathR custom math routines, interpolation, trigonometric tables; Vector3
 |   |-- Primitives/      Geometric primitive factories (Rectangles, Circles, Polygons)
@@ -83,14 +152,25 @@ These settings are serialized to `project_settings.json` which governs the stand
 
 The built-in level editor provides a real-time environment for constructing and previewing 2D game scenes:
 
-- **Entity Hierarchy:** Scrollable list displaying all active scene entities. Supports multi-selection, tag inspection, and context menu actions (rename, duplicate, delete).
+- **Entity Hierarchy & Parenting:**
+  - Scrollable hierarchy tree displaying all active scene entities.
+  - **Transform Parenting:** Drag-and-drop entities onto other objects to establish parent-child relationships with automatic local/world coordinate propagation.
+  - Context menu actions: Rename, duplicate, delete, and save entity subtrees as `.template` assets.
+  - Multi-selection and group hierarchy operations.
 - **Property Inspector:**
+  - **Inspector Lock:** Unity-style lock button in the header freezes inspection on the current entity, preventing accidental selection changes when clicking in the viewport or hierarchy.
+  - **Smooth Scrolling & Viewport Scissor:** Mouse-wheel scrolling with view clipping ensures large component lists and extensive export variables remain completely accessible.
+  - **Rigidbody 2D Section:** Real-time configuration of `BodyType` (Dynamic / Kinematic / Static), `Mass`, `Gravity Scale`, `Restitution` (bounciness), `Drag`, and `Freeze Rotation`.
+  - **Script Export Variables:** Auto-generates UI fields for all exported script properties (`Int`, `Float`, `Bool`, `String`, `Image`, `Vec2`, `Color`, `Entity`, `Template`).
+  - **Visual Asset Previews:** Real-time thumbnail rendering for `Image` texture assets and `Template` prefab files.
+  - **Windows Color Picker:** Interactive color swatches that launch the native Windows `ChooseColor` dialog.
+  - **Drag-and-Drop Slots:** Drop textures and templates from the Content Browser, or entities from the Hierarchy tree, directly into matching property slots.
   - Live numerical manipulation of position (`x`, `y`), size (`width`, `height`), rotation (degrees), and scale (`scaleX`, `scaleY`).
   - Entity Tag and Name assignment for easy query from Lua scripts.
   - Color palette tinting (`R`, `G`, `B`) for primitives and sprites.
-  - Script path assignment with automatic Lua binding.
+  - Script path assignment with automatic Lua binding and hot-reload reflection.
   - Sprite asset assignment with aspect-correct scaling.
-  - Collision channel and type configuration (`Static` / `Solid`) for physics filtering.
+  - Collision channel, collision type (`Static` / `Solid`), collider shape (`Box` / `Circle`), and sensor trigger (`isTrigger`) configuration.
   - UI element text editing directly from the inspector (`UIText` field).
 - **Content Browser:**
   - Integrated file browser with breadcrumb navigation and path history.
@@ -162,25 +242,41 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
 - **`View<Components...>`:** Multi-component query views enabling `Registry::ForEach<T1, T2>(...)` iteration patterns via range-based for loop support.
 - **Available Components:**
   - `TagComponent`: Name and classification tag for entities (`std::string tag`).
-  - `TransformComponent`: 2D spatial position (`float x`, `float y`), rotation angle in degrees (`float rotation`), and scaling (`float scaleX`, `float scaleY`).
-  - `VelocityComponent`: Movement delta (`float dx`, `float dy`).
+  - `TransformComponent`: 2D spatial position (`float x`, `float y`), rotation angle in degrees (`float rotation`), and scaling (`float scaleX`, `float scaleY`). Supports parent-child hierarchies with world coordinates.
+  - `VelocityComponent`: Movement velocity delta (`float dx`, `float dy`).
+  - `Rigidbody2DComponent`: Physics body attributes (`BodyType` dynamic/kinematic/static, `mass`, `gravityScale`, `restitution`, `drag`, `freezeRotation`).
   - `RenderComponent`: Visual representation (`sf::Color`, `sf::Vector2f size`, and `ShapeType`: Rectangle, Circle, Triangle, Pentagon, Hexagon).
   - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions; auto-loads via `ResourceManager` and computes scale on construction.
   - `CameraComponent`: Marks an entity as the active camera focus (`bool active`).
-  - `CollisionComponent`: Configures collision filtering via an integer `channel` and a `CollisionType` (`Static` or `Solid`).
-  - `ScriptComponent`: Encapsulates a sol2 Lua environment, filesystem modification timestamp tracking for live hot-reloading, and lifecycle hooks.
+  - `CollisionComponent`: Configures collision filtering via integer `channel`, collision type (`Static`, `Solid`), collider shape (`Box`, `Circle`), and trigger flag (`isTrigger`).
+  - `ScriptComponent`: Encapsulates a sol2 Lua environment, filesystem modification timestamp tracking for live hot-reloading, exported variables, and lifecycle hooks.
 
 ---
 
 ### Physics & Event Pipeline
 
-- **AABB Collision Detection:** Broad-phase and narrow-phase bounding box collision checks executed in `GameScene::CheckCollisions()`.
-- **Channel Filtering:** Collisions only occur between entities sharing the same integer collision channel (`channel == 0` by default).
-- **Collision Types:**
-  - `CollisionType::Static` *(default)* — passthrough detection; fires `OnCollision` event only.
-  - `CollisionType::Solid` — physical push-apart resolution using minimum overlap axis; only moves entities that have a `VelocityComponent`.
-- **Edge Detection:** Tracks collision state between frame steps to dispatch events precisely on the initial overlap frame only.
-- **`EventManager`:** Centralized observer mechanism triggering callbacks in both native C++ systems and active entity Lua scripts (`OnCollision`).
+RayneEngine features a unified **2D Rigidbody Physics System** alongside legacy simple AABB checks:
+
+- **Physics Simulation (`PhysicsSystem`):**
+  - **Fixed Timestep Loop:** Accumulator-based fixed-timestep integration with sub-stepping for deterministic physical behavior (`Physics.SetFixedTimestep(dt)`).
+  - **Gravity Acceleration:** Configurable global gravity vector (`Physics.SetGravity(gx, gy)`). Default: `(0, 980)`.
+  - **Linear Velocity Damping:** Applies aerodynamic/frictional drag per body (`drag`).
+  - **Body Types:**
+    - `BodyType::Dynamic` — Full physics simulation responding to gravity, forces, impulses, and contact collisions.
+    - `BodyType::Kinematic` — Controlled programmatically via velocity; pushes dynamic objects without being displaced by them.
+    - `BodyType::Static` — Immovable obstacles (walls, terrain, floors); infinite mass in collision responses.
+  - **Rotation Lock:** Entities can toggle `freezeRotation` to prevent angular tumble on impact.
+- **Impulse Solver & Friction:**
+  - Physical collision resolution computes instantaneous contact normals and applies restitution-weighted impulses `j = -(1 + e) * v_rel / (invMassA + invMassB)`.
+  - Realistic tangential friction damping (`frictionMu = 0.2`) stops sliding objects naturally.
+- **Sensor / Trigger Colliders:**
+  - Any collider flagged with `isTrigger = true` bypasses impulse resolution entirely and acts as a sensor zone, firing `OnTriggerEnter(self, other)`.
+- **Collision Callbacks:**
+  - `OnCollisionEnter(self, other, normalX, normalY)` dispatches once upon solid contact, supplying the collision normal.
+  - `OnTriggerEnter(self, other)` dispatches when entering a sensor zone.
+  - `OnCollision(self, other)` legacy fallback event dispatched on contact.
+- **Raycasting:**
+  - `Physics.Raycast(startX, startY, dirX, dirY, distance, [channel])` performs ray intersection against active scene colliders, returning hit status, hit entity, contact point, normal, and distance.
 
 ---
 
@@ -269,10 +365,57 @@ function OnUpdate(self, dt)
     -- Invoked every simulation frame; dt represents delta time in seconds
 end
 
+function OnCollisionEnter(self, other, normalX, normalY)
+    -- Invoked upon physical contact with another entity, providing the collision normal
+end
+
+function OnTriggerEnter(self, other)
+    -- Invoked when entering a trigger/sensor collider zone
+end
+
 function OnCollision(self, other)
-    -- Invoked upon collision with another entity ID on the same channel
+    -- Legacy fallback invoked upon collision contact
+end
+
+function OnDestroy(self)
+    -- Invoked when the entity or scene is destroyed
 end
 ```
+
+---
+
+### Script Export Variables
+
+RayneEngine allows scripts to expose typed variables to the Editor Inspector using an `Export` table and built-in type constructors:
+
+```lua
+-- ExportDemoScript.lua
+characterTexture = Image("assets/sprites/character.png") -- Texture asset path (thumbnail preview)
+spawnOffset      = Vec2(50.0, -20.0)                     -- 2D Vector (X, Y fields)
+tintColor        = Color(255, 128, 64)                   -- RGB Color (Windows color picker)
+targetObject     = Entity("Player")                      -- Entity reference (drag from hierarchy)
+spawnPrefab      = Template("assets/bullet.template")    -- Prefab path (thumbnail preview)
+moveSpeed        = 120.0                                 -- Float
+maxHealth        = 100                                   -- Integer
+enableGlow       = true                                  -- Boolean checkbox
+greetingMessage  = "Hello RayneEngine!"                  -- String
+
+Export = {
+    "characterTexture",
+    "spawnOffset",
+    "tintColor",
+    "targetObject",
+    "spawnPrefab",
+    "moveSpeed",
+    "maxHealth",
+    "enableGlow",
+    "greetingMessage"
+}
+```
+
+- **Visual Previews:** The Inspector displays real-time thumbnail previews for `Image` assets and `Template` prefabs.
+- **Color Picker:** Clicking the color swatch opens the native Windows color selection dialog (`ChooseColor`).
+- **Drag & Drop:** Drag files directly from the Content Browser onto Image/Template slots, or drag objects from the Hierarchy tree onto Entity slots.
 
 ---
 
@@ -312,9 +455,70 @@ end
 | `GetCollisionChannel` | `(e: Entity) -> integer` | Reads collision filter channel |
 | `SetCollisionType` | `(e: Entity, type: string)` | Sets collision type: `"static"` or `"solid"` |
 | `GetCollisionType` | `(e: Entity) -> string` | Returns current collision type as string |
+| `SetParent` | `(child: Entity, parent: Entity, [keepWorldTransform=true]: boolean)` | Sets entity parent; `0` unparents |
+| `GetParent` | `(child: Entity) -> Entity` | Returns parent entity ID, or `0` |
+| `GetChildren` | `(parent: Entity) -> Entity[]` | Returns array of child entity IDs |
+| `GetWorldPosition` | `(e: Entity) -> number, number` | Computes global world coordinates `x, y` |
+| `GetWorldRotation` | `(e: Entity) -> number` | Computes global world rotation in degrees |
+| `GetWorldScale` | `(e: Entity) -> number, number` | Computes global world scale factors `sx, sy` |
+| `Template` | `(path: string) -> Template` | Creates template reference object |
+| `Instantiate` | `(template: Template \| string, x: number, y: number, [parent]: Entity) -> Entity` | Instantiates template prefab into scene |
 | `LoadScene` | `(sceneName: string)` | Switches active scene to `assets/scenes/<sceneName>.json` |
 
 > **Tip:** `GetTransform(e)` returns a mutable table — you can read and write `t.x`, `t.y`, `t.rotation`, `t.scaleX`, `t.scaleY` directly on the returned reference.
+
+---
+
+### 2D Rigidbody Physics Library (`Physics`)
+
+| Function | Signature | Description |
+|---|---|---|
+| `AddRigidbody` | `(e: Entity, [bodyType], [mass=1.0], [gravityScale=1.0]) -> Rigidbody2D` | Attaches a `Rigidbody2D` component |
+| `GetRigidbody` | `(e: Entity) -> Rigidbody2D \| nil` | Returns the `Rigidbody2D` component or `nil` |
+| `HasRigidbody` | `(e: Entity) -> boolean` | Checks if entity has a Rigidbody |
+| `Physics.Raycast` | `(startX, startY, dirX, dirY, distance, [channel=-1]) -> RaycastResult` | Casts a ray and returns closest hit (`hit`, `entity`, `pointX`, `pointY`, `normalX`, `normalY`, `distance`) |
+| `Physics.ApplyForce` | `(e: Entity, fx: number, fy: number)` | Applies a continuous force (accumulated for the next physics step) |
+| `Physics.ApplyImpulse` | `(e: Entity, ix: number, iy: number)` | Applies an instantaneous impulse directly modifying velocity |
+| `Physics.SetVelocity` | `(e: Entity, vx: number, vy: number)` | Sets linear velocity directly |
+| `Physics.GetVelocity` | `(e: Entity) -> number, number` | Gets current linear velocity `vx, vy` |
+| `Physics.SetGravity` | `(gx: number, gy: number)` | Sets global physics gravity vector (default: `0, 980`) |
+| `Physics.GetGravity` | `() -> number, number` | Returns current global gravity vector |
+| `Physics.SetFixedTimestep` | `(dt: number)` | Sets fixed simulation timestep in seconds (default: `1/60` ~ `0.01667`) |
+| `Physics.GetFixedTimestep` | `() -> number` | Returns current fixed simulation timestep |
+
+**Enums:**
+- `BodyType`: `BodyType.Dynamic` (0), `BodyType.Kinematic` (1), `BodyType.Static` (2)
+- `ColliderShape`: `ColliderShape.Box` (0), `ColliderShape.Circle` (1)
+
+---
+
+### Engine & System Library (`Engine`)
+
+| Function | Signature | Description |
+|---|---|---|
+| `Engine.Log` / `print` | `(...)` | Prints highlighted message to in-editor console with teal `[LOG]` badge |
+| `Engine.LogWarning` | `(msg: string)` | Prints warning message with amber `[WARN]` badge |
+| `Engine.LogError` | `(msg: string)` | Prints error message with red `[ERROR]` badge |
+| `Engine.LogToScreen` / `LogToScreen` | `(msg: string, [duration=3.5], [r], [g], [b])` | Displays on-screen notification toast during play mode |
+| `Engine.SetPaused` / `PauseGame` | `(paused: boolean)` | Pauses or unpauses game simulation |
+| `Engine.IsPaused` / `Engine.GetPaused` | `() -> boolean` | Returns true if simulation is currently paused |
+| `Engine.TogglePause` | `()` | Toggles simulation pause state |
+| `Engine.SetTimeScale` / `SetTimeScale` | `(scale: number)` | Sets simulation time scale factor |
+| `Engine.GetTimeScale` | `() -> number` | Gets current simulation time scale factor |
+| `Engine.SetFullscreen` | `(fullscreen: boolean)` | Sets window fullscreen mode |
+| `Engine.ToggleFullscreen` | `()` | Toggles window fullscreen mode |
+| `Engine.IsFullscreen` | `() -> boolean` | Returns true if window is currently fullscreen |
+| `Engine.SetCursorVisible` | `(visible: boolean)` | Shows or hides the mouse cursor |
+| `Engine.TakeScreenshot` | `([filename]: string) -> string` | Captures screenshot and saves to `screenshots/` |
+| `Engine.OpenURL` | `(url: string)` | Opens URL or file path in default OS handler |
+| `Engine.GetFPS` / `GetFPS` | `() -> number` | Returns current frames per second |
+| `Engine.GetDeltaTime` | `() -> number` | Returns unscaled delta time of current frame |
+| `Engine.ShowFPS` | `(show: boolean)` | Shows or hides on-screen FPS counter overlay |
+| `Engine.IsFPSShown` | `() -> boolean` | Returns true if FPS counter is visible |
+| `Engine.RestartScene` / `RestartScene` | `()` | Resets and reloads the active scene |
+| `Engine.RestartCurrentScene` | `()` | Alias for `Engine.RestartScene()` |
+| `Engine.LoadScene` / `LoadScene` | `(sceneName: string)` | Loads scene from `assets/scenes/<name>.json` |
+| `Engine.Quit` / `QuitGame` | `()` | Exits standalone build or returns to editor |
 
 ---
 
@@ -342,6 +546,7 @@ end
 |---|---|---|
 | `Input.IsKeyDown` | `(key: number \| string) -> boolean` | True while key is held down |
 | `Input.IsKeyPressed` | `(key: number \| string) -> boolean` | True during the frame key was pressed |
+| `Input.IsKeyJustPressed` | `(key: number \| string) -> boolean` | True during the frame key was pressed (alias for `IsKeyPressed`) |
 | `Input.IsKeyReleased` | `(key: number \| string) -> boolean` | True during the frame key was released |
 | `Input.IsMouseDown` | `(button: number \| string) -> boolean` | True while mouse button is held down |
 | `Input.IsMousePressed` | `(button: number \| string) -> boolean` | True during the frame mouse button was pressed |
@@ -350,7 +555,7 @@ end
 | `Input.MouseY` | `() -> number` | Mouse vertical position in screen space |
 | `Input.MouseScroll` | `() -> number` | Mouse wheel scroll delta for current frame |
 
-**Key Enums (`Key`):** `A` through `Z`, `Space`, `Enter`, `Escape`, `LShift`, `RShift`, `LCtrl`, `RCtrl`, `Left`, `Right`, `Up`, `Down`, `Tab`, `Delete`.
+**Key Enums (`Key` / `KeyCode`):** `A` through `Z`, `Space`, `Enter`, `Escape`, `LShift`, `RShift`, `LCtrl`, `RCtrl`, `Left`, `Right`, `Up`, `Down`, `Tab`, `Delete`. (Both `Key.Space` and `KeyCode.Space` are supported).
 
 **Key strings** (case-insensitive): single letters `"a"`–`"z"`, digits `"0"`–`"9"`, `"space"`, `"enter"` / `"return"`, `"escape"` / `"esc"`, `"shift"` / `"lshift"`, `"rshift"`, `"ctrl"` / `"lctrl"`, `"rctrl"`, `"alt"` / `"lalt"`, `"ralt"`, `"left"`, `"right"`, `"up"`, `"down"`, `"tab"`, `"delete"` / `"del"`, `"backspace"`.
 

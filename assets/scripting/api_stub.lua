@@ -86,6 +86,25 @@ function MathR.Sin(x) end
 ---@return number
 function MathR.Cos(x) end
 
+---@class Timer
+Timer = {}
+
+---Schedules a callback function to run after a specified duration in seconds.
+---@param seconds number Delay in seconds before running the callback
+---@param callback fun() Function to call when timer expires
+function Timer.After(seconds, callback) end
+
+---@class Tween
+Tween = {}
+
+---Smoothly animates an Entity's position over time using an easing curve.
+---@param entity Entity The entity to animate
+---@param targetX number Target world/local X position
+---@param targetY number Target world/local Y position
+---@param duration number Duration of the tween animation in seconds
+---@param ease? "linear"|"EaseInQuad"|"EaseOutQuad"|"EaseInOutQuad"|string Optional easing equation (defaults to "linear")
+function Tween.Position(entity, targetX, targetY, duration, ease) end
+
 --- GLOBAL FUNCTIONS ---
 
 ---Called at construction of the Entity
@@ -191,6 +210,9 @@ function Engine.Quit() end
 ---Restarts the currently active scene, resetting all entities, UI, and scripts.
 function Engine.RestartScene() end
 
+---Restarts the currently active scene, resetting all entities, UI, and scripts (alias for RestartScene).
+function Engine.RestartCurrentScene() end
+
 ---Loads a different scene from the assets/scenes folder
 ---@param sceneName string The name of the scene (without the .json extension)
 function Engine.LoadScene(sceneName) end
@@ -202,6 +224,10 @@ function Engine.SetPaused(paused) end
 ---Returns true if the game simulation is currently paused.
 ---@return boolean
 function Engine.IsPaused() end
+
+---Returns true if the game simulation is currently paused (alias for IsPaused).
+---@return boolean
+function Engine.GetPaused() end
 
 ---Toggles the pause state of the game simulation.
 function Engine.TogglePause() end
@@ -287,6 +313,17 @@ function Engine.IsFPSShown() end
 ---@param x number
 ---@param y number
 function SetPosition(e, x, y)  end
+
+---Sets the Rotation of an Entity in degrees
+---@param e Entity
+---@param r number Rotation angle in degrees
+function SetRotation(e, r) end
+
+---Sets the Scale of an Entity
+---@param e Entity
+---@param sx number Horizontal scale factor
+---@param sy number Vertical scale factor
+function SetScale(e, sx, sy) end
 
 ---@class Template
 ---@field path string Path to the .template file
@@ -498,6 +535,31 @@ function SetCollisionType(e, type) end
 ---@return string
 function GetCollisionType(e) end
 
+---Adds a Tag component to an Entity
+---@param e Entity
+---@param tag string
+function AddTag(e, tag) end
+
+---Sets the Tag of an Entity (adds Tag component if not present)
+---@param e Entity
+---@param tag string
+function SetTag(e, tag) end
+
+---Gets the Tag of an Entity, or empty string if none
+---@param e Entity
+---@return string
+function GetTag(e) end
+
+---Checks if an Entity has a Tag component
+---@param e Entity
+---@return boolean
+function HasTag(e) end
+
+---Finds the first Entity in the scene matching the given Tag, or 0 if none found
+---@param tag string
+---@return Entity
+function FindEntityWithTag(tag) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
 
@@ -600,6 +662,11 @@ function Input.IsKeyDown(key) end
 ---@return boolean
 function Input.IsKeyPressed(key) end
 
+---Returns true on the frame the key was pressed (alias for IsKeyPressed)
+---@param key number|string Key code or key name
+---@return boolean
+function Input.IsKeyJustPressed(key) end
+
 ---Returns true on the frame the key was released
 ---@param key number|string Key code or key name
 ---@return boolean
@@ -673,6 +740,9 @@ function Input.MouseScroll() end
 ---@field Tab number
 ---@field Delete number
 Key = {}
+
+---@type Key
+KeyCode = Key
 
 ---@class Mouse
 ---@field Left number

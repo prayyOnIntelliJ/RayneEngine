@@ -140,6 +140,11 @@ void InputManager::RegisterLua(sol::state &lua)
                            [](const std::string &name) { return IsKeyPressed(StringToKey(name)); }
                        ));
 
+    input.set_function("IsKeyJustPressed", sol::overload(
+                           [](int k) { return IsKeyPressed(static_cast<sf::Keyboard::Key>(k)); },
+                           [](const std::string &name) { return IsKeyPressed(StringToKey(name)); }
+                       ));
+
     input.set_function("IsKeyReleased", sol::overload(
                            [](int k) { return IsKeyReleased(static_cast<sf::Keyboard::Key>(k)); },
                            [](const std::string &name) { return IsKeyReleased(StringToKey(name)); }
@@ -204,6 +209,8 @@ void InputManager::RegisterLua(sol::state &lua)
     keys["Down"] = static_cast<int>(sf::Keyboard::Down);
     keys["Tab"] = static_cast<int>(sf::Keyboard::Tab);
     keys["Delete"] = static_cast<int>(sf::Keyboard::Delete);
+
+    lua["KeyCode"] = keys;
 
     auto mouse = lua.create_named_table("Mouse");
     mouse["Left"] = static_cast<int>(sf::Mouse::Left);
