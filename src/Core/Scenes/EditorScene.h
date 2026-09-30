@@ -514,6 +514,12 @@ private:
     float DrawActionButton(sf::RenderWindow &window, const std::string &label, const std::string &action, float x,
                            float y, sf::Color fillColor, sf::Color borderColor);
 
+    float DrawImagePreview(sf::RenderWindow &window, const std::string &path, float x, float y,
+                           float w = -1.f, float h = 54.f, const std::string &action = "");
+
+    float DrawTemplatePreview(sf::RenderWindow &window, const std::string &templatePath, float x, float y,
+                              float w = -1.f, float h = 54.f, const std::string &action = "");
+
     float DrawScriptInput(sf::RenderWindow &window, float x, float y);
 
     void HandleInspectorClick(sf::Vector2f pos);

@@ -1084,16 +1084,37 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     bool droppedOnImageProp = false;
                     if (inInspector)
                     {
-                        for (auto& pair : m_Selected->scriptProperties)
+                        for (const auto& btn : m_InspectorButtons)
                         {
-                            if (pair.second.type == ScriptComponent::PropertyType::Image)
+                            if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0)
                             {
-                                pair.second.stringVal = drag.path;
-                                if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
-                                    m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
-                                SetDirty(true);
-                                droppedOnImageProp = true;
-                                break;
+                                std::string propName = btn.action.substr(17);
+                                auto it = m_Selected->scriptProperties.find(propName);
+                                if (it != m_Selected->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Image)
+                                {
+                                    it->second.stringVal = drag.path;
+                                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                                    SetDirty(true);
+                                    droppedOnImageProp = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (!droppedOnImageProp)
+                        {
+                            for (auto& pair : m_Selected->scriptProperties)
+                            {
+                                if (pair.second.type == ScriptComponent::PropertyType::Image)
+                                {
+                                    pair.second.stringVal = drag.path;
+                                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                                    SetDirty(true);
+                                    droppedOnImageProp = true;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -1138,18 +1159,43 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             if (inInspector && m_Selected)
             {
-                for (auto &pair : m_Selected->scriptProperties)
+                bool assigned = false;
+                for (const auto& btn : m_InspectorButtons)
                 {
-                    if (pair.second.type == ScriptComponent::PropertyType::Template)
+                    if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0)
                     {
-                        pair.second.stringVal = drag.path;
-                        if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                        std::string propName = btn.action.substr(17);
+                        auto it = m_Selected->scriptProperties.find(propName);
+                        if (it != m_Selected->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Template)
                         {
-                            m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                            it->second.stringVal = drag.path;
+                            if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                            {
+                                m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                            }
+                            SetDirty(true);
+                            assigned = true;
+                            std::cout << "[INFO] [ContentBrowser] Assigned template to property " << propName << "\n";
+                            break;
                         }
-                        SetDirty(true);
-                        std::cout << "[INFO] [ContentBrowser] Assigned template to property " << pair.first << "\n";
-                        break;
+                    }
+                }
+
+                if (!assigned)
+                {
+                    for (auto &pair : m_Selected->scriptProperties)
+                    {
+                        if (pair.second.type == ScriptComponent::PropertyType::Template)
+                        {
+                            pair.second.stringVal = drag.path;
+                            if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                            {
+                                m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                            }
+                            SetDirty(true);
+                            std::cout << "[INFO] [ContentBrowser] Assigned template to property " << pair.first << "\n";
+                            break;
+                        }
                     }
                 }
             }
@@ -2900,7 +2946,40 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
                         y += previewH + 20.f;
                     }
-                } else if (typeName == "Lua Script" || typeName == "JSON Data" || typeName == "Template")
+                } else if (typeName == "Template")
+                {
+                    y += 10.f;
+                    y = DrawSectionHeader(window, "TEMPLATE PREVIEW", sf::Color(100, 180, 255), panelX, y);
+                    y = DrawTemplatePreview(window, selPath, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 56.f);
+
+                    y += 6.f;
+                    y = DrawSectionHeader(window, "FILE CONTENT", sf::Color(150, 220, 150), panelX, y);
+
+                    std::ifstream ifs(selPath);
+                    if (ifs.is_open())
+                    {
+                        int lineCount = 0;
+                        std::string line;
+                        std::string previewContent;
+                        while (std::getline(ifs, line) && lineCount < 15)
+                        {
+                            previewContent += line + "\n";
+                            lineCount++;
+                        }
+                        if (std::getline(ifs, line)) { previewContent += "..."; }
+                        ifs.close();
+
+                        sf::Text contentText;
+                        contentText.setFont(*m_Font);
+                        contentText.setCharacterSize(9);
+                        contentText.setFillColor(sf::Color(180, 190, 200));
+                        contentText.setString(previewContent);
+                        contentText.setPosition(panelX + 10.f, y + 5.f);
+                        window.draw(contentText);
+
+                        y += contentText.getLocalBounds().height + 15.f;
+                    }
+                } else if (typeName == "Lua Script" || typeName == "JSON Data")
                 {
                     y += 10.f;
                     y = DrawSectionHeader(window, "FILE CONTENT", sf::Color(150, 220, 150), panelX, y);
@@ -3003,6 +3082,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     {
         std::filesystem::path tp(m_Selected->templatePath);
         y = DrawRow(window, "Template", tp.filename().string(), panelX, y);
+        y = DrawTemplatePreview(window, m_Selected->templatePath, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 52.f);
         y = DrawActionButton(window, "Apply to Template", "apply_template", panelX, y, sf::Color(30, 80, 140), sf::Color(70, 140, 240));
         y = DrawActionButton(window, "Unlink Template", "unlink_template", panelX, y, C_DANGER_DIM, C_DANGER);
     }
@@ -3309,9 +3389,29 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                         valStr = buf;
                     }
                     else if (prop.type == ScriptComponent::PropertyType::String) valStr = prop.stringVal;
-                    else if (prop.type == ScriptComponent::PropertyType::Template) valStr = prop.stringVal.empty() ? "(drag .template or click)" : std::filesystem::path(prop.stringVal).filename().string();
-                    else if (prop.type == ScriptComponent::PropertyType::Image) valStr = prop.stringVal.empty() ? "(drag image)" : std::filesystem::path(prop.stringVal).filename().string();
                     else if (prop.type == ScriptComponent::PropertyType::Entity) valStr = prop.stringVal.empty() ? "(drag entity)" : prop.stringVal;
+                    else if (prop.type == ScriptComponent::PropertyType::Image)
+                    {
+                        std::string valStr = prop.stringVal.empty() ? "(drag image or click)" : std::filesystem::path(prop.stringVal).filename().string();
+                        if (m_ActiveField == EditField::ScriptProperty && m_ActiveScriptProperty == prop.name)
+                            y = DrawEditableRow(window, prop.name, m_ActiveInputText + "_", "edit_script_prop_" + prop.name, panelX, y);
+                        else
+                            y = DrawEditableRow(window, prop.name, valStr, "edit_script_prop_" + prop.name, panelX, y);
+
+                        y = DrawImagePreview(window, prop.stringVal, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 52.f, "edit_script_prop_" + prop.name);
+                        continue;
+                    }
+                    else if (prop.type == ScriptComponent::PropertyType::Template)
+                    {
+                        std::string valStr = prop.stringVal.empty() ? "(drag .template or click)" : std::filesystem::path(prop.stringVal).filename().string();
+                        if (m_ActiveField == EditField::ScriptProperty && m_ActiveScriptProperty == prop.name)
+                            y = DrawEditableRow(window, prop.name, m_ActiveInputText + "_", "edit_script_prop_" + prop.name, panelX, y);
+                        else
+                            y = DrawEditableRow(window, prop.name, valStr, "edit_script_prop_" + prop.name, panelX, y);
+
+                        y = DrawTemplatePreview(window, prop.stringVal, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 52.f, "edit_script_prop_" + prop.name);
+                        continue;
+                    }
                     else if (prop.type == ScriptComponent::PropertyType::Vec2)
                     {
                         // Draw two editable rows for x and y
@@ -3963,6 +4063,331 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
     m_InspectorButtons.push_back({btnRect, action});
 
     return y + 30.f;
+}
+
+float EditorScene::DrawImagePreview(sf::RenderWindow &window, const std::string &path, float x, float y,
+                                   float w, float h, const std::string &action)
+{
+    const float previewW = (w > 0.f) ? w : (InspectorWidth - InspectorPad * 2.f);
+    const float previewH = h;
+    const sf::FloatRect boxRect(x, y, previewW, previewH);
+    const bool hovered = boxRect.contains(m_MouseScreenPos);
+
+    if (!action.empty())
+    {
+        m_InspectorButtons.push_back({boxRect, action});
+    }
+
+    // Card background
+    sf::RectangleShape card({previewW, previewH});
+    card.setPosition(x, y);
+    card.setFillColor(hovered ? sf::Color(32, 38, 48) : C_BG_INPUT);
+    card.setOutlineColor(hovered ? C_ACCENT : C_BORDER);
+    card.setOutlineThickness(1.f);
+    window.draw(card);
+
+    std::filesystem::path p(path);
+    std::shared_ptr<sf::Texture> tex = nullptr;
+    if (!path.empty())
+    {
+        tex = ResourceManager::Get().GetTexture(path);
+        if (!tex)
+        {
+            std::filesystem::path rootDir = m_ContentBrowser ? std::filesystem::path(m_ContentBrowser->GetRootPath()) : (FindProjectRoot() / "assets");
+            std::filesystem::path fullP = p.is_absolute() ? p : (rootDir.parent_path() / p);
+            tex = ResourceManager::Get().GetTexture(fullP.string());
+            if (!tex)
+            {
+                fullP = rootDir / p;
+                tex = ResourceManager::Get().GetTexture(fullP.string());
+            }
+        }
+    }
+
+    const float thumbSize = previewH - 10.f;
+    const float thumbX = x + 5.f;
+    const float thumbY = y + 5.f;
+
+    // Thumbnail background
+    sf::RectangleShape thumbBg({thumbSize, thumbSize});
+    thumbBg.setPosition(thumbX, thumbY);
+    thumbBg.setFillColor(sf::Color(16, 18, 22));
+    thumbBg.setOutlineColor(C_BORDER_LIGHT);
+    thumbBg.setOutlineThickness(1.f);
+    window.draw(thumbBg);
+
+    if (tex && tex->getSize().x > 0 && tex->getSize().y > 0)
+    {
+        sf::Sprite sprite(*tex);
+        const sf::Vector2u ts = tex->getSize();
+        const float scaleX = (thumbSize - 4.f) / static_cast<float>(ts.x);
+        const float scaleY = (thumbSize - 4.f) / static_cast<float>(ts.y);
+        const float scale = std::min(scaleX, scaleY);
+        sprite.setScale(scale, scale);
+        sprite.setPosition(
+            thumbX + 2.f + ((thumbSize - 4.f) - ts.x * scale) / 2.f,
+            thumbY + 2.f + ((thumbSize - 4.f) - ts.y * scale) / 2.f);
+        window.draw(sprite);
+
+        float textX = thumbX + thumbSize + 8.f;
+
+        // Filename
+        std::string filename = p.filename().string();
+        if (filename.length() > 20) filename = filename.substr(0, 17) + "...";
+        sf::Text nameText;
+        nameText.setFont(*m_Font);
+        nameText.setCharacterSize(11);
+        nameText.setFillColor(C_TEXT_PRIMARY);
+        nameText.setStyle(sf::Text::Bold);
+        nameText.setString(filename);
+        nameText.setPosition(textX, y + 6.f);
+        window.draw(nameText);
+
+        // Resolution
+        sf::Text resText;
+        resText.setFont(*m_Font);
+        resText.setCharacterSize(10);
+        resText.setFillColor(C_TEXT_SECONDARY);
+        resText.setString(std::to_string(ts.x) + " x " + std::to_string(ts.y) + " px");
+        resText.setPosition(textX, y + 21.f);
+        window.draw(resText);
+
+        // Tag
+        sf::Text tagText;
+        tagText.setFont(*m_Font);
+        tagText.setCharacterSize(9);
+        tagText.setFillColor(sf::Color(180, 150, 220));
+        tagText.setString("Image Asset");
+        tagText.setPosition(textX, y + 36.f);
+        window.draw(tagText);
+    }
+    else
+    {
+        sf::Text emptyIcon;
+        emptyIcon.setFont(*m_Font);
+        emptyIcon.setCharacterSize(13);
+        emptyIcon.setFillColor(C_TEXT_MUTED);
+        emptyIcon.setString("IMG");
+        emptyIcon.setPosition(thumbX + (thumbSize - emptyIcon.getLocalBounds().width) / 2.f, thumbY + 12.f);
+        window.draw(emptyIcon);
+
+        float textX = thumbX + thumbSize + 8.f;
+        sf::Text msgText;
+        msgText.setFont(*m_Font);
+        msgText.setCharacterSize(11);
+        msgText.setFillColor(path.empty() ? C_TEXT_MUTED : C_DANGER);
+        msgText.setString(path.empty() ? "(Drag image here)" : "Image not found");
+        msgText.setPosition(textX, y + 10.f);
+        window.draw(msgText);
+
+        if (!path.empty())
+        {
+            std::string filename = p.filename().string();
+            if (filename.length() > 20) filename = filename.substr(0, 17) + "...";
+            sf::Text subText;
+            subText.setFont(*m_Font);
+            subText.setCharacterSize(9);
+            subText.setFillColor(C_TEXT_MUTED);
+            subText.setString(filename);
+            subText.setPosition(textX, y + 26.f);
+            window.draw(subText);
+        }
+    }
+
+    return y + previewH + 4.f;
+}
+
+float EditorScene::DrawTemplatePreview(sf::RenderWindow &window, const std::string &templatePath, float x, float y,
+                                      float w, float h, const std::string &action)
+{
+    const float previewW = (w > 0.f) ? w : (InspectorWidth - InspectorPad * 2.f);
+    const float previewH = h;
+    const sf::FloatRect boxRect(x, y, previewW, previewH);
+    const bool hovered = boxRect.contains(m_MouseScreenPos);
+
+    if (!action.empty())
+    {
+        m_InspectorButtons.push_back({boxRect, action});
+    }
+
+    // Card background
+    sf::RectangleShape card({previewW, previewH});
+    card.setPosition(x, y);
+    card.setFillColor(hovered ? sf::Color(26, 36, 48) : sf::Color(20, 24, 30));
+    card.setOutlineColor(hovered ? sf::Color(70, 140, 240) : sf::Color(45, 60, 80));
+    card.setOutlineThickness(1.f);
+    window.draw(card);
+
+    std::filesystem::path rootDir = m_ContentBrowser ? std::filesystem::path(m_ContentBrowser->GetRootPath()) : (FindProjectRoot() / "assets");
+    std::filesystem::path tp(templatePath);
+    if (!tp.is_absolute())
+    {
+        if (templatePath.rfind("assets/", 0) == 0) tp = rootDir.parent_path() / templatePath;
+        else tp = rootDir / tp;
+    }
+
+    const float thumbSize = previewH - 10.f;
+    const float thumbX = x + 5.f;
+    const float thumbY = y + 5.f;
+
+    sf::RectangleShape thumbBg({thumbSize, thumbSize});
+    thumbBg.setPosition(thumbX, thumbY);
+    thumbBg.setFillColor(sf::Color(14, 18, 22));
+    thumbBg.setOutlineColor(sf::Color(50, 70, 95));
+    thumbBg.setOutlineThickness(1.f);
+    window.draw(thumbBg);
+
+    std::error_code ec;
+    bool valid = false;
+    json data;
+    if (!templatePath.empty() && std::filesystem::exists(tp, ec))
+    {
+        std::ifstream f(tp);
+        if (f.is_open())
+        {
+            try {
+                data = json::parse(f);
+                valid = true;
+            } catch (...) {}
+        }
+    }
+
+    if (valid && data.contains("objects") && data["objects"].is_array() && !data["objects"].empty())
+    {
+        const auto& rootObj = data["objects"][0];
+        std::string tmplName = data.value("name", tp.stem().string());
+        int objCount = static_cast<int>(data["objects"].size());
+        std::string rootType = rootObj.value("type", "rectangle");
+        std::string spritePath = rootObj.value("sprite", "");
+
+        bool drewVisual = false;
+        if (!spritePath.empty())
+        {
+            std::shared_ptr<sf::Texture> tex = ResourceManager::Get().GetTexture(spritePath);
+            if (!tex)
+            {
+                std::filesystem::path spPath(spritePath);
+                std::filesystem::path fullSp = spPath.is_absolute() ? spPath : (rootDir.parent_path() / spPath);
+                tex = ResourceManager::Get().GetTexture(fullSp.string());
+                if (!tex) tex = ResourceManager::Get().GetTexture((rootDir / spPath).string());
+            }
+
+            if (tex && tex->getSize().x > 0 && tex->getSize().y > 0)
+            {
+                sf::Sprite sprite(*tex);
+                const sf::Vector2u ts = tex->getSize();
+                const float scaleX = (thumbSize - 4.f) / static_cast<float>(ts.x);
+                const float scaleY = (thumbSize - 4.f) / static_cast<float>(ts.y);
+                const float scale = std::min(scaleX, scaleY);
+                sprite.setScale(scale, scale);
+                sprite.setPosition(
+                    thumbX + 2.f + ((thumbSize - 4.f) - ts.x * scale) / 2.f,
+                    thumbY + 2.f + ((thumbSize - 4.f) - ts.y * scale) / 2.f);
+                window.draw(sprite);
+                drewVisual = true;
+            }
+        }
+
+        if (!drewVisual)
+        {
+            sf::Color objColor(100, 149, 237);
+            if (rootObj.contains("color") && rootObj["color"].is_array() && rootObj["color"].size() >= 3)
+            {
+                objColor = sf::Color(rootObj["color"][0], rootObj["color"][1], rootObj["color"][2]);
+            }
+
+            if (rootType == "circle")
+            {
+                sf::CircleShape circ((thumbSize - 12.f) / 2.f);
+                circ.setPosition(thumbX + 6.f, thumbY + 6.f);
+                circ.setFillColor(objColor);
+                circ.setOutlineColor(sf::Color(255, 255, 255, 60));
+                circ.setOutlineThickness(1.f);
+                window.draw(circ);
+            }
+            else if (rootType == "triangle")
+            {
+                sf::CircleShape tri((thumbSize - 12.f) / 2.f, 3);
+                tri.setPosition(thumbX + 6.f, thumbY + 6.f);
+                tri.setFillColor(objColor);
+                tri.setOutlineColor(sf::Color(255, 255, 255, 60));
+                tri.setOutlineThickness(1.f);
+                window.draw(tri);
+            }
+            else
+            {
+                sf::RectangleShape rect({thumbSize - 14.f, thumbSize - 14.f});
+                rect.setPosition(thumbX + 7.f, thumbY + 7.f);
+                rect.setFillColor(objColor);
+                rect.setOutlineColor(sf::Color(255, 255, 255, 60));
+                rect.setOutlineThickness(1.f);
+                window.draw(rect);
+            }
+        }
+
+        float textX = thumbX + thumbSize + 8.f;
+
+        std::string dispName = tmplName + ".template";
+        if (dispName.length() > 20) dispName = dispName.substr(0, 17) + "...";
+        sf::Text nameText;
+        nameText.setFont(*m_Font);
+        nameText.setCharacterSize(11);
+        nameText.setFillColor(sf::Color(120, 190, 255));
+        nameText.setStyle(sf::Text::Bold);
+        nameText.setString(dispName);
+        nameText.setPosition(textX, y + 6.f);
+        window.draw(nameText);
+
+        sf::Text infoText;
+        infoText.setFont(*m_Font);
+        infoText.setCharacterSize(10);
+        infoText.setFillColor(C_TEXT_SECONDARY);
+        infoText.setString(std::to_string(objCount) + (objCount == 1 ? " Object (" : " Objects (") + rootType + ")");
+        infoText.setPosition(textX, y + 21.f);
+        window.draw(infoText);
+
+        sf::Text badgeText;
+        badgeText.setFont(*m_Font);
+        badgeText.setCharacterSize(9);
+        badgeText.setFillColor(sf::Color(80, 160, 240));
+        badgeText.setString("[Prefab Template]");
+        badgeText.setPosition(textX, y + 36.f);
+        window.draw(badgeText);
+    }
+    else
+    {
+        sf::Text emptyIcon;
+        emptyIcon.setFont(*m_Font);
+        emptyIcon.setCharacterSize(12);
+        emptyIcon.setFillColor(C_TEXT_MUTED);
+        emptyIcon.setString("TMPL");
+        emptyIcon.setPosition(thumbX + (thumbSize - emptyIcon.getLocalBounds().width) / 2.f, thumbY + 14.f);
+        window.draw(emptyIcon);
+
+        float textX = thumbX + thumbSize + 8.f;
+        sf::Text msgText;
+        msgText.setFont(*m_Font);
+        msgText.setCharacterSize(11);
+        msgText.setFillColor(templatePath.empty() ? C_TEXT_MUTED : C_DANGER);
+        msgText.setString(templatePath.empty() ? "(Drag .template here)" : "Template not found");
+        msgText.setPosition(textX, y + 10.f);
+        window.draw(msgText);
+
+        if (!templatePath.empty())
+        {
+            std::string filename = tp.filename().string();
+            if (filename.length() > 20) filename = filename.substr(0, 17) + "...";
+            sf::Text subText;
+            subText.setFont(*m_Font);
+            subText.setCharacterSize(9);
+            subText.setFillColor(C_TEXT_MUTED);
+            subText.setString(filename);
+            subText.setPosition(textX, y + 26.f);
+            window.draw(subText);
+        }
+    }
+
+    return y + previewH + 4.f;
 }
 
 float EditorScene::DrawScriptInput(sf::RenderWindow &window, float x, float y)
