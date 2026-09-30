@@ -15,6 +15,8 @@ public:
     void OnCreate() const;
     void OnUpdate(float dt) const;
     void OnCollision(Entity other) const;
+    void OnCollisionEnter(Entity other, float normalX, float normalY) const;
+    void OnTriggerEnter(Entity other) const;
     void OnDestroy() const;
 
     void OnButtonClicked(const std::string &buttonId) const;
@@ -60,6 +62,8 @@ private:
     sol::function m_OnCreate;
     sol::function m_OnUpdate;
     sol::function m_OnCollision;
+    sol::function m_OnCollisionEnter;
+    sol::function m_OnTriggerEnter;
     sol::function m_OnDestroy;
     sol::function m_OnButtonClicked;
     sol::function m_OnButtonHovered;

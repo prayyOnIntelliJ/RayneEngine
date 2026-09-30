@@ -279,6 +279,10 @@ private:
         ColorB,
         Script,
         CollisionChannel,
+        RigidbodyMass,
+        RigidbodyGravity,
+        RigidbodyRestitution,
+        RigidbodyDrag,
         UIText,
         ScriptProperty
     };

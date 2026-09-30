@@ -5,6 +5,7 @@
 
 #include "../ECS/Components.h"
 #include "../ECS/HierarchySystem.h"
+#include "../ECS/PhysicsSystem.h"
 #include "../Scripting/EventManager.h"
 #include "../UI/UIManager.h"
 #include "../Scripting/ScriptComponent.h"
@@ -42,6 +43,7 @@ void GameScene::OnEnter()
 
     m_Camera = m_Window.getDefaultView();
     m_LastCollisions.clear();
+    PhysicsSystem::Reset();
 
     EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
         if (m_Registry.HasComponent<ScriptComponent>(e.a))
@@ -130,6 +132,7 @@ void GameScene::OnExit()
 {
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnDestroy(); });
     m_LastCollisions.clear();
+    PhysicsSystem::Reset();
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();
     EventManager::Get().Clear();
@@ -273,12 +276,6 @@ void GameScene::Update(float deltaTime)
     float timeScale = (g_App ? g_App->GetTimeScale() : 1.0f);
     float effectiveDt = isPaused ? 0.f : (deltaTime * timeScale);
 
-    m_Registry.ForEach<TransformComponent, VelocityComponent>(
-        [effectiveDt](Entity, TransformComponent &t, VelocityComponent &v) {
-            t.x += v.dx * effectiveDt;
-            t.y += v.dy * effectiveDt;
-        });
-
     HierarchySystem::UpdateWorldTransforms(m_Registry);
 
 #ifndef RAYNE_STANDALONE
@@ -306,13 +303,11 @@ void GameScene::Update(float deltaTime)
 
     m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
 
-    HierarchySystem::UpdateWorldTransforms(m_Registry);
-
     if (!isPaused)
     {
         TimerManager::Get().Update(effectiveDt);
         TweenManager::Get().Update(effectiveDt);
-        CheckCollisions();
+        PhysicsSystem::Step(m_Registry, effectiveDt);
         HierarchySystem::UpdateWorldTransforms(m_Registry);
     }
 

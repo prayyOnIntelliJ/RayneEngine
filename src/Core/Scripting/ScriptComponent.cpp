@@ -58,6 +58,8 @@ bool ScriptComponent::Reload()
     m_OnCreate = m_Env["OnCreate"];
     m_OnUpdate = m_Env["OnUpdate"];
     m_OnCollision = m_Env["OnCollision"];
+    m_OnCollisionEnter = m_Env["OnCollisionEnter"];
+    m_OnTriggerEnter = m_Env["OnTriggerEnter"];
     m_OnDestroy = m_Env["OnDestroy"];
     m_OnButtonClicked = m_Env["OnButtonClicked"];
     m_OnButtonHovered = m_Env["OnButtonHovered"];
@@ -94,6 +96,18 @@ void ScriptComponent::OnUpdate(float dt) const { if (m_OnUpdate.valid()) m_OnUpd
 void ScriptComponent::OnCollision(Entity other) const
 {
     if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
+}
+
+void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normalY) const
+{
+    if (m_OnCollisionEnter.valid()) m_OnCollisionEnter(m_Env["self"].get_or(0), other, normalX, normalY);
+    else if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
+}
+
+void ScriptComponent::OnTriggerEnter(Entity other) const
+{
+    if (m_OnTriggerEnter.valid()) m_OnTriggerEnter(m_Env["self"].get_or(0), other);
+    else if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
 }
 
 void ScriptComponent::OnDestroy() const

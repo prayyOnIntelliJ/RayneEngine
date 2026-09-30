@@ -110,10 +110,33 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
 
         if (j.contains("collision")) 
         { 
-            CollisionType cType = CollisionType::Static;
-            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
-                cType = CollisionType::Solid;
-            registry.AddComponent(entity, CollisionComponent{j["collision"]["channel"], cType}); 
+            CollisionType cType = CollisionType::Solid;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "static")
+                cType = CollisionType::Static;
+            int ch = j["collision"].value("channel", 0);
+            bool isTrig = j["collision"].value("isTrigger", false);
+            ColliderShape shape = ColliderShape::Box;
+            if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
+                shape = ColliderShape::Circle;
+            else if (j.contains("type") && j["type"] == "circle")
+                shape = ColliderShape::Circle;
+            registry.AddComponent(entity, CollisionComponent{ch, cType, isTrig, shape}); 
+        }
+
+        if (j.contains("rigidbody"))
+        {
+            Rigidbody2DComponent rb;
+            std::string bt = j["rigidbody"].value("bodyType", "dynamic");
+            if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
+            else if (bt == "static") rb.bodyType = BodyType::Static;
+            else rb.bodyType = BodyType::Dynamic;
+
+            rb.mass = j["rigidbody"].value("mass", 1.0f);
+            rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
+            rb.restitution = j["rigidbody"].value("restitution", 0.0f);
+            rb.drag = j["rigidbody"].value("drag", 0.05f);
+            rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
+            registry.AddComponent(entity, rb);
         }
     }
 
@@ -281,10 +304,33 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
 
         if (j.contains("collision")) 
         { 
-            CollisionType cType = CollisionType::Static;
-            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
-                cType = CollisionType::Solid;
-            registry.AddComponent(entity, CollisionComponent{j["collision"].value("channel", 0), cType}); 
+            CollisionType cType = CollisionType::Solid;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "static")
+                cType = CollisionType::Static;
+            int ch = j["collision"].value("channel", 0);
+            bool isTrig = j["collision"].value("isTrigger", false);
+            ColliderShape shape = ColliderShape::Box;
+            if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
+                shape = ColliderShape::Circle;
+            else if (j.contains("type") && j["type"] == "circle")
+                shape = ColliderShape::Circle;
+            registry.AddComponent(entity, CollisionComponent{ch, cType, isTrig, shape}); 
+        }
+
+        if (j.contains("rigidbody"))
+        {
+            Rigidbody2DComponent rb;
+            std::string bt = j["rigidbody"].value("bodyType", "dynamic");
+            if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
+            else if (bt == "static") rb.bodyType = BodyType::Static;
+            else rb.bodyType = BodyType::Dynamic;
+
+            rb.mass = j["rigidbody"].value("mass", 1.0f);
+            rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
+            rb.restitution = j["rigidbody"].value("restitution", 0.0f);
+            rb.drag = j["rigidbody"].value("drag", 0.05f);
+            rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
+            registry.AddComponent(entity, rb);
         }
 
         registry.AddComponent(entity, HierarchyComponent{});

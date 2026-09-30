@@ -81,11 +81,29 @@ struct CameraComponent
 };
 
 enum class CollisionType { Static, Solid };
+enum class BodyType { Dynamic, Kinematic, Static };
+enum class ColliderShape { Box, Circle };
 
 struct CollisionComponent
 {
     int channel = 0;
-    CollisionType type = CollisionType::Static;
+    CollisionType type = CollisionType::Solid;
+    bool isTrigger = false;
+    ColliderShape shape = ColliderShape::Box;
+};
+
+struct Rigidbody2DComponent
+{
+    BodyType bodyType = BodyType::Dynamic;
+    float mass = 1.0f;
+    float gravityScale = 1.0f;
+    float restitution = 0.0f; // Bounciness (0 = no bounce, 1 = elastic)
+    float drag = 0.05f;       // Linear drag / damping
+    bool freezeRotation = true;
+
+    // Accumulated external continuous forces
+    float forceX = 0.f;
+    float forceY = 0.f;
 };
 
 struct TagComponent

@@ -1429,6 +1429,41 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         inputTarget->zIndex = std::stoi(m_ActiveInputText);
                         SyncToRegistry();
                     } catch (...) {}
+                } else if (m_ActiveField == EditField::CollisionChannel)
+                {
+                    try
+                    {
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).channel = std::stoi(m_ActiveInputText);
+                    } catch (...) {}
+                } else if (m_ActiveField == EditField::RigidbodyMass)
+                {
+                    try
+                    {
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).mass = std::max(0.001f, std::stof(m_ActiveInputText));
+                    } catch (...) {}
+                } else if (m_ActiveField == EditField::RigidbodyGravity)
+                {
+                    try
+                    {
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).gravityScale = std::stof(m_ActiveInputText);
+                    } catch (...) {}
+                } else if (m_ActiveField == EditField::RigidbodyRestitution)
+                {
+                    try
+                    {
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).restitution = std::clamp(std::stof(m_ActiveInputText), 0.0f, 1.0f);
+                    } catch (...) {}
+                } else if (m_ActiveField == EditField::RigidbodyDrag)
+                {
+                    try
+                    {
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).drag = std::max(0.0f, std::stof(m_ActiveInputText));
+                    } catch (...) {}
                 }
                 SetDirty(true);
             }
@@ -2201,14 +2236,34 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(obj.previewSprite);
         }
 
-        if (m_ShowColliderOutlines)
+        if (m_ShowColliderOutlines && obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity))
         {
-            sf::RectangleShape colBox(obj.shape.getSize());
-            colBox.setPosition(obj.shape.getPosition());
-            colBox.setFillColor(sf::Color::Transparent);
-            colBox.setOutlineColor(sf::Color(C_DANGER.r, C_DANGER.g, C_DANGER.b, 160));
-            colBox.setOutlineThickness(1.f);
-            window.draw(colBox);
+            auto& col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
+            sf::Color colOutline = col.isTrigger ? sf::Color(255, 215, 0, 200) : sf::Color(40, 220, 100, 200);
+            if (col.shape == ColliderShape::Circle)
+            {
+                float rx = obj.shape.getSize().x * 0.5f;
+                float ry = obj.shape.getSize().y * 0.5f;
+                sf::CircleShape circ(rx);
+                circ.setPosition(obj.shape.getPosition());
+                circ.setScale(obj.scaleX, obj.scaleY * (ry / std::max(0.001f, rx)));
+                circ.setRotation(obj.rotation);
+                circ.setFillColor(sf::Color::Transparent);
+                circ.setOutlineColor(colOutline);
+                circ.setOutlineThickness(1.5f);
+                window.draw(circ);
+            }
+            else
+            {
+                sf::RectangleShape colBox(obj.shape.getSize());
+                colBox.setPosition(obj.shape.getPosition());
+                colBox.setScale(obj.scaleX, obj.scaleY);
+                colBox.setRotation(obj.rotation);
+                colBox.setFillColor(sf::Color::Transparent);
+                colBox.setOutlineColor(colOutline);
+                colBox.setOutlineThickness(1.5f);
+                window.draw(colBox);
+            }
         }
 
         if (m_ShowEntityIDs && obj.entity != 0)
@@ -3445,8 +3500,10 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                              ? "|"
                                              : std::to_string(col.channel));
         y = DrawEditableRow(window, "Collision Channel", chanDisplay, "edit_collision_channel", panelX, y);
-        y += 4.f;
-        std::string typeLabel = "Type: " + std::string(col.type == CollisionType::Solid ? "Solid" : "Static");
+        y = DrawCheckboxRow(window, "Is Trigger", col.isTrigger, "toggle_collision_trigger", panelX, y);
+        std::string shapeLabel = "Collider Shape: " + std::string(col.shape == ColliderShape::Circle ? "Circle" : "Box");
+        y = DrawActionButton(window, shapeLabel, "toggle_collision_shape", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        std::string typeLabel = "Contact Type: " + std::string(col.type == CollisionType::Solid ? "Solid" : "Static");
         y = DrawActionButton(window, typeLabel, "toggle_collision_type", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 4.f;
         y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_DANGER_DIM, C_DANGER);
@@ -3454,6 +3511,55 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Collision", "add_collision", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
+    if (target->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+    {
+        auto &rb = m_Registry.GetComponent<Rigidbody2DComponent>(target->entity);
+        y = DrawSectionHeader(window, "RIGIDBODY 2D", sf::Color(100, 190, 255), panelX, y);
+
+        std::string bodyTypeStr = "Dynamic";
+        if (rb.bodyType == BodyType::Kinematic) bodyTypeStr = "Kinematic";
+        else if (rb.bodyType == BodyType::Static) bodyTypeStr = "Static";
+        y = DrawActionButton(window, "Body Type: " + bodyTypeStr, "toggle_rigidbody_type", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+        std::string massDisplay = (m_ActiveField == EditField::RigidbodyMass && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::RigidbodyMass
+                                             ? "|"
+                                             : FormatFloat(rb.mass, 2));
+        y = DrawEditableRow(window, "Mass", massDisplay, "edit_rb_mass", panelX, y);
+
+        std::string gravDisplay = (m_ActiveField == EditField::RigidbodyGravity && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::RigidbodyGravity
+                                             ? "|"
+                                             : FormatFloat(rb.gravityScale, 2));
+        y = DrawEditableRow(window, "Gravity Scale", gravDisplay, "edit_rb_gravity", panelX, y);
+
+        std::string restDisplay = (m_ActiveField == EditField::RigidbodyRestitution && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::RigidbodyRestitution
+                                             ? "|"
+                                             : FormatFloat(rb.restitution, 2));
+        y = DrawEditableRow(window, "Bounciness", restDisplay, "edit_rb_restitution", panelX, y);
+
+        std::string dragDisplay = (m_ActiveField == EditField::RigidbodyDrag && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::RigidbodyDrag
+                                             ? "|"
+                                             : FormatFloat(rb.drag, 2));
+        y = DrawEditableRow(window, "Linear Drag", dragDisplay, "edit_rb_drag", panelX, y);
+
+        y = DrawCheckboxRow(window, "Freeze Rotation", rb.freezeRotation, "toggle_rb_freeze_rot", panelX, y);
+
+        y += 4.f;
+        y = DrawActionButton(window, "Remove Rigidbody", "remove_rigidbody", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    } else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Rigidbody 2D", "add_rigidbody", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
@@ -4628,6 +4734,72 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 m_ActiveInputText = std::to_string(
                     m_Registry.GetComponent<CollisionComponent>(target->entity).channel);
             }
+        } else if (btn.action == "toggle_collision_trigger" && target)
+        {
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto& col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                col.isTrigger = !col.isTrigger;
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_collision_shape" && target)
+        {
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto& col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                col.shape = (col.shape == ColliderShape::Box) ? ColliderShape::Circle : ColliderShape::Box;
+                SetDirty(true);
+            }
+        } else if (btn.action == "add_rigidbody" && target)
+        {
+            m_Registry.AddComponent(target->entity, Rigidbody2DComponent{});
+            if (!m_Registry.HasComponent<VelocityComponent>(target->entity))
+                m_Registry.AddComponent(target->entity, VelocityComponent{0.f, 0.f});
+            std::cout << "[INFO] [Inspector] Rigidbody2DComponent added to " << target->id << "\n";
+            SetDirty(true);
+        } else if (btn.action == "remove_rigidbody" && target)
+        {
+            m_Registry.RemoveComponent<Rigidbody2DComponent>(target->entity);
+            std::cout << "[INFO] [Inspector] Rigidbody2DComponent removed from " << target->id << "\n";
+            SetDirty(true);
+        } else if (btn.action == "toggle_rigidbody_type" && target)
+        {
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+            {
+                auto& rb = m_Registry.GetComponent<Rigidbody2DComponent>(target->entity);
+                if (rb.bodyType == BodyType::Dynamic) rb.bodyType = BodyType::Kinematic;
+                else if (rb.bodyType == BodyType::Kinematic) rb.bodyType = BodyType::Static;
+                else rb.bodyType = BodyType::Dynamic;
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_rb_freeze_rot" && target)
+        {
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+            {
+                auto& rb = m_Registry.GetComponent<Rigidbody2DComponent>(target->entity);
+                rb.freezeRotation = !rb.freezeRotation;
+                SetDirty(true);
+            }
+        } else if (btn.action == "edit_rb_mass" && target)
+        {
+            m_ActiveField = EditField::RigidbodyMass;
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<Rigidbody2DComponent>(target->entity).mass, 2);
+        } else if (btn.action == "edit_rb_gravity" && target)
+        {
+            m_ActiveField = EditField::RigidbodyGravity;
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<Rigidbody2DComponent>(target->entity).gravityScale, 2);
+        } else if (btn.action == "edit_rb_restitution" && target)
+        {
+            m_ActiveField = EditField::RigidbodyRestitution;
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<Rigidbody2DComponent>(target->entity).restitution, 2);
+        } else if (btn.action == "edit_rb_drag" && target)
+        {
+            m_ActiveField = EditField::RigidbodyDrag;
+            if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<Rigidbody2DComponent>(target->entity).drag, 2);
         } else if (btn.action == "add_script")
         {
             m_ActiveField = EditField::Script;
@@ -5297,10 +5469,33 @@ void EditorScene::LoadFromJson(const std::string &path)
 
         if (j.contains("collision"))
         {
-            CollisionType cType = CollisionType::Static;
-            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
-                cType = CollisionType::Solid;
-            m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
+            CollisionType cType = CollisionType::Solid;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "static")
+                cType = CollisionType::Static;
+            int ch = j["collision"].value("channel", 0);
+            bool isTrig = j["collision"].value("isTrigger", false);
+            ColliderShape shape = ColliderShape::Box;
+            if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
+                shape = ColliderShape::Circle;
+            else if (obj.objectType == ObjectType::Circle)
+                shape = ColliderShape::Circle;
+            m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
+        }
+
+        if (j.contains("rigidbody"))
+        {
+            Rigidbody2DComponent rb;
+            std::string bt = j["rigidbody"].value("bodyType", "dynamic");
+            if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
+            else if (bt == "static") rb.bodyType = BodyType::Static;
+            else rb.bodyType = BodyType::Dynamic;
+
+            rb.mass = j["rigidbody"].value("mass", 1.0f);
+            rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
+            rb.restitution = j["rigidbody"].value("restitution", 0.0f);
+            rb.drag = j["rigidbody"].value("drag", 0.05f);
+            rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
+            m_Registry.AddComponent(obj.entity, rb);
         }
 
         m_Registry.AddComponent(obj.entity, HierarchyComponent{});
@@ -5452,7 +5647,25 @@ void EditorScene::SnapshotState()
             auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
             j["collision"] = {
                 {"channel", col.channel},
-                {"type", col.type == CollisionType::Solid ? "solid" : "static"}
+                {"type", col.type == CollisionType::Solid ? "solid" : "static"},
+                {"isTrigger", col.isTrigger},
+                {"shape", col.shape == ColliderShape::Circle ? "circle" : "box"}
+            };
+        }
+
+        if (obj.entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(obj.entity))
+        {
+            auto &rb = m_Registry.GetComponent<Rigidbody2DComponent>(obj.entity);
+            std::string bt = "dynamic";
+            if (rb.bodyType == BodyType::Kinematic) bt = "kinematic";
+            else if (rb.bodyType == BodyType::Static) bt = "static";
+            j["rigidbody"] = {
+                {"bodyType", bt},
+                {"mass", rb.mass},
+                {"gravityScale", rb.gravityScale},
+                {"restitution", rb.restitution},
+                {"drag", rb.drag},
+                {"freezeRotation", rb.freezeRotation}
             };
         }
 
@@ -5601,10 +5814,33 @@ void EditorScene::RestoreSnapshot()
 
         if (j.contains("collision"))
         {
-            CollisionType cType = CollisionType::Static;
-            if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
-                cType = CollisionType::Solid;
-            m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
+            CollisionType cType = CollisionType::Solid;
+            if (j["collision"].contains("type") && j["collision"]["type"] == "static")
+                cType = CollisionType::Static;
+            int ch = j["collision"].value("channel", 0);
+            bool isTrig = j["collision"].value("isTrigger", false);
+            ColliderShape shape = ColliderShape::Box;
+            if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
+                shape = ColliderShape::Circle;
+            else if (obj.objectType == ObjectType::Circle)
+                shape = ColliderShape::Circle;
+            m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
+        }
+
+        if (j.contains("rigidbody"))
+        {
+            Rigidbody2DComponent rb;
+            std::string bt = j["rigidbody"].value("bodyType", "dynamic");
+            if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
+            else if (bt == "static") rb.bodyType = BodyType::Static;
+            else rb.bodyType = BodyType::Dynamic;
+
+            rb.mass = j["rigidbody"].value("mass", 1.0f);
+            rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
+            rb.restitution = j["rigidbody"].value("restitution", 0.0f);
+            rb.drag = j["rigidbody"].value("drag", 0.05f);
+            rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
+            m_Registry.AddComponent(obj.entity, rb);
         }
 
         m_Objects.push_back(std::move(obj));
@@ -7077,7 +7313,24 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
         auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
         j["collision"] = {
             {"channel", col.channel},
-            {"type", col.type == CollisionType::Solid ? "solid" : "static"}
+            {"type", col.type == CollisionType::Solid ? "solid" : "static"},
+            {"isTrigger", col.isTrigger},
+            {"shape", col.shape == ColliderShape::Circle ? "circle" : "box"}
+        };
+    }
+
+    if (obj.entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(obj.entity)) {
+        auto &rb = m_Registry.GetComponent<Rigidbody2DComponent>(obj.entity);
+        std::string bt = "dynamic";
+        if (rb.bodyType == BodyType::Kinematic) bt = "kinematic";
+        else if (rb.bodyType == BodyType::Static) bt = "static";
+        j["rigidbody"] = {
+            {"bodyType", bt},
+            {"mass", rb.mass},
+            {"gravityScale", rb.gravityScale},
+            {"restitution", rb.restitution},
+            {"drag", rb.drag},
+            {"freezeRotation", rb.freezeRotation}
         };
     }
     return j;
@@ -7194,10 +7447,32 @@ void EditorScene::DeserializeObject(const json& j) {
     if (j.contains("camera")) { m_Registry.AddComponent(obj.entity, CameraComponent{true}); }
 
     if (j.contains("collision")) {
-        CollisionType cType = CollisionType::Static;
-        if (j["collision"].contains("type") && j["collision"]["type"] == "solid")
-            cType = CollisionType::Solid;
-        m_Registry.AddComponent(obj.entity, CollisionComponent{j["collision"]["channel"].get<int>(), cType});
+        CollisionType cType = CollisionType::Solid;
+        if (j["collision"].contains("type") && j["collision"]["type"] == "static")
+            cType = CollisionType::Static;
+        int ch = j["collision"].value("channel", 0);
+        bool isTrig = j["collision"].value("isTrigger", false);
+        ColliderShape shape = ColliderShape::Box;
+        if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
+            shape = ColliderShape::Circle;
+        else if (obj.objectType == ObjectType::Circle)
+            shape = ColliderShape::Circle;
+        m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
+    }
+
+    if (j.contains("rigidbody")) {
+        Rigidbody2DComponent rb;
+        std::string bt = j["rigidbody"].value("bodyType", "dynamic");
+        if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
+        else if (bt == "static") rb.bodyType = BodyType::Static;
+        else rb.bodyType = BodyType::Dynamic;
+
+        rb.mass = j["rigidbody"].value("mass", 1.0f);
+        rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
+        rb.restitution = j["rigidbody"].value("restitution", 0.0f);
+        rb.drag = j["rigidbody"].value("drag", 0.05f);
+        rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
+        m_Registry.AddComponent(obj.entity, rb);
     }
 
     m_Registry.AddComponent(obj.entity, HierarchyComponent{});
