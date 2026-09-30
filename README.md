@@ -152,6 +152,8 @@ When launching the engine for the first time (i.e. no `project_settings.json` is
 - **Resolution:** Set the target window width and height for your standalone game export.
 - **Engine Settings:** Toggle VSync and specify a target framerate (FPS).
 
+- <img width="542" height="467" alt="image" src="https://github.com/user-attachments/assets/ea89523d-e5bf-4653-b7b2-d0dbef35a27b" />
+
 These settings are serialized to `project_settings.json` which governs the standalone game's runtime behavior without interfering with the editor's fixed resolution.
 
 <img width="1920" height="999" alt="StartupScreenRE (1)" src="https://github.com/user-attachments/assets/8e7e0c96-a6a6-4168-858f-dd590b5f1f5e" />
@@ -167,6 +169,9 @@ The built-in level editor provides a real-time environment for constructing and 
   - **Transform Parenting:** Drag-and-drop entities onto other objects to establish parent-child relationships with automatic local/world coordinate propagation.
   - Context menu actions: Rename, duplicate, delete, and save entity subtrees as `.template` assets.
   - Multi-selection and group hierarchy operations.
+ 
+<img width="238" height="203" alt="image" src="https://github.com/user-attachments/assets/672faf1c-f303-4a71-99f6-0c81ecd6a1e9" />
+
 - **Property Inspector:**
   - **Inspector Lock:** Unity-style lock button in the header freezes inspection on the current entity, preventing accidental selection changes when clicking in the viewport or hierarchy.
   - **Smooth Scrolling & Viewport Scissor:** Mouse-wheel scrolling with view clipping ensures large component lists and extensive export variables remain completely accessible.
@@ -182,6 +187,9 @@ The built-in level editor provides a real-time environment for constructing and 
   - Sprite asset assignment with aspect-correct scaling.
   - Collision channel, collision type (`Static` / `Solid`), collider shape (`Box` / `Circle`), and sensor trigger (`isTrigger`) configuration.
   - UI element text editing directly from the inspector (`UIText` field).
+ 
+<img width="268" height="854" alt="image" src="https://github.com/user-attachments/assets/6b0dfa2e-04aa-4642-afe5-e0e79697f9d7" />
+
 - **Content Browser:**
   - Integrated file browser with breadcrumb navigation and path history.
   - Asset category filters: All, Images, Scripts, Audio, Scenes.
@@ -189,6 +197,9 @@ The built-in level editor provides a real-time environment for constructing and 
   - File management: Create scripts, scenes, or folders; rename, duplicate, or delete assets; copy asset path to clipboard; reveal file in OS file explorer.
   - Drag-and-drop: Drag textures or scripts from the browser directly onto viewport entities.
   - Scene loading: Double-click or trigger scene loading requests directly from the browser.
+ 
+<img width="1410" height="156" alt="image" src="https://github.com/user-attachments/assets/16534f79-c2c0-476e-803a-e555d4ab1c9a" />
+
 - **In-Editor Console Panel:**
   - Switchable bottom panel (Content Browser ↔ Console via tab bar).
   - Captures all `std::cout` and `std::cerr` output in real time via stream redirectors installed at engine boot.
@@ -196,6 +207,9 @@ The built-in level editor provides a real-time environment for constructing and 
   - Scrollable log area with draggable scrollbar and mouse-wheel support; auto-scrolls to the newest message.
   - Command input field with blinking cursor, Ctrl+V paste support, and Enter-to-submit.
   - Built-in `clear` command to reset the log. Buffer capped at 2 000 messages.
+ 
+<img width="1410" height="150" alt="image" src="https://github.com/user-attachments/assets/57ff8e46-a02c-498c-a938-61e5e90226e4" />
+
 - **Interactive Viewport & Selection:**
   - Free camera panning using Middle Mouse Button (invertible and sensitivity-configurable).
   - Smooth camera zooming with user-defined min/max limits.
@@ -205,6 +219,9 @@ The built-in level editor provides a real-time environment for constructing and 
   - 8-point interactive resize handles for live scaling of selected objects.
   - Grid rendering with configurable cell dimensions, color, and opacity.
   - Toggleable snap-to-grid alignment.
+
+<img width="716" height="370" alt="image" src="https://github.com/user-attachments/assets/f9805d88-a114-471d-80cb-fb3bcd87d033" />
+
 - **Scene Serialization:**
   - Completely relative asset paths: Sprite textures and script files are saved relative to `assets/` for cross-platform and team portability.
 - **Auto-Save & Configuration:**
@@ -228,6 +245,8 @@ A dedicated scene for visually designing the game's HUD and UI layouts:
 - **Property Inspector** — live editing of 40+ fields including position, size, z-index, opacity, color (RGBA), text content, font size, letter/line spacing, text alignment (`Left` / `Center` / `Right`), text style bitmask (Bold, Italic, Underline, StrikeThrough), text outline, text offset, button normal/hover/pressed/disabled colors, and panel border/outline.
 - **Persistence** — UI layouts are saved to and loaded from `assets/ui.json` via the `UIManager`. The engine reloads this file on startup automatically.
 - **Menu Bar** — Save, Load, New UI, and Back to Editor actions.
+
+<img width="1918" height="1010" alt="image" src="https://github.com/user-attachments/assets/4df3464c-f75b-4e60-9eb1-230ffbbc3036" />
 
 ---
 
