@@ -1648,7 +1648,7 @@ void UIEditorScene::DrawPalette(sf::RenderWindow &window)
     window.draw(border);
 
     float y = m_PaletteBounds.top + 10.f;
-    DrawSectionHeader(window, "PALETTE", C_ACCENT, m_PaletteBounds.left, y);
+    DrawSectionHeader(window, "PALETTE", C_ACCENT, m_PaletteBounds.left, y, PaletteWidth);
     y += 30.f;
 
     auto drawAddBtn = [&](const std::string &label, const std::string &action) {
@@ -3544,12 +3544,12 @@ void UIEditorScene::DrawPill(sf::RenderWindow &window, const sf::FloatRect &r, s
 }
 
 float UIEditorScene::DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x,
-                                       float y)
+                                       float y, float width)
 {
-    if (y + 20.f <= m_InspectorClipTop || y >= m_InspectorClipBottom)
+    if (width == InspectorWidth && (y + 20.f <= m_InspectorClipTop || y >= m_InspectorClipBottom))
         return y + 20.f;
 
-    sf::RectangleShape hairline({InspectorWidth, 1.f});
+    sf::RectangleShape hairline({width, 1.f});
     hairline.setFillColor(C_BORDER);
     hairline.setPosition(x, y + 2.f);
     window.draw(hairline);

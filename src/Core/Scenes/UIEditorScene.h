@@ -235,7 +235,7 @@ private:
 
     void DrawResizeHandles(sf::RenderWindow &window);
 
-    float DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x, float y);
+    float DrawSectionHeader(sf::RenderWindow &window, const std::string &title, sf::Color accent, float x, float y, float width = InspectorWidth);
 
     float DrawRow(sf::RenderWindow &window, const std::string &key, const std::string &val, float x, float y);
 
