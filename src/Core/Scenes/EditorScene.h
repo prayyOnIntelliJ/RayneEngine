@@ -185,6 +185,9 @@ private:
     float m_HierarchyScrollY = 0.f;
     float m_InspectorScrollY = 0.f;
     float m_InspectorContentHeight = 0.f;
+    bool m_InspectorLocked = false;
+    std::string m_LockedObjectId;
+    EditorObject* GetInspectedObject();
 
     std::vector<InspectorButton> m_InspectorButtons;
     std::vector<std::pair<sf::FloatRect, EditorObject *> > m_HierarchyHitboxes;
@@ -492,6 +495,7 @@ private:
     void DrawAddDropdown(sf::RenderWindow &window);
 
     void DrawInspector(sf::RenderWindow &window);
+    void DrawInspectorHeader(sf::RenderWindow &window, float panelX, float panelY);
 
     void DrawHierarchy(sf::RenderWindow &window);
 

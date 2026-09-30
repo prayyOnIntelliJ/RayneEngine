@@ -1078,7 +1078,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             if (inInspector || inHierarchy)
             {
-                if (m_Selected)
+                EditorObject* dropTarget = inInspector ? GetInspectedObject() : m_Selected;
+                if (dropTarget)
                 {
                     // First check if there's an Image export property to receive the drop
                     bool droppedOnImageProp = false;
@@ -1089,12 +1090,12 @@ void EditorScene::HandleEvent(const sf::Event &event)
                             if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0)
                             {
                                 std::string propName = btn.action.substr(17);
-                                auto it = m_Selected->scriptProperties.find(propName);
-                                if (it != m_Selected->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Image)
+                                auto it = dropTarget->scriptProperties.find(propName);
+                                if (it != dropTarget->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Image)
                                 {
                                     it->second.stringVal = drag.path;
-                                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
-                                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                                    if (dropTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(dropTarget->entity))
+                                        m_Registry.GetComponent<ScriptComponent>(dropTarget->entity).SetExportedProperty(it->second);
                                     SetDirty(true);
                                     droppedOnImageProp = true;
                                     break;
@@ -1104,13 +1105,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
                         if (!droppedOnImageProp)
                         {
-                            for (auto& pair : m_Selected->scriptProperties)
+                            for (auto& pair : dropTarget->scriptProperties)
                             {
                                 if (pair.second.type == ScriptComponent::PropertyType::Image)
                                 {
                                     pair.second.stringVal = drag.path;
-                                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
-                                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                                    if (dropTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(dropTarget->entity))
+                                        m_Registry.GetComponent<ScriptComponent>(dropTarget->entity).SetExportedProperty(pair.second);
                                     SetDirty(true);
                                     droppedOnImageProp = true;
                                     break;
@@ -1119,7 +1120,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         }
                     }
                     if (!droppedOnImageProp)
-                        ApplySpriteToObject(*m_Selected, drag.path);
+                        ApplySpriteToObject(*dropTarget, drag.path);
                 }
             } else if (!inBrowser && !inTopBars && !inTabs)
             {
@@ -1137,7 +1138,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
             if (!inBrowser && !inTopBars && !inTabs)
             {
                 EditorObject *target = nullptr;
-                if (inInspector || inHierarchy)
+                if (inInspector)
+                    target = GetInspectedObject();
+                else if (inHierarchy)
                     target = m_Selected;
                 else
                     target = ObjectAt(MouseWorldPos());
@@ -1157,7 +1160,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
         else if (drag.type == AssetType::Template)
         {
-            if (inInspector && m_Selected)
+            EditorObject* dropTarget = inInspector ? GetInspectedObject() : m_Selected;
+            if (inInspector && dropTarget)
             {
                 bool assigned = false;
                 for (const auto& btn : m_InspectorButtons)
@@ -1165,13 +1169,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0)
                     {
                         std::string propName = btn.action.substr(17);
-                        auto it = m_Selected->scriptProperties.find(propName);
-                        if (it != m_Selected->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Template)
+                        auto it = dropTarget->scriptProperties.find(propName);
+                        if (it != dropTarget->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Template)
                         {
                             it->second.stringVal = drag.path;
-                            if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                            if (dropTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(dropTarget->entity))
                             {
-                                m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                                m_Registry.GetComponent<ScriptComponent>(dropTarget->entity).SetExportedProperty(it->second);
                             }
                             SetDirty(true);
                             assigned = true;
@@ -1183,14 +1187,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
                 if (!assigned)
                 {
-                    for (auto &pair : m_Selected->scriptProperties)
+                    for (auto &pair : dropTarget->scriptProperties)
                     {
                         if (pair.second.type == ScriptComponent::PropertyType::Template)
                         {
                             pair.second.stringVal = drag.path;
-                            if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                            if (dropTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(dropTarget->entity))
                             {
-                                m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(pair.second);
+                                m_Registry.GetComponent<ScriptComponent>(dropTarget->entity).SetExportedProperty(pair.second);
                             }
                             SetDirty(true);
                             std::cout << "[INFO] [ContentBrowser] Assigned template to property " << pair.first << "\n";
@@ -1248,21 +1252,26 @@ void EditorScene::HandleEvent(const sf::Event &event)
         } else if (
             event.text.unicode == '\r' || event.text.unicode == '\n')
         {
-            if (m_Selected && !m_ActiveInputText.empty())
+            EditorObject* inputTarget = GetInspectedObject();
+            if (inputTarget && !m_ActiveInputText.empty())
             {
                 if (m_ActiveField == EditField::Name)
                 {
-                    m_Selected->id = m_ActiveInputText;
+                    if (m_InspectorLocked && m_LockedObjectId == inputTarget->id)
+                    {
+                        m_LockedObjectId = m_ActiveInputText;
+                    }
+                    inputTarget->id = m_ActiveInputText;
                     UpdateStatusText();
                 } else if (m_ActiveField == EditField::Tag)
                 {
-                    m_Selected->tag = m_ActiveInputText;
-                    if (m_Selected->entity != 0)
+                    inputTarget->tag = m_ActiveInputText;
+                    if (inputTarget->entity != 0)
                     {
-                        if (m_Registry.HasComponent<TagComponent>(m_Selected->entity))
-                            m_Registry.GetComponent<TagComponent>(m_Selected->entity).tag = m_Selected->tag;
+                        if (m_Registry.HasComponent<TagComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<TagComponent>(inputTarget->entity).tag = inputTarget->tag;
                         else
-                            m_Registry.AddComponent(m_Selected->entity, TagComponent{m_Selected->tag});
+                            m_Registry.AddComponent(inputTarget->entity, TagComponent{inputTarget->tag});
                     }
                     UpdateStatusText();
                 } else if (m_ActiveField == EditField::Script)
@@ -1278,13 +1287,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         std::cout << "[INFO] [Inspector] Created new Lua script file: " << fullPath << "\n";
                     }
                     check.close();
-                    auto &sc = m_Registry.AddComponent(m_Selected->entity,
+                    auto &sc = m_Registry.AddComponent(inputTarget->entity,
                                                        ScriptComponent(LuaState::GetLua(), fullPath));
-                    sc.SetEntity(m_Selected->entity);
-                    m_Selected->scriptPath = fullPath;
+                    sc.SetEntity(inputTarget->entity);
+                    inputTarget->scriptPath = fullPath;
                     
                     for (const auto& prop : sc.GetExportedProperties()) {
-                        m_Selected->scriptProperties[prop.name] = prop;
+                        inputTarget->scriptProperties[prop.name] = prop;
                     }
 
                     std::cout << "[INFO] [Inspector] Script assigned to entity: " << fullPath << "\n";
@@ -1293,10 +1302,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         float val = std::stof(m_ActiveInputText);
-                        sf::Vector2f pos = m_Selected->localPosition;
+                        sf::Vector2f pos = inputTarget->localPosition;
                         if (m_ActiveField == EditField::TransformX) pos.x = val;
                         else pos.y = val;
-                        m_Selected->localPosition = pos;
+                        inputTarget->localPosition = pos;
                         UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::Rotation)
@@ -1304,7 +1313,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         float val = std::stof(m_ActiveInputText);
-                        m_Selected->rotation = val;
+                        inputTarget->rotation = val;
                         UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ScaleX || m_ActiveField == EditField::ScaleY)
@@ -1312,8 +1321,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         float val = std::stof(m_ActiveInputText);
-                        if (m_ActiveField == EditField::ScaleX) m_Selected->scaleX = val;
-                        else m_Selected->scaleY = val;
+                        if (m_ActiveField == EditField::ScaleX) inputTarget->scaleX = val;
+                        else inputTarget->scaleY = val;
                         UpdateWorldTransforms();
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::SizeW || m_ActiveField == EditField::SizeH)
@@ -1321,37 +1330,37 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         float val = std::max(4.f, std::stof(m_ActiveInputText));
-                        sf::Vector2f size = m_Selected->shape.getSize();
+                        sf::Vector2f size = inputTarget->shape.getSize();
                         if (m_ActiveField == EditField::SizeW) size.x = val;
                         else size.y = val;
-                        m_Selected->shape.setSize(size);
+                        inputTarget->shape.setSize(size);
 
-                        if (IsPolygonType(m_Selected->objectType))
+                        if (IsPolygonType(inputTarget->objectType))
                         {
                             float rx = size.x * 0.5f;
                             float ry = size.y * 0.5f;
                             if (rx > 0.001f && ry > 0.001f)
                             {
-                                m_Selected->circleShape.setRadius(rx);
-                                m_Selected->circleShape.setScale(m_Selected->scaleX, m_Selected->scaleY * (ry / rx));
+                                inputTarget->circleShape.setRadius(rx);
+                                inputTarget->circleShape.setScale(inputTarget->scaleX, inputTarget->scaleY * (ry / rx));
                             }
                         }
 
-                        if (m_Selected->previewTexture)
+                        if (inputTarget->previewTexture)
                         {
-                            const sf::Vector2u ts = m_Selected->previewTexture->getSize();
+                            const sf::Vector2u ts = inputTarget->previewTexture->getSize();
                             if (ts.x > 0 && ts.y > 0)
-                                m_Selected->previewSprite.setScale((size.x / ts.x) * m_Selected->scaleX, (size.y / ts.y) * m_Selected->scaleY);
+                                inputTarget->previewSprite.setScale((size.x / ts.x) * inputTarget->scaleX, (size.y / ts.y) * inputTarget->scaleY);
                         }
 
-                        if (m_Selected->entity != 0 && m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
-                            m_Registry.GetComponent<RenderComponent>(m_Selected->entity).size = size;
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<RenderComponent>(inputTarget->entity))
+                            m_Registry.GetComponent<RenderComponent>(inputTarget->entity).size = size;
 
-                        if (!m_Selected->spritePath.empty() && m_Selected->entity != 0 &&
-                            m_Registry.HasComponent<SpriteComponent>(m_Selected->entity))
+                        if (!inputTarget->spritePath.empty() && inputTarget->entity != 0 &&
+                            m_Registry.HasComponent<SpriteComponent>(inputTarget->entity))
                         {
-                            m_Registry.GetComponent<SpriteComponent>(m_Selected->entity) =
-                                    SpriteComponent(m_Selected->spritePath, size);
+                            m_Registry.GetComponent<SpriteComponent>(inputTarget->entity) =
+                                    SpriteComponent(inputTarget->spritePath, size);
                         }
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ColorR || m_ActiveField == EditField::ColorG ||
@@ -1360,10 +1369,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     try
                     {
                         int val = std::clamp(std::stoi(m_ActiveInputText), 0, 255);
-                        if (m_ActiveField == EditField::ColorR) m_Selected->color.r = val;
-                        else if (m_ActiveField == EditField::ColorG) m_Selected->color.g = val;
-                        else m_Selected->color.b = val;
-                        m_Selected->shape.setFillColor(m_Selected->color);
+                        if (m_ActiveField == EditField::ColorR) inputTarget->color.r = val;
+                        else if (m_ActiveField == EditField::ColorG) inputTarget->color.g = val;
+                        else inputTarget->color.b = val;
+                        inputTarget->shape.setFillColor(inputTarget->color);
                     } catch (...) {}
                 } else if (m_ActiveField == EditField::ScriptProperty)
                 {
@@ -1375,8 +1384,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         if (suffix == "_x" || suffix == "_y")
                         {
                             std::string baseName = m_ActiveScriptProperty.substr(0, m_ActiveScriptProperty.size() - 2);
-                            auto baseIt = m_Selected->scriptProperties.find(baseName);
-                            if (baseIt != m_Selected->scriptProperties.end() &&
+                            auto baseIt = inputTarget->scriptProperties.find(baseName);
+                            if (baseIt != inputTarget->scriptProperties.end() &&
                                 baseIt->second.type == ScriptComponent::PropertyType::Vec2)
                             {
                                 handledAsVec2 = true;
@@ -1384,8 +1393,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                                     float val = std::stof(m_ActiveInputText);
                                     if (suffix == "_x") baseIt->second.floatVal = val;
                                     else baseIt->second.vec2Y = val;
-                                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
-                                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(baseIt->second);
+                                    if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
+                                        m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(baseIt->second);
                                 } catch (...) {}
                             }
                         }
@@ -1393,8 +1402,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
                     if (!handledAsVec2)
                     {
-                        auto it = m_Selected->scriptProperties.find(m_ActiveScriptProperty);
-                        if (it != m_Selected->scriptProperties.end())
+                        auto it = inputTarget->scriptProperties.find(m_ActiveScriptProperty);
+                        if (it != inputTarget->scriptProperties.end())
                         {
                             auto& prop = it->second;
                             try {
@@ -1406,9 +1415,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
                                          prop.type == ScriptComponent::PropertyType::Image ||
                                          prop.type == ScriptComponent::PropertyType::Entity) prop.stringVal = m_ActiveInputText;
 
-                                if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                                if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
                                 {
-                                    m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(prop);
+                                    m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(prop);
                                 }
                             } catch (...) {}
                         }
@@ -1417,7 +1426,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 {
                     try
                     {
-                        m_Selected->zIndex = std::stoi(m_ActiveInputText);
+                        inputTarget->zIndex = std::stoi(m_ActiveInputText);
                         SyncToRegistry();
                     } catch (...) {}
                 }
@@ -1562,10 +1571,34 @@ void EditorScene::HandleEvent(const sf::Event &event)
         event.mouseButton.button == sf::Mouse::Left)
     {
         if (m_HierarchyDragging) {
-            if (!m_HierarchyDragTargetId.empty()) {
-                SetParent(m_HierarchyDragSourceId, m_HierarchyDragTargetId, true);
-            } else if (m_HierarchyRootDropZone.contains(m_MouseScreenPos)) {
-                SetParent(m_HierarchyDragSourceId, "", true);
+            bool droppedOnEntityProp = false;
+            if (m_InspectorBounds.contains(m_MouseScreenPos)) {
+                EditorObject* inspTarget = GetInspectedObject();
+                if (inspTarget) {
+                    for (const auto& btn : m_InspectorButtons) {
+                        if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0) {
+                            std::string propName = btn.action.substr(17);
+                            auto it = inspTarget->scriptProperties.find(propName);
+                            if (it != inspTarget->scriptProperties.end() && it->second.type == ScriptComponent::PropertyType::Entity) {
+                                it->second.stringVal = m_HierarchyDragSourceId;
+                                if (inspTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inspTarget->entity)) {
+                                    m_Registry.GetComponent<ScriptComponent>(inspTarget->entity).SetExportedProperty(it->second);
+                                }
+                                SetDirty(true);
+                                droppedOnEntityProp = true;
+                                std::cout << "[INFO] [Hierarchy] Assigned entity " << m_HierarchyDragSourceId << " to property " << propName << "\n";
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!droppedOnEntityProp) {
+                if (!m_HierarchyDragTargetId.empty()) {
+                    SetParent(m_HierarchyDragSourceId, m_HierarchyDragTargetId, true);
+                } else if (m_HierarchyRootDropZone.contains(m_MouseScreenPos)) {
+                    SetParent(m_HierarchyDragSourceId, "", true);
+                }
             }
             m_HierarchyDragging = false;
             m_HierarchyDragSourceId.clear();
@@ -2824,6 +2857,116 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
     }
 }
 
+EditorObject* EditorScene::GetInspectedObject()
+{
+    if (m_InspectorLocked && !m_LockedObjectId.empty())
+    {
+        EditorObject* locked = ObjectById(m_LockedObjectId);
+        if (locked) return locked;
+        m_InspectorLocked = false;
+        m_LockedObjectId.clear();
+    }
+    return m_Selected;
+}
+
+void EditorScene::DrawInspectorHeader(sf::RenderWindow &window, float panelX, float panelY)
+{
+    sf::RectangleShape header({InspectorWidth, 36.f});
+    header.setPosition(panelX, panelY);
+    header.setFillColor(C_BG_ELEVATED);
+    window.draw(header);
+
+    sf::RectangleShape headerLine({InspectorWidth, 1.f});
+    headerLine.setFillColor(C_BORDER);
+    headerLine.setPosition(panelX, panelY + 35.f);
+    window.draw(headerLine);
+
+    sf::Text title;
+    title.setFont(*m_Font);
+    title.setCharacterSize(11);
+    title.setFillColor(m_InspectorLocked ? sf::Color(255, 205, 75) : C_TEXT_SECONDARY);
+    title.setStyle(sf::Text::Bold);
+    if (m_InspectorLocked && !m_LockedObjectId.empty())
+    {
+        title.setString("INSPECTOR [LOCKED]");
+    }
+    else
+    {
+        title.setString("INSPECTOR");
+    }
+    title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
+    window.draw(title);
+
+    // --- Lock Button at top right ---
+    const float btnSize = 22.f;
+    const sf::FloatRect lockBtnRect(panelX + InspectorWidth - btnSize - 8.f, panelY + 7.f, btnSize, btnSize);
+    const bool lockHov = lockBtnRect.contains(m_MouseScreenPos);
+
+    if (lockHov)
+    {
+        if (m_InspectorLocked)
+        {
+            m_ActiveTooltip = "Unlock Inspector (currently locked to " + m_LockedObjectId + ")";
+        }
+        else
+        {
+            EditorObject* target = m_Selected;
+            m_ActiveTooltip = target ? ("Lock Inspector to " + target->id) : "Select an object to lock Inspector";
+        }
+    }
+
+    // Lock button background
+    sf::RectangleShape lockBg({btnSize, btnSize});
+    lockBg.setPosition(lockBtnRect.left, lockBtnRect.top);
+    if (m_InspectorLocked)
+    {
+        lockBg.setFillColor(lockHov ? sf::Color(70, 60, 20) : sf::Color(50, 42, 14));
+        lockBg.setOutlineColor(sf::Color(255, 205, 75));
+        lockBg.setOutlineThickness(1.5f);
+    }
+    else
+    {
+        lockBg.setFillColor(lockHov ? C_BG_ELEVATED : C_BG_INPUT);
+        lockBg.setOutlineColor(lockHov ? C_TEXT_SECONDARY : C_BORDER);
+        lockBg.setOutlineThickness(1.f);
+    }
+    window.draw(lockBg);
+
+    // Lock icon graphics
+    const sf::Color lockColor = m_InspectorLocked ? sf::Color(255, 215, 80) : (lockHov ? C_TEXT_PRIMARY : sf::Color(140, 145, 160));
+
+    // Lock body
+    sf::RectangleShape lockBody({10.f, 8.f});
+    lockBody.setPosition(lockBtnRect.left + 6.f, lockBtnRect.top + 10.f);
+    lockBody.setFillColor(lockColor);
+    window.draw(lockBody);
+
+    // Lock shackle (loop)
+    sf::RectangleShape shackle({6.f, 6.f});
+    if (m_InspectorLocked)
+    {
+        // Closed shackle centered above body
+        shackle.setPosition(lockBtnRect.left + 8.f, lockBtnRect.top + 5.f);
+    }
+    else
+    {
+        // Open shackle shifted up and slightly to the right
+        shackle.setPosition(lockBtnRect.left + 9.5f, lockBtnRect.top + 3.5f);
+    }
+    shackle.setFillColor(sf::Color::Transparent);
+    shackle.setOutlineColor(lockColor);
+    shackle.setOutlineThickness(1.5f);
+    window.draw(shackle);
+
+    // Tiny keyhole on lock body
+    sf::RectangleShape keyhole({2.f, 3.f});
+    keyhole.setPosition(lockBtnRect.left + 10.f, lockBtnRect.top + 12.f);
+    keyhole.setFillColor(sf::Color(20, 22, 28));
+    window.draw(keyhole);
+
+    m_InspectorButtons.push_back({lockBtnRect, "toggle_inspector_lock"});
+}
+
 void EditorScene::DrawInspector(sf::RenderWindow &window)
 {
     m_InspectorButtons.clear();
@@ -2864,7 +3007,9 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     });
     window.setView(clipView);
 
-    if (!m_Selected)
+    EditorObject* target = GetInspectedObject();
+
+    if (!target)
     {
         std::string selPath = m_ContentBrowser->GetSelectedPath();
         if (!selPath.empty())
@@ -3025,26 +3170,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
         // Restore view and redraw header on top
         window.setView(origView);
-        {
-            sf::RectangleShape header({InspectorWidth, 36.f});
-            header.setPosition(panelX, panelY);
-            header.setFillColor(C_BG_ELEVATED);
-            window.draw(header);
-
-            sf::RectangleShape headerLine({InspectorWidth, 1.f});
-            headerLine.setFillColor(C_BORDER);
-            headerLine.setPosition(panelX, panelY + 35.f);
-            window.draw(headerLine);
-
-            sf::Text title;
-            title.setFont(*m_Font);
-            title.setCharacterSize(11);
-            title.setFillColor(C_TEXT_SECONDARY);
-            title.setStyle(sf::Text::Bold);
-            title.setString("INSPECTOR");
-            title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
-            window.draw(title);
-        }
+        DrawInspectorHeader(window, panelX, panelY);
         return;
     }
 
@@ -3055,34 +3181,34 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     std::string nameDisplay = (m_ActiveField == EditField::Name && !m_ActiveInputText.empty())
                                   ? m_ActiveInputText + "|"
-                                  : (m_ActiveField == EditField::Name ? "|" : m_Selected->id);
+                                  : (m_ActiveField == EditField::Name ? "|" : target->id);
     y = DrawEditableRow(window, "Name", nameDisplay, "edit_name", panelX, y);
 
     std::string tagDisplay = (m_ActiveField == EditField::Tag && !m_ActiveInputText.empty())
                                   ? m_ActiveInputText + "|"
-                                  : (m_ActiveField == EditField::Tag ? "|" : m_Selected->tag);
+                                  : (m_ActiveField == EditField::Tag ? "|" : target->tag);
     y = DrawEditableRow(window, "Tag", tagDisplay, "edit_tag", panelX, y);
-    y = DrawRow(window, "Entity", std::to_string(m_Selected->entity), panelX, y); {
+    y = DrawRow(window, "Entity", std::to_string(target->entity), panelX, y); {
         std::string typeLabel = "rectangle";
-        if (m_Selected->objectType == ObjectType::Circle) typeLabel = "circle";
-        else if (m_Selected->objectType == ObjectType::Triangle) typeLabel = "triangle";
-        else if (m_Selected->objectType == ObjectType::Pentagon) typeLabel = "pentagon";
-        else if (m_Selected->objectType == ObjectType::Hexagon) typeLabel = "hexagon";
-        else if (m_Selected->objectType == ObjectType::Sprite) typeLabel = "sprite";
+        if (target->objectType == ObjectType::Circle) typeLabel = "circle";
+        else if (target->objectType == ObjectType::Triangle) typeLabel = "triangle";
+        else if (target->objectType == ObjectType::Pentagon) typeLabel = "pentagon";
+        else if (target->objectType == ObjectType::Hexagon) typeLabel = "hexagon";
+        else if (target->objectType == ObjectType::Sprite) typeLabel = "sprite";
         y = DrawRow(window, "Type", typeLabel, panelX, y);
     }
-    std::string parentDisplay = m_Selected->parentId.empty() ? "(None)" : m_Selected->parentId;
+    std::string parentDisplay = target->parentId.empty() ? "(None)" : target->parentId;
     y = DrawRow(window, "Parent", parentDisplay, panelX, y);
-    if (!m_Selected->parentId.empty())
+    if (!target->parentId.empty())
     {
         y = DrawActionButton(window, "Detach Parent", "detach_parent", panelX, y, C_DANGER_DIM, C_DANGER);
     }
 
-    if (!m_Selected->templatePath.empty())
+    if (!target->templatePath.empty())
     {
-        std::filesystem::path tp(m_Selected->templatePath);
+        std::filesystem::path tp(target->templatePath);
         y = DrawRow(window, "Template", tp.filename().string(), panelX, y);
-        y = DrawTemplatePreview(window, m_Selected->templatePath, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 52.f);
+        y = DrawTemplatePreview(window, target->templatePath, panelX + InspectorPad, y, InspectorWidth - InspectorPad * 2.f, 52.f);
         y = DrawActionButton(window, "Apply to Template", "apply_template", panelX, y, sf::Color(30, 80, 140), sf::Color(70, 140, 240));
         y = DrawActionButton(window, "Unlink Template", "unlink_template", panelX, y, C_DANGER_DIM, C_DANGER);
     }
@@ -3098,34 +3224,34 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::TransformX
                                        ? "|"
-                                       : std::to_string((int) m_Selected->localPosition.x));
+                                       : std::to_string((int) target->localPosition.x));
     y = DrawEditableRow(window, "Position X", txDisplay, "edit_x", panelX, y);
     std::string tyDisplay = (m_ActiveField == EditField::TransformY && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::TransformY
                                        ? "|"
-                                       : std::to_string((int) m_Selected->localPosition.y));
+                                       : std::to_string((int) target->localPosition.y));
     y = DrawEditableRow(window, "Position Y", tyDisplay, "edit_y", panelX, y);
 
     std::string rotDisplay = (m_ActiveField == EditField::Rotation && !m_ActiveInputText.empty())
                                  ? m_ActiveInputText + "|"
                                  : (m_ActiveField == EditField::Rotation
                                         ? "|"
-                                        : FormatFloat(m_Selected->rotation, 2));
+                                        : FormatFloat(target->rotation, 2));
     y = DrawEditableRow(window, "Rotation", rotDisplay, "edit_rot", panelX, y);
 
     std::string sxDisplay = (m_ActiveField == EditField::ScaleX && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::ScaleX
                                        ? "|"
-                                       : FormatFloat(m_Selected->scaleX, 2));
+                                       : FormatFloat(target->scaleX, 2));
     y = DrawEditableRow(window, "Scale X", sxDisplay, "edit_scalex", panelX, y);
 
     std::string syDisplay = (m_ActiveField == EditField::ScaleY && !m_ActiveInputText.empty())
                                 ? m_ActiveInputText + "|"
                                 : (m_ActiveField == EditField::ScaleY
                                        ? "|"
-                                       : FormatFloat(m_Selected->scaleY, 2));
+                                       : FormatFloat(target->scaleY, 2));
     y = DrawEditableRow(window, "Scale Y", syDisplay, "edit_scaley", panelX, y);
 
 
@@ -3134,20 +3260,20 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     std::string wDisplay = (m_ActiveField == EditField::SizeW && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::SizeW
-                                      ? "|"
-                                      : std::to_string((int) m_Selected->shape.getSize().x));
+                                : (m_ActiveField == EditField::SizeW
+                                       ? "|"
+                                       : std::to_string((int) target->shape.getSize().x));
     y = DrawEditableRow(window, "Width", wDisplay, "edit_w", panelX, y);
     std::string hDisplay = (m_ActiveField == EditField::SizeH && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::SizeH
-                                      ? "|"
-                                      : std::to_string((int) m_Selected->shape.getSize().y));
+                                : (m_ActiveField == EditField::SizeH
+                                       ? "|"
+                                       : std::to_string((int) target->shape.getSize().y));
     y = DrawEditableRow(window, "Height", hDisplay, "edit_h", panelX, y);
 
     y += 4.f;
 
-    if (!m_Selected->previewTexture)
+    if (!target->previewTexture)
     {
         const float totalW = InspectorWidth - InspectorPad * 2;
         const float pickBtnW = 75.f;
@@ -3156,7 +3282,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         const sf::FloatRect swatchRect(panelX + InspectorPad, y, swatchW, 22.f);
         const bool swatchHov = swatchRect.contains(m_MouseScreenPos);
         sf::RectangleShape colorSwatch({swatchW, 22.f});
-        colorSwatch.setFillColor(m_Selected->color);
+        colorSwatch.setFillColor(target->color);
         colorSwatch.setOutlineColor(swatchHov ? C_ACCENT : C_BORDER_LIGHT);
         colorSwatch.setOutlineThickness(swatchHov ? 2.f : 1.f);
         colorSwatch.setPosition(swatchRect.left, swatchRect.top);
@@ -3180,20 +3306,20 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     std::string rDisplay = (m_ActiveField == EditField::ColorR && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(m_Selected->color.r));
+                               : (m_ActiveField == EditField::ColorR ? "|" : std::to_string(target->color.r));
     y = DrawEditableRow(window, "Color Red", rDisplay, "edit_r", panelX, y);
     std::string gDisplay = (m_ActiveField == EditField::ColorG && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::ColorG ? "|" : std::to_string(m_Selected->color.g));
+                               : (m_ActiveField == EditField::ColorG ? "|" : std::to_string(target->color.g));
     y = DrawEditableRow(window, "Color Green", gDisplay, "edit_g", panelX, y);
     std::string bDisplay = (m_ActiveField == EditField::ColorB && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(m_Selected->color.b));
+                               : (m_ActiveField == EditField::ColorB ? "|" : std::to_string(target->color.b));
     y = DrawEditableRow(window, "Color Blue", bDisplay, "edit_b", panelX, y);
 
     std::string zDisplay = (m_ActiveField == EditField::ZIndex && !m_ActiveInputText.empty())
                                ? m_ActiveInputText + "|"
-                               : (m_ActiveField == EditField::ZIndex ? "|" : std::to_string(m_Selected->zIndex));
+                               : (m_ActiveField == EditField::ZIndex ? "|" : std::to_string(target->zIndex));
     y = DrawEditableRow(window, "Z-Index", zDisplay, "edit_z", panelX, y);
 
     {
@@ -3228,16 +3354,16 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     y += 8.f;
 
 
-    if (m_Selected->previewTexture)
+    if (target->previewTexture)
     {
         y = DrawSectionHeader(window, "SPRITE COMPONENT", C_TEXT_SECONDARY, panelX, y);
 
-        std::string spriteName = m_Selected->spritePath;
+        std::string spriteName = target->spritePath;
         const size_t sl = spriteName.find_last_of("/\\");
         if (sl != std::string::npos) spriteName = spriteName.substr(sl + 1);
         y = DrawRow(window, "File", spriteName.empty() ? "none" : spriteName, panelX, y);
 
-        if (m_Selected->previewTexture)
+        if (target->previewTexture)
         {
             const float thumbH = 48.f;
             const float thumbW = InspectorWidth - InspectorPad * 2;
@@ -3249,8 +3375,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
             window.draw(thumb);
 
             sf::Sprite preview;
-            preview.setTexture(*m_Selected->previewTexture);
-            const sf::Vector2u ts = m_Selected->previewTexture->getSize();
+            preview.setTexture(*target->previewTexture);
+            const sf::Vector2u ts = target->previewTexture->getSize();
             if (ts.x > 0 && ts.y > 0)
             {
                 const float scaleX = thumbW / static_cast<float>(ts.x);
@@ -3281,37 +3407,37 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     y += 8.f;
 
-    if (m_Selected->entity != 0 && m_Registry.HasComponent<VelocityComponent>(m_Selected->entity))
+    if (target->entity != 0 && m_Registry.HasComponent<VelocityComponent>(target->entity))
     {
-        auto &vel = m_Registry.GetComponent<VelocityComponent>(m_Selected->entity);
+        auto &vel = m_Registry.GetComponent<VelocityComponent>(target->entity);
         y = DrawSectionHeader(window, "VELOCITY", C_TEXT_SECONDARY, panelX, y);
         y = DrawRow(window, "Velocity X", FormatFloat(vel.dx, 2), panelX, y);
         y = DrawRow(window, "Velocity Y", FormatFloat(vel.dy, 2), panelX, y);
         y += 4.f;
         y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
-    } else if (m_Selected->entity != 0)
+    } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Velocity", "add_velocity", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
-    if (m_Selected->entity != 0 && m_Registry.HasComponent<CameraComponent>(m_Selected->entity))
+    if (target->entity != 0 && m_Registry.HasComponent<CameraComponent>(target->entity))
     {
         y = DrawSectionHeader(window, "CAMERA", C_TEXT_SECONDARY, panelX, y);
         y = DrawRow(window, "Status", "Following Entity", panelX, y);
         y += 4.f;
         y = DrawActionButton(window, "Remove Camera", "remove_camera", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
-    } else if (m_Selected->entity != 0)
+    } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Camera Follow", "add_camera", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
-    if (m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+    if (target->entity != 0 && m_Registry.HasComponent<CollisionComponent>(target->entity))
     {
-        auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+        auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
         y = DrawSectionHeader(window, "COLLISION", C_TEXT_SECONDARY, panelX, y);
         std::string chanDisplay = (m_ActiveField == EditField::CollisionChannel && !m_ActiveInputText.empty())
                                       ? m_ActiveInputText + "|"
@@ -3325,22 +3451,22 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 4.f;
         y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
-    } else if (m_Selected->entity != 0)
+    } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Collision", "add_collision", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
-    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+    if (target->entity != 0 && m_Registry.HasComponent<ScriptComponent>(target->entity))
     {
-        auto &sc = m_Registry.GetComponent<ScriptComponent>(m_Selected->entity);
+        auto &sc = m_Registry.GetComponent<ScriptComponent>(target->entity);
         if (sc.ReloadIfNeeded())
         {
             auto freshProps = sc.GetExportedProperties();
-            m_Selected->scriptProperties.clear();
+            target->scriptProperties.clear();
             for (const auto& prop : freshProps)
             {
-                m_Selected->scriptProperties[prop.name] = prop;
+                target->scriptProperties[prop.name] = prop;
             }
             if (m_ActiveField == EditField::ScriptProperty)
             {
@@ -3352,15 +3478,15 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         {
             for (const auto& prop : sc.GetExportedProperties())
             {
-                if (m_Selected->scriptProperties.find(prop.name) == m_Selected->scriptProperties.end())
+                if (target->scriptProperties.find(prop.name) == target->scriptProperties.end())
                 {
-                    m_Selected->scriptProperties[prop.name] = prop;
+                    target->scriptProperties[prop.name] = prop;
                 }
             }
         }
 
         y = DrawSectionHeader(window, m_HasUnsavedChanges ? "SCRIPT *" : "SCRIPT", m_HasUnsavedChanges ? C_WARNING : C_TEXT_SECONDARY, panelX, y);
-        std::string scriptName = m_Selected->scriptPath;
+        std::string scriptName = target->scriptPath;
         const size_t slash = scriptName.find_last_of("/\\");
         if (slash != std::string::npos) scriptName = scriptName.substr(slash + 1);
         if (m_HasUnsavedChanges) scriptName += " *";
@@ -3368,10 +3494,10 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawRow(window, "OnCreate", "bound", panelX, y);
         y = DrawRow(window, "OnUpdate", "bound", panelX, y);
         y += 8.f;
-        if (!m_Selected->scriptProperties.empty())
+        if (!target->scriptProperties.empty())
         {
             y = DrawSectionHeader(window, "EXPORTED VARIABLES", C_TEXT_SECONDARY, panelX, y);
-            for (auto& pair : m_Selected->scriptProperties)
+            for (auto& pair : target->scriptProperties)
             {
                 const auto& prop = pair.second;
                 if (prop.type == ScriptComponent::PropertyType::Bool)
@@ -3459,7 +3585,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 4.f;
         y = DrawActionButton(window, "Open Script", "open_script", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y = DrawActionButton(window, "Remove Script", "remove_script", panelX, y, C_DANGER_DIM, C_DANGER);
-    } else if (m_Selected->entity != 0)
+    } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Script", "add_script", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         if (m_ActiveField == EditField::Script)
@@ -3471,26 +3597,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     // Restore original view and redraw header on top so it's always visible
     window.setView(origView);
-    {
-        sf::RectangleShape header({InspectorWidth, 36.f});
-        header.setPosition(panelX, panelY);
-        header.setFillColor(C_BG_ELEVATED);
-        window.draw(header);
-
-        sf::RectangleShape headerLine({InspectorWidth, 1.f});
-        headerLine.setFillColor(C_BORDER);
-        headerLine.setPosition(panelX, panelY + 35.f);
-        window.draw(headerLine);
-
-        sf::Text title;
-        title.setFont(*m_Font);
-        title.setCharacterSize(11);
-        title.setFillColor(C_TEXT_SECONDARY);
-        title.setStyle(sf::Text::Bold);
-        title.setString("INSPECTOR");
-        title.setPosition(panelX + InspectorPad + 2.f, panelY + 12.f);
-        window.draw(title);
-    }
+    DrawInspectorHeader(window, panelX, panelY);
 }
 
 void EditorScene::DrawHierarchy(sf::RenderWindow &window)
@@ -4438,89 +4545,108 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
     m_InputSelectionEnd = -1;
     m_IsSelectingText = false;
 
+    EditorObject* target = GetInspectedObject();
+
     for (auto &btn: m_InspectorButtons)
     {
         if (!btn.bounds.contains(pos)) continue;
+
+        if (btn.action == "toggle_inspector_lock")
+        {
+            if (m_InspectorLocked)
+            {
+                m_InspectorLocked = false;
+                m_LockedObjectId.clear();
+                std::cout << "[INFO] [Inspector] Inspector unlocked\n";
+            }
+            else if (m_Selected)
+            {
+                m_InspectorLocked = true;
+                m_LockedObjectId = m_Selected->id;
+                std::cout << "[INFO] [Inspector] Inspector locked to " << m_LockedObjectId << "\n";
+            }
+            return;
+        }
 
         // Skip buttons scrolled outside the visible inspector content area
         float clipTop = m_InspectorBounds.top + 36.f;
         float clipBot = m_InspectorBounds.top + m_InspectorBounds.height;
         if (btn.bounds.top + btn.bounds.height < clipTop || btn.bounds.top > clipBot) continue;
 
-        if (btn.action == "detach_parent" && m_Selected)
+        if (btn.action == "detach_parent" && target)
         {
-            SetParent(m_Selected->id, "", true);
+            SetParent(target->id, "", true);
             return;
         }
 
-        if (btn.action == "add_velocity")
+        if (btn.action == "add_velocity" && target)
         {
-            m_Registry.AddComponent(m_Selected->entity, VelocityComponent{0.f, 0.f});
-            std::cout << "[INFO] [Inspector] VelocityComponent added to " << m_Selected->id << "\n";
+            m_Registry.AddComponent(target->entity, VelocityComponent{0.f, 0.f});
+            std::cout << "[INFO] [Inspector] VelocityComponent added to " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "remove_velocity")
+        } else if (btn.action == "remove_velocity" && target)
         {
-            m_Registry.RemoveComponent<VelocityComponent>(m_Selected->entity);
-            std::cout << "[INFO] [Inspector] VelocityComponent removed from " << m_Selected->id << "\n";
+            m_Registry.RemoveComponent<VelocityComponent>(target->entity);
+            std::cout << "[INFO] [Inspector] VelocityComponent removed from " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "add_camera")
+        } else if (btn.action == "add_camera" && target)
         {
             m_Registry.ForEach<CameraComponent>([this](Entity e, CameraComponent &) {
                 m_Registry.RemoveComponent<CameraComponent>(e);
             });
-            m_Registry.AddComponent(m_Selected->entity, CameraComponent{true});
-            std::cout << "[INFO] [Inspector] CameraComponent added to " << m_Selected->id << "\n";
+            m_Registry.AddComponent(target->entity, CameraComponent{true});
+            std::cout << "[INFO] [Inspector] CameraComponent added to " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "remove_camera")
+        } else if (btn.action == "remove_camera" && target)
         {
-            m_Registry.RemoveComponent<CameraComponent>(m_Selected->entity);
-            std::cout << "[INFO] [Inspector] CameraComponent removed from " << m_Selected->id << "\n";
+            m_Registry.RemoveComponent<CameraComponent>(target->entity);
+            std::cout << "[INFO] [Inspector] CameraComponent removed from " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "add_collision")
+        } else if (btn.action == "add_collision" && target)
         {
-            m_Registry.AddComponent(m_Selected->entity, CollisionComponent{0});
-            std::cout << "[INFO] [Inspector] CollisionComponent added to " << m_Selected->id << "\n";
+            m_Registry.AddComponent(target->entity, CollisionComponent{0});
+            std::cout << "[INFO] [Inspector] CollisionComponent added to " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "remove_collision")
+        } else if (btn.action == "remove_collision" && target)
         {
-            m_Registry.RemoveComponent<CollisionComponent>(m_Selected->entity);
-            std::cout << "[INFO] [Inspector] CollisionComponent removed from " << m_Selected->id << "\n";
+            m_Registry.RemoveComponent<CollisionComponent>(target->entity);
+            std::cout << "[INFO] [Inspector] CollisionComponent removed from " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "toggle_collision_type")
+        } else if (btn.action == "toggle_collision_type" && target)
         {
-            if (m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
             {
-                auto& col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+                auto& col = m_Registry.GetComponent<CollisionComponent>(target->entity);
                 col.type = (col.type == CollisionType::Static) ? CollisionType::Solid : CollisionType::Static;
                 SetDirty(true);
             }
-        } else if (btn.action == "edit_collision_channel" && m_Selected)
+        } else if (btn.action == "edit_collision_channel" && target)
         {
             m_ActiveField = EditField::CollisionChannel;
-            if (m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
             {
                 m_ActiveInputText = std::to_string(
-                    m_Registry.GetComponent<CollisionComponent>(m_Selected->entity).channel);
+                    m_Registry.GetComponent<CollisionComponent>(target->entity).channel);
             }
         } else if (btn.action == "add_script")
         {
             m_ActiveField = EditField::Script;
             m_ActiveInputText = "";
-        } else if (btn.action.find("toggle_script_bool_") == 0 && m_Selected)
+        } else if (btn.action.find("toggle_script_bool_") == 0 && target)
         {
             m_ActiveField = EditField::None;
             std::string propName = btn.action.substr(19);
-            auto it = m_Selected->scriptProperties.find(propName);
-            if (it != m_Selected->scriptProperties.end())
+            auto it = target->scriptProperties.find(propName);
+            if (it != target->scriptProperties.end())
             {
                 it->second.boolVal = !it->second.boolVal;
-                if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
+                if (target->entity != 0 && m_Registry.HasComponent<ScriptComponent>(target->entity))
                 {
-                    m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                    m_Registry.GetComponent<ScriptComponent>(target->entity).SetExportedProperty(it->second);
                 }
                 SetDirty(true);
             }
-        } else if (btn.action.find("edit_script_prop_") == 0 && m_Selected)
+        } else if (btn.action.find("edit_script_prop_") == 0 && target)
         {
             m_ActiveField = EditField::ScriptProperty;
             m_ActiveScriptProperty = btn.action.substr(17);
@@ -4535,8 +4661,8 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 if (suffix == "_x" || suffix == "_y")
                 {
                     vec2BaseName = m_ActiveScriptProperty.substr(0, m_ActiveScriptProperty.size() - 2);
-                    auto baseIt = m_Selected->scriptProperties.find(vec2BaseName);
-                    if (baseIt != m_Selected->scriptProperties.end() &&
+                    auto baseIt = target->scriptProperties.find(vec2BaseName);
+                    if (baseIt != target->scriptProperties.end() &&
                         baseIt->second.type == ScriptComponent::PropertyType::Vec2)
                     {
                         isVec2Sub = true;
@@ -4550,8 +4676,8 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
 
             if (!isVec2Sub)
             {
-                auto it = m_Selected->scriptProperties.find(m_ActiveScriptProperty);
-                if (it != m_Selected->scriptProperties.end())
+                auto it = target->scriptProperties.find(m_ActiveScriptProperty);
+                if (it != target->scriptProperties.end())
                 {
                     const auto& prop = it->second;
                     if (prop.type == ScriptComponent::PropertyType::Int) m_ActiveInputText = std::to_string(prop.intVal);
@@ -4568,11 +4694,11 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                              prop.type == ScriptComponent::PropertyType::Entity) m_ActiveInputText = prop.stringVal;
                 }
             }
-        } else if (btn.action.find("pick_color_prop_") == 0 && m_Selected)
+        } else if (btn.action.find("pick_color_prop_") == 0 && target)
         {
             std::string propName = btn.action.substr(16);
-            auto it = m_Selected->scriptProperties.find(propName);
-            if (it != m_Selected->scriptProperties.end() &&
+            auto it = target->scriptProperties.find(propName);
+            if (it != target->scriptProperties.end() &&
                 it->second.type == ScriptComponent::PropertyType::Color)
             {
 #ifdef _WIN32
@@ -4589,8 +4715,8 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                     it->second.colorR = GetRValue(cc.rgbResult);
                     it->second.colorG = GetGValue(cc.rgbResult);
                     it->second.colorB = GetBValue(cc.rgbResult);
-                    if (m_Selected->entity != 0 && m_Registry.HasComponent<ScriptComponent>(m_Selected->entity))
-                        m_Registry.GetComponent<ScriptComponent>(m_Selected->entity).SetExportedProperty(it->second);
+                    if (target->entity != 0 && m_Registry.HasComponent<ScriptComponent>(target->entity))
+                        m_Registry.GetComponent<ScriptComponent>(target->entity).SetExportedProperty(it->second);
                     SetDirty(true);
                 }
 #endif
@@ -4599,110 +4725,110 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             m_ActiveField = EditField::Script;
             m_ActiveInputText = "";
-        } else if (btn.action == "remove_script")
+        } else if (btn.action == "remove_script" && target)
         {
-            m_Registry.RemoveComponent<ScriptComponent>(m_Selected->entity);
-            m_Selected->scriptPath = "";
-            m_Selected->scriptProperties.clear();
-            std::cout << "[INFO] [Inspector] ScriptComponent removed from " << m_Selected->id << "\n";
+            m_Registry.RemoveComponent<ScriptComponent>(target->entity);
+            target->scriptPath = "";
+            target->scriptProperties.clear();
+            std::cout << "[INFO] [Inspector] ScriptComponent removed from " << target->id << "\n";
             SetDirty(true);
-        } else if (btn.action == "edit_name" && m_Selected)
+        } else if (btn.action == "edit_name" && target)
         {
             m_ActiveField = EditField::Name;
-            m_ActiveInputText = m_Selected->id;
-        } else if (btn.action == "edit_tag" && m_Selected)
+            m_ActiveInputText = target->id;
+        } else if (btn.action == "edit_tag" && target)
         {
             m_ActiveField = EditField::Tag;
-            m_ActiveInputText = m_Selected->tag;
-        } else if (btn.action == "edit_x" && m_Selected)
+            m_ActiveInputText = target->tag;
+        } else if (btn.action == "edit_x" && target)
         {
             m_ActiveField = EditField::TransformX;
-            m_ActiveInputText = std::to_string((int) m_Selected->shape.getPosition().x);
-        } else if (btn.action == "edit_y" && m_Selected)
+            m_ActiveInputText = std::to_string((int) target->shape.getPosition().x);
+        } else if (btn.action == "edit_y" && target)
         {
             m_ActiveField = EditField::TransformY;
-            m_ActiveInputText = std::to_string((int) m_Selected->shape.getPosition().y);
-        } else if (btn.action == "edit_rot" && m_Selected)
+            m_ActiveInputText = std::to_string((int) target->shape.getPosition().y);
+        } else if (btn.action == "edit_rot" && target)
         {
             m_ActiveField = EditField::Rotation;
-            m_ActiveInputText = FormatFloat(m_Selected->rotation, 2);
-        } else if (btn.action == "edit_scalex" && m_Selected)
+            m_ActiveInputText = FormatFloat(target->rotation, 2);
+        } else if (btn.action == "edit_scalex" && target)
         {
             m_ActiveField = EditField::ScaleX;
-            m_ActiveInputText = FormatFloat(m_Selected->scaleX, 2);
-        } else if (btn.action == "edit_scaley" && m_Selected)
+            m_ActiveInputText = FormatFloat(target->scaleX, 2);
+        } else if (btn.action == "edit_scaley" && target)
         {
             m_ActiveField = EditField::ScaleY;
-            m_ActiveInputText = FormatFloat(m_Selected->scaleY, 2);
-        } else if (btn.action == "edit_w" && m_Selected)
+            m_ActiveInputText = FormatFloat(target->scaleY, 2);
+        } else if (btn.action == "edit_w" && target)
         {
             m_ActiveField = EditField::SizeW;
-            m_ActiveInputText = std::to_string((int) m_Selected->shape.getSize().x);
-        } else if (btn.action == "edit_h" && m_Selected)
+            m_ActiveInputText = std::to_string((int) target->shape.getSize().x);
+        } else if (btn.action == "edit_h" && target)
         {
             m_ActiveField = EditField::SizeH;
-            m_ActiveInputText = std::to_string((int) m_Selected->shape.getSize().y);
-        } else if (btn.action == "pick_color" && m_Selected)
+            m_ActiveInputText = std::to_string((int) target->shape.getSize().y);
+        } else if (btn.action == "pick_color" && target)
         {
 #ifdef _WIN32
             HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
-            if (OpenColorPickerDialog(m_Selected->color, hwnd))
+            if (OpenColorPickerDialog(target->color, hwnd))
             {
-                m_Selected->shape.setFillColor(m_Selected->color);
-                if (IsPolygonType(m_Selected->objectType))
-                    m_Selected->circleShape.setFillColor(m_Selected->color);
-                if (m_Selected->entity != 0 && m_Registry.HasComponent<RenderComponent>(m_Selected->entity))
-                    m_Registry.GetComponent<RenderComponent>(m_Selected->entity).color = m_Selected->color;
+                target->shape.setFillColor(target->color);
+                if (IsPolygonType(target->objectType))
+                    target->circleShape.setFillColor(target->color);
+                if (target->entity != 0 && m_Registry.HasComponent<RenderComponent>(target->entity))
+                    m_Registry.GetComponent<RenderComponent>(target->entity).color = target->color;
             }
 #endif
-        } else if (btn.action == "edit_r" && m_Selected)
+        } else if (btn.action == "edit_r" && target)
         {
             m_ActiveField = EditField::ColorR;
-            m_ActiveInputText = std::to_string(m_Selected->color.r);
-        } else if (btn.action == "edit_g" && m_Selected)
+            m_ActiveInputText = std::to_string(target->color.r);
+        } else if (btn.action == "edit_g" && target)
         {
             m_ActiveField = EditField::ColorG;
-            m_ActiveInputText = std::to_string(m_Selected->color.g);
-        } else if (btn.action == "edit_b" && m_Selected)
+            m_ActiveInputText = std::to_string(target->color.g);
+        } else if (btn.action == "edit_b" && target)
         {
             m_ActiveField = EditField::ColorB;
-            m_ActiveInputText = std::to_string(m_Selected->color.b);
-        } else if (btn.action == "edit_z" && m_Selected)
+            m_ActiveInputText = std::to_string(target->color.b);
+        } else if (btn.action == "edit_z" && target)
         {
             m_ActiveField = EditField::ZIndex;
-            m_ActiveInputText = std::to_string(m_Selected->zIndex);
-        } else if (btn.action == "layer_forward" && m_Selected)
+            m_ActiveInputText = std::to_string(target->zIndex);
+        } else if (btn.action == "layer_forward" && target)
         {
-            m_Selected->zIndex++;
+            target->zIndex++;
             SyncToRegistry();
-        } else if (btn.action == "layer_backward" && m_Selected)
+        } else if (btn.action == "layer_backward" && target)
         {
-            m_Selected->zIndex--;
+            target->zIndex--;
             SyncToRegistry();
-        } else if (btn.action == "open_script" && m_Selected && !m_Selected->scriptPath.empty())
+        } else if (btn.action == "open_script" && target && !target->scriptPath.empty())
         {
-            OpenScriptInIDE(m_Selected->scriptPath);
-        } else if (btn.action == "remove_sprite" && m_Selected)
+            OpenScriptInIDE(target->scriptPath);
+        } else if (btn.action == "remove_sprite" && target)
         {
-            m_Selected->spritePath.clear();
-            m_Selected->previewTexture.reset();
-            m_Selected->previewSprite = sf::Sprite{};
-            m_Selected->shape.setFillColor(m_Selected->color);
-            if (m_Selected->entity != 0 && m_Registry.HasComponent<SpriteComponent>(m_Selected->entity))
-                m_Registry.RemoveComponent<SpriteComponent>(m_Selected->entity);
-            std::cout << "[INFO] [Inspector] SpriteComponent removed from " << m_Selected->id << "\n";
-        } else if (btn.action == "change_sprite" && m_Selected)
+            target->spritePath.clear();
+            target->previewTexture.reset();
+            target->previewSprite = sf::Sprite{};
+            target->shape.setFillColor(target->color);
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteComponent>(target->entity))
+                m_Registry.RemoveComponent<SpriteComponent>(target->entity);
+            std::cout << "[INFO] [Inspector] SpriteComponent removed from " << target->id << "\n";
+        } else if (btn.action == "change_sprite" && target)
         {
             std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
-        } else if (btn.action == "save_as_template" && m_Selected)
+        } else if (btn.action == "save_as_template" && target)
         {
-            SaveAsTemplate(m_Selected, "");
-        } else if (btn.action == "apply_template" && m_Selected)
+            SaveAsTemplate(target, "");
+        } else if (btn.action == "apply_template" && target)
         {
-            ApplyToTemplate(m_Selected);
-        } else if (btn.action == "unlink_template" && m_Selected)
+            ApplyToTemplate(target);
+        } else if (btn.action == "unlink_template" && target)
         {
-            m_Selected->templatePath.clear();
+            target->templatePath.clear();
             SetDirty(true);
             UpdateStatusText();
         }
@@ -6718,6 +6844,10 @@ EditorObject* EditorScene::ObjectById(const std::string& id) {
 }
 
 void EditorScene::RemoveObject(const std::string& id) {
+    if (m_LockedObjectId == id) {
+        m_InspectorLocked = false;
+        m_LockedObjectId.clear();
+    }
     for (auto it = m_Objects.begin(); it != m_Objects.end(); ++it) {
         if (it->id == id) {
             if (m_Selected == &(*it)) m_Selected = nullptr;
@@ -7152,7 +7282,10 @@ void EditorScene::SelectObject(EditorObject* obj, bool multi) {
             obj->selected = true;
         }
         m_Selected = m_SelectedObjects.size() == 1 ? m_SelectedObjects.back() : nullptr;
-        m_InspectorScrollY = 0.f;  // Reset scroll on new selection
+        if (!m_InspectorLocked)
+        {
+            m_InspectorScrollY = 0.f;  // Reset scroll on new selection
+        }
     }
 }
 bool EditorScene::IsSelected(const EditorObject* obj) const {
