@@ -106,15 +106,20 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             }
         }
 
-        if (j.contains("camera") && (j["camera"] == true || j["camera"].is_object()))
+        if ((j.contains("camera") && (j["camera"] == true || j["camera"].is_object())) || j.value("type", "") == "camera")
         {
             CameraComponent cam{true};
-            if (j["camera"].is_object()) {
+            if (j.contains("camera") && j["camera"].is_object()) {
                 cam.active = j["camera"].value("active", true);
                 cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
                 cam.offsetX = j["camera"].value("offsetX", 0.0f);
                 cam.offsetY = j["camera"].value("offsetY", 0.0f);
                 cam.zoom = j["camera"].value("zoom", 1.0f);
+                cam.priority = j["camera"].value("priority", 0);
+                cam.multiFollowMode = static_cast<CameraMultiFollowMode>(j["camera"].value("multiFollowMode", 1));
+                cam.minZoom = j["camera"].value("minZoom", 0.3f);
+                cam.maxZoom = j["camera"].value("maxZoom", 3.0f);
+                cam.autoFramePadding = j["camera"].value("autoFramePadding", 200.0f);
             }
             registry.AddComponent(entity, cam);
         }
@@ -313,15 +318,20 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             }
         }
 
-        if (j.contains("camera") && (j["camera"] == true || j["camera"].is_object()))
+        if ((j.contains("camera") && (j["camera"] == true || j["camera"].is_object())) || j.value("type", "") == "camera")
         {
             CameraComponent cam{true};
-            if (j["camera"].is_object()) {
+            if (j.contains("camera") && j["camera"].is_object()) {
                 cam.active = j["camera"].value("active", true);
                 cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
                 cam.offsetX = j["camera"].value("offsetX", 0.0f);
                 cam.offsetY = j["camera"].value("offsetY", 0.0f);
                 cam.zoom = j["camera"].value("zoom", 1.0f);
+                cam.priority = j["camera"].value("priority", 0);
+                cam.multiFollowMode = static_cast<CameraMultiFollowMode>(j["camera"].value("multiFollowMode", 1));
+                cam.minZoom = j["camera"].value("minZoom", 0.3f);
+                cam.maxZoom = j["camera"].value("maxZoom", 3.0f);
+                cam.autoFramePadding = j["camera"].value("autoFramePadding", 200.0f);
             }
             registry.AddComponent(entity, cam);
         }

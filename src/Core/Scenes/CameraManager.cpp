@@ -27,6 +27,9 @@ void CameraManager::Reset()
     m_Zoom = 1.0f;
     m_Rotation = 0.0f;
     m_FollowTarget = 0;
+    m_FollowTargets.clear();
+    m_PrimaryCamera = 0;
+    m_MultiFollowMode = CameraMultiFollowMode::Average;
     m_FollowSpeed = 0.0f;
     m_FollowOffset = {0.f, 0.f};
     m_ManualFollowDisabled = false;
@@ -97,6 +100,7 @@ void CameraManager::Follow(Entity entity, float smoothSpeed, float offsetX, floa
 void CameraManager::StopFollow()
 {
     m_FollowTarget = 0;
+    m_FollowTargets.clear();
     m_ManualFollowDisabled = true;
 }
 
@@ -107,7 +111,26 @@ void CameraManager::ResumeFollow()
 
 bool CameraManager::IsFollowing() const
 {
-    return m_FollowTarget != 0 || !m_ManualFollowDisabled;
+    return m_FollowTarget != 0 || !m_FollowTargets.empty() || !m_ManualFollowDisabled;
+}
+
+void CameraManager::AddFollowTarget(Entity entity)
+{
+    if (entity != 0 && std::find(m_FollowTargets.begin(), m_FollowTargets.end(), entity) == m_FollowTargets.end())
+    {
+        m_FollowTargets.push_back(entity);
+    }
+    m_ManualFollowDisabled = false;
+}
+
+void CameraManager::RemoveFollowTarget(Entity entity)
+{
+    m_FollowTargets.erase(std::remove(m_FollowTargets.begin(), m_FollowTargets.end(), entity), m_FollowTargets.end());
+}
+
+void CameraManager::ClearFollowTargets()
+{
+    m_FollowTargets.clear();
 }
 
 void CameraManager::SetBounds(float minX, float minY, float maxX, float maxY, bool clampEdges)
@@ -164,29 +187,50 @@ void CameraManager::ClampToBounds()
 
 void CameraManager::Update(float dt, Registry &registry)
 {
-    Entity target = m_FollowTarget;
-    float speed = m_FollowSpeed;
-    sf::Vector2f offset = m_FollowOffset;
+    std::vector<std::pair<Entity, CameraComponent*>> activeTargets;
 
-    if (target == 0 && !m_ManualFollowDisabled)
+    if (!m_FollowTargets.empty())
+    {
+        for (Entity e : m_FollowTargets)
+        {
+            if (e != 0 && registry.HasComponent<TransformComponent>(e))
+            {
+                CameraComponent* cam = registry.HasComponent<CameraComponent>(e) ? &registry.GetComponent<CameraComponent>(e) : nullptr;
+                activeTargets.push_back({e, cam});
+            }
+        }
+    }
+    else if (m_FollowTarget != 0)
+    {
+        if (registry.HasComponent<TransformComponent>(m_FollowTarget))
+        {
+            CameraComponent* cam = registry.HasComponent<CameraComponent>(m_FollowTarget) ? &registry.GetComponent<CameraComponent>(m_FollowTarget) : nullptr;
+            activeTargets.push_back({m_FollowTarget, cam});
+        }
+    }
+    else if (!m_ManualFollowDisabled)
     {
         registry.ForEach<TransformComponent, CameraComponent>(
             [&](Entity e, TransformComponent &, CameraComponent &c) {
-                if (c.active && target == 0)
+                if (c.active)
                 {
-                    target = e;
-                    speed = c.smoothSpeed;
-                    offset = {c.offsetX, c.offsetY};
-                    if (c.zoom > 0.01f && m_Zoom == 1.0f)
-                    {
-                        m_Zoom = c.zoom;
-                    }
+                    activeTargets.push_back({e, &c});
                 }
             });
     }
 
-    if (target != 0 && registry.HasComponent<TransformComponent>(target))
+    if (activeTargets.size() == 1)
     {
+        Entity target = activeTargets[0].first;
+        CameraComponent* cam = activeTargets[0].second;
+        float speed = cam ? cam->smoothSpeed : m_FollowSpeed;
+        sf::Vector2f offset = cam ? sf::Vector2f(cam->offsetX, cam->offsetY) : m_FollowOffset;
+
+        if (cam && cam->zoom > 0.01f && m_Zoom == 1.0f)
+        {
+            m_Zoom = cam->zoom;
+        }
+
         auto &t = registry.GetComponent<TransformComponent>(target);
         sf::Vector2f desiredPos(t.worldX + offset.x, t.worldY + offset.y);
 
@@ -200,6 +244,123 @@ void CameraManager::Update(float dt, Registry &registry)
             m_Position = desiredPos;
         }
     }
+    else if (activeTargets.size() >= 2)
+    {
+        CameraMultiFollowMode mode = m_MultiFollowMode;
+        if (activeTargets[0].second)
+        {
+            mode = activeTargets[0].second->multiFollowMode;
+        }
+
+        if (mode == CameraMultiFollowMode::Priority)
+        {
+            Entity bestEntity = activeTargets[0].first;
+            CameraComponent* bestCam = activeTargets[0].second;
+            int bestPriority = bestCam ? bestCam->priority : -99999;
+
+            for (size_t i = 1; i < activeTargets.size(); ++i)
+            {
+                CameraComponent* cam = activeTargets[i].second;
+                int prio = cam ? cam->priority : 0;
+                if (prio > bestPriority || (activeTargets[i].first == m_PrimaryCamera))
+                {
+                    bestEntity = activeTargets[i].first;
+                    bestCam = cam;
+                    bestPriority = prio;
+                }
+            }
+
+            float speed = bestCam ? bestCam->smoothSpeed : m_FollowSpeed;
+            sf::Vector2f offset = bestCam ? sf::Vector2f(bestCam->offsetX, bestCam->offsetY) : m_FollowOffset;
+            auto &t = registry.GetComponent<TransformComponent>(bestEntity);
+            sf::Vector2f desiredPos(t.worldX + offset.x, t.worldY + offset.y);
+
+            if (speed > 0.0f && dt > 0.0f)
+            {
+                float alpha = 1.0f - std::exp(-speed * dt);
+                m_Position += (desiredPos - m_Position) * alpha;
+            }
+            else
+            {
+                m_Position = desiredPos;
+            }
+        }
+        else if (mode == CameraMultiFollowMode::Average)
+        {
+            sf::Vector2f sumPos(0.f, 0.f);
+            float sumSpeed = 0.f;
+            float count = static_cast<float>(activeTargets.size());
+
+            for (auto &pair : activeTargets)
+            {
+                auto &t = registry.GetComponent<TransformComponent>(pair.first);
+                sf::Vector2f off = pair.second ? sf::Vector2f(pair.second->offsetX, pair.second->offsetY) : m_FollowOffset;
+                sumPos += sf::Vector2f(t.worldX + off.x, t.worldY + off.y);
+                sumSpeed += (pair.second ? pair.second->smoothSpeed : m_FollowSpeed);
+            }
+
+            sf::Vector2f desiredPos = sumPos / count;
+            float speed = sumSpeed / count;
+
+            if (speed > 0.0f && dt > 0.0f)
+            {
+                float alpha = 1.0f - std::exp(-speed * dt);
+                m_Position += (desiredPos - m_Position) * alpha;
+            }
+            else
+            {
+                m_Position = desiredPos;
+            }
+        }
+        else if (mode == CameraMultiFollowMode::AutoFrame)
+        {
+            float minX = 1e9f, maxX = -1e9f;
+            float minY = 1e9f, maxY = -1e9f;
+            float sumSpeed = 0.f;
+            float padding = m_AutoFramePadding;
+            float minZoom = m_MinAutoZoom;
+            float maxZoom = m_MaxAutoZoom;
+
+            for (auto &pair : activeTargets)
+            {
+                auto &t = registry.GetComponent<TransformComponent>(pair.first);
+                sf::Vector2f off = pair.second ? sf::Vector2f(pair.second->offsetX, pair.second->offsetY) : m_FollowOffset;
+                float px = t.worldX + off.x;
+                float py = t.worldY + off.y;
+                minX = std::min(minX, px);
+                maxX = std::max(maxX, px);
+                minY = std::min(minY, py);
+                maxY = std::max(maxY, py);
+                sumSpeed += (pair.second ? pair.second->smoothSpeed : m_FollowSpeed);
+                if (pair.second)
+                {
+                    padding = pair.second->autoFramePadding;
+                    minZoom = pair.second->minZoom;
+                    maxZoom = pair.second->maxZoom;
+                }
+            }
+
+            sf::Vector2f desiredPos((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
+            float speed = sumSpeed / static_cast<float>(activeTargets.size());
+
+            float reqW = std::max(200.f, (maxX - minX) + padding * 2.f);
+            float reqH = std::max(150.f, (maxY - minY) + padding * 2.f);
+            float desiredZoom = std::clamp(std::min(m_BaseSize.x / reqW, m_BaseSize.y / reqH), minZoom, maxZoom);
+
+            if (speed > 0.0f && dt > 0.0f)
+            {
+                float alpha = 1.0f - std::exp(-speed * dt);
+                m_Position += (desiredPos - m_Position) * alpha;
+                m_Zoom += (desiredZoom - m_Zoom) * alpha;
+            }
+            else
+            {
+                m_Position = desiredPos;
+                m_Zoom = desiredZoom;
+            }
+        }
+    }
+
 
     if (m_ShakeTimeRemaining > 0.0f)
     {
@@ -259,8 +420,21 @@ void CameraManager::RegisterLua(sol::state &lua, Registry &registry)
         "smoothSpeed", &CameraComponent::smoothSpeed,
         "offsetX", &CameraComponent::offsetX,
         "offsetY", &CameraComponent::offsetY,
-        "zoom", &CameraComponent::zoom
+        "zoom", &CameraComponent::zoom,
+        "priority", &CameraComponent::priority,
+        "multiFollowMode", sol::property(
+            [](CameraComponent &c) -> int { return static_cast<int>(c.multiFollowMode); },
+            [](CameraComponent &c, int m) { c.multiFollowMode = static_cast<CameraMultiFollowMode>(m); }
+        ),
+        "minZoom", &CameraComponent::minZoom,
+        "maxZoom", &CameraComponent::maxZoom,
+        "autoFramePadding", &CameraComponent::autoFramePadding
     );
+
+    auto multiMode = lua.create_named_table("CameraMultiFollowMode");
+    multiMode["Priority"] = static_cast<int>(CameraMultiFollowMode::Priority);
+    multiMode["Average"] = static_cast<int>(CameraMultiFollowMode::Average);
+    multiMode["AutoFrame"] = static_cast<int>(CameraMultiFollowMode::AutoFrame);
 
     auto camera = lua.create_named_table("Camera");
 
@@ -398,8 +572,82 @@ void CameraManager::RegisterLua(sol::state &lua, Registry &registry)
         return {s.x, s.y};
     });
 
-    lua.set_function("AddCamera", [&registry](Entity e, sol::optional<float> smoothSpeed, sol::optional<float> offsetX, sol::optional<float> offsetY, sol::optional<float> zoom) -> CameraComponent& {
-        CameraComponent cam{true, smoothSpeed.value_or(0.0f), offsetX.value_or(0.0f), offsetY.value_or(0.0f), zoom.value_or(1.0f)};
+    camera.set_function("SetMultiFollowMode", [](sol::object modeObj) {
+        if (modeObj.is<int>()) {
+            CameraManager::Get().SetMultiFollowMode(static_cast<CameraMultiFollowMode>(modeObj.as<int>()));
+        } else if (modeObj.is<std::string>()) {
+            std::string s = modeObj.as<std::string>();
+            if (s == "priority" || s == "Priority") CameraManager::Get().SetMultiFollowMode(CameraMultiFollowMode::Priority);
+            else if (s == "auto_frame" || s == "AutoFrame" || s == "autoframe") CameraManager::Get().SetMultiFollowMode(CameraMultiFollowMode::AutoFrame);
+            else CameraManager::Get().SetMultiFollowMode(CameraMultiFollowMode::Average);
+        }
+    });
+
+    camera.set_function("GetMultiFollowMode", []() -> std::string {
+        auto m = CameraManager::Get().GetMultiFollowMode();
+        if (m == CameraMultiFollowMode::Priority) return "priority";
+        if (m == CameraMultiFollowMode::AutoFrame) return "auto_frame";
+        return "average";
+    });
+
+    camera.set_function("AddFollowTarget", [](Entity e) {
+        CameraManager::Get().AddFollowTarget(e);
+    });
+
+    camera.set_function("RemoveFollowTarget", [](Entity e) {
+        CameraManager::Get().RemoveFollowTarget(e);
+    });
+
+    camera.set_function("ClearFollowTargets", []() {
+        CameraManager::Get().ClearFollowTargets();
+    });
+
+    camera.set_function("FollowGroup", [](sol::table targets) {
+        CameraManager::Get().ClearFollowTargets();
+        for (size_t i = 1; i <= targets.size(); ++i) {
+            sol::object obj = targets[i];
+            if (obj.is<Entity>()) {
+                CameraManager::Get().AddFollowTarget(obj.as<Entity>());
+            }
+        }
+    });
+
+    camera.set_function("GetFollowTargets", [](sol::this_state s) -> sol::table {
+        sol::state_view l(s);
+        sol::table t = l.create_table();
+        const auto& targets = CameraManager::Get().GetFollowTargets();
+        for (size_t i = 0; i < targets.size(); ++i) {
+            t[i + 1] = targets[i];
+        }
+        return t;
+    });
+
+    camera.set_function("SetAutoFramePadding", [](float pad) {
+        CameraManager::Get().SetAutoFramePadding(pad);
+    });
+
+    camera.set_function("GetAutoFramePadding", []() -> float {
+        return CameraManager::Get().GetAutoFramePadding();
+    });
+
+    camera.set_function("SetAutoFrameZoomLimits", [](float minZ, float maxZ) {
+        CameraManager::Get().SetAutoFrameZoomLimits(minZ, maxZ);
+    });
+
+    camera.set_function("GetAutoFrameZoomLimits", []() -> std::tuple<float, float> {
+        return {CameraManager::Get().GetMinAutoZoom(), CameraManager::Get().GetMaxAutoZoom()};
+    });
+
+    camera.set_function("SetPrimary", [](Entity e) {
+        CameraManager::Get().SetPrimaryCamera(e);
+    });
+
+    camera.set_function("GetPrimary", []() -> Entity {
+        return CameraManager::Get().GetPrimaryCamera();
+    });
+
+    lua.set_function("AddCamera", [&registry](Entity e, sol::optional<float> smoothSpeed, sol::optional<float> offsetX, sol::optional<float> offsetY, sol::optional<float> zoom, sol::optional<int> priority) -> CameraComponent& {
+        CameraComponent cam{true, smoothSpeed.value_or(0.0f), offsetX.value_or(0.0f), offsetY.value_or(0.0f), zoom.value_or(1.0f), priority.value_or(0)};
         return registry.AddComponent(e, cam);
     });
 

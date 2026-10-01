@@ -74,6 +74,12 @@ struct SpriteComponent
     }
 };
 
+enum class CameraMultiFollowMode {
+    Priority = 0,    // Follows highest priority active target (first if tied)
+    Average = 1,     // Centers camera at midpoint of all active targets
+    AutoFrame = 2    // Centers at midpoint AND dynamically adjusts zoom so all targets stay in view
+};
+
 struct CameraComponent
 {
     bool active = true;
@@ -81,6 +87,11 @@ struct CameraComponent
     float offsetX = 0.0f;
     float offsetY = 0.0f;
     float zoom = 1.0f;
+    int priority = 0;
+    CameraMultiFollowMode multiFollowMode = CameraMultiFollowMode::Average;
+    float minZoom = 0.3f;
+    float maxZoom = 3.0f;
+    float autoFramePadding = 200.0f;
 };
 
 enum class CollisionType { Static, Solid };

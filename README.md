@@ -43,19 +43,33 @@
 
 ### Added
 - **In-Game Camera System & Scripting Library (`Camera`):**
-  - Added full-featured `CameraManager` handling dynamic viewport transforms, zoom, rotation, screen shake, entity following, and bounds constraints during play mode.
+  - Added full-featured `CameraManager` handling dynamic viewport transforms, zoom, rotation, screen shake, multi-entity following, dynamic bounding framing, and boundary constraints during play mode.
+  - Added `Camera` entity to the editor **Add** dropdown menu (`ObjectType::Camera`):
+    - Placed as a dedicated camera entity with a custom camera gizmo icon and recording LED.
+    - Freely movable, resizable, and rotatable in the editor and scriptable at runtime.
+    - Full serialization to/from JSON scene files and undo/redo history.
+  - **Live Camera Viewport Frustum / Viewfinder Visualizer:**
+    - Live viewport representation in `EditorScene` showing the exact screen frame (`1920×1080` base resolution scaled by zoom, rotated by camera angle, and offset).
+    - Center crosshair and informative overlay badge displaying current zoom and dimensions.
+  - **Multi-Camera & Multi-Target Follow Resolution System:**
+    - Devised and implemented conflict-free multi-target tracking when two or more objects have camera follow active (`CameraMultiFollowMode`):
+      - `CameraMultiFollowMode.Priority` (0): The camera target with the highest priority value takes control; lower-priority cameras are ignored.
+      - `CameraMultiFollowMode.Average` (1): Midpoint follow that smoothly averages the world positions of all active follow targets.
+      - `CameraMultiFollowMode.AutoFrame` (2): Intelligent bounding-box framing that automatically tracks the centroid of all targets and dynamically zooms the camera in/out to keep all targets comfortably on-screen with configurable world padding (`autoFramePadding`) and zoom clamps (`minZoom`, `maxZoom`).
+    - Multi-camera visualizer in `EditorScene`: draws connecting dashed link lines between all active camera targets and renders the shared focus / auto-frame centroid indicator in real time.
+    - Upgraded `CameraComponent` with `priority`, `multiFollowMode`, `minZoom`, `maxZoom`, and `autoFramePadding`.
+    - Added Inspector UI controls for `CameraComponent`: active toggle, multi-target mode selector cycle button, priority, smooth speed, offsets, zoom, padding, and zoom limits.
   - Added global `Camera` Lua library table for complete runtime control:
     - **Position & Free Movement:** `Camera.SetPosition(x, y)`, `Camera.GetPosition()`, `Camera.GetX()`, `Camera.GetY()`, `Camera.Move(dx, dy)`.
     - **Zoom:** `Camera.SetZoom(zoom)`, `Camera.GetZoom()`, `Camera.Zoom(factor)`.
     - **Rotation:** `Camera.SetRotation(deg)`, `Camera.GetRotation()`, `Camera.Rotate(deltaDeg)`.
     - **View Size & Reset:** `Camera.SetSize(w, h)`, `Camera.GetSize()`, `Camera.Reset()`.
     - **Target Following:** `Camera.Follow(entity, [smoothSpeed], [offsetX], [offsetY])`, `Camera.StopFollow()`, `Camera.ResumeFollow()`, `Camera.IsFollowing()`, `Camera.GetFollowTarget()`, `Camera.SetFollowSpeed(speed)`, `Camera.GetFollowSpeed()`, `Camera.SetFollowOffset(ox, oy)`, `Camera.GetFollowOffset()`.
+    - **Multi-Target Tracking:** `Camera.AddFollowTarget(entity)`, `Camera.RemoveFollowTarget(entity)`, `Camera.ClearFollowTargets()`, `Camera.FollowGroup(targets, [mode], [padding])`, `Camera.GetFollowTargets()`, `Camera.GetFollowTargetCount()`, `Camera.SetMultiFollowMode(mode)`, `Camera.GetMultiFollowMode()`, `Camera.SetAutoFramePadding(padding)`, `Camera.GetAutoFramePadding()`, `Camera.SetAutoFrameZoomLimits(minZoom, maxZoom)`, `Camera.GetAutoFrameZoomLimits()`, `Camera.SetPrimary(entity)`, `Camera.GetPrimary()`.
     - **Boundary Constraints:** `Camera.SetBounds(minX, minY, maxX, maxY, [clampEdges=true])`, `Camera.ClearBounds()`, `Camera.HasBounds()`, `Camera.GetBounds()`.
     - **Screen Shake:** `Camera.Shake(intensity, duration, [decay=true])`, `Camera.StopShake()`, `Camera.IsShaking()`.
     - **Coordinate Mapping:** `Camera.ScreenToWorld(screenX, screenY)`, `Camera.WorldToScreen(worldX, worldY)` converting seamlessly with view transformations.
-  - Upgraded `CameraComponent` with `smoothSpeed`, `offsetX`, `offsetY`, and `zoom` properties.
-  - Added full interactive Inspector UI for `CameraComponent` in `EditorScene` allowing live editing of smooth follow speed, positional offsets, and zoom factors.
-  - Upgraded `AddCamera(e, [smoothSpeed], [offsetX], [offsetY], [zoom])` and added `GetCamera(e) -> CameraComponent`.
+  - Upgraded `AddCamera(e, [smoothSpeed], [offsetX], [offsetY], [zoom], [priority])` and added `GetCamera(e) -> CameraComponent`.
   - Added comprehensive test script: `assets/scripting/CameraTestScript.lua`.
 - **Event-Driven Input System (`OnInputReceived` / `OnInputReceiced`):**
   - Added dedicated script callback `OnInputReceived(self, event)` (with `OnInputReceiced` alias) that triggers exclusively when hardware input arrives (keyboard, mouse, joystick, text) rather than polling every frame.
@@ -301,7 +315,7 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
   - `Rigidbody2DComponent`: Physics body attributes (`BodyType` dynamic/kinematic/static, `mass`, `gravityScale`, `restitution`, `drag`, `freezeRotation`).
   - `RenderComponent`: Visual representation (`sf::Color`, `sf::Vector2f size`, and `ShapeType`: Rectangle, Circle, Triangle, Pentagon, Hexagon).
   - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions; auto-loads via `ResourceManager` and computes scale on construction.
-  - `CameraComponent`: Marks an entity as the active camera focus (`bool active`, `float smoothSpeed`, `float offsetX`, `float offsetY`, `float zoom`).
+  - `CameraComponent`: Marks an entity as a camera focus (`bool active`, `float smoothSpeed`, `float offsetX`, `float offsetY`, `float zoom`, `int priority`, `CameraMultiFollowMode multiFollowMode`, `float minZoom`, `float maxZoom`, `float autoFramePadding`).
   - `CollisionComponent`: Configures collision filtering via integer `channel`, collision type (`Static`, `Solid`), collider shape (`Box`, `Circle`), and trigger flag (`isTrigger`).
   - `ScriptComponent`: Encapsulates a sol2 Lua environment, filesystem modification timestamp tracking for live hot-reloading, exported variables, and lifecycle hooks.
 
@@ -508,8 +522,8 @@ Export = {
 | `SetSpriteSize` | `(e: Entity, w: number, h: number)` | Updates rendered dimensions of sprite |
 | `HasSprite` | `(e: Entity) -> boolean` | Checks if entity has a sprite |
 | `SetColor` | `(e: Entity, r: number, g: number, b: number, [a]: number)` | Sets color of `RenderComponent` (0–255) |
-| `AddCamera` | `(e: Entity, [smoothSpeed=0.0], [ox=0.0], [oy=0.0], [zoom=1.0]) -> CameraComponent` | Attaches or updates camera tracking component |
-| `GetCamera` | `(e: Entity) -> CameraComponent \| nil` | Reads camera component reference |
+| `AddCamera` | `(e: Entity, [smoothSpeed=0.0], [ox=0.0], [oy=0.0], [zoom=1.0], [priority=0]) -> CameraComponent` | Attaches or updates camera tracking component |
+| `GetCamera` | `(e: Entity) -> CameraComponent | nil` | Reads camera component reference |
 | `RemoveCamera` | `(e: Entity)` | Removes camera component |
 | `HasCamera` | `(e: Entity) -> boolean` | Checks if entity has camera tracking |
 | `AddCollision` | `(e: Entity, [channel]: integer)` | Attaches a `CollisionComponent` (default channel `0`, type `Static`) |
@@ -526,7 +540,7 @@ Export = {
 | `GetWorldRotation` | `(e: Entity) -> number` | Computes global world rotation in degrees |
 | `GetWorldScale` | `(e: Entity) -> number, number` | Computes global world scale factors `sx, sy` |
 | `Template` | `(path: string) -> Template` | Creates template reference object |
-| `Instantiate` | `(template: Template \| string, x: number, y: number, [parent]: Entity) -> Entity` | Instantiates template prefab into scene |
+| `Instantiate` | `(template: Template | string, x: number, y: number, [parent]: Entity) -> Entity` | Instantiates template prefab into scene |
 | `LoadScene` | `(sceneName: string)` | Switches active scene to `assets/scenes/<sceneName>.json` |
 
 > **Tip:** `GetTransform(e)` returns a mutable table — you can read and write `t.x`, `t.y`, `t.rotation`, `t.scaleX`, `t.scaleY` directly on the returned reference.
@@ -550,7 +564,7 @@ Export = {
 | `Camera.Rotate` | `(deltaDeg: number)` | Rotates camera by delta angle in degrees |
 | `Camera.SetSize` | `(w: number, h: number)` | Sets base viewport dimensions |
 | `Camera.GetSize` | `() -> number, number` | Returns base viewport dimensions `w, h` |
-| `Camera.Reset` | `()` | Resets camera to default position, zoom (`1.0`), rotation (`0.0`), shake, and clears follow target |
+| `Camera.Reset` | `()` | Resets camera to default position, zoom (`1.0`), rotation (`0.0`), shake, and clears follow targets |
 | `Camera.Follow` | `(e: Entity, [smoothSpeed=0.0], [ox=0.0], [oy=0.0])` | Follows entity target with optional smooth damping and offset |
 | `Camera.StopFollow` | `()` | Disables following any entity target |
 | `Camera.ResumeFollow` | `()` | Resumes following the active entity target |
@@ -560,6 +574,20 @@ Export = {
 | `Camera.GetFollowSpeed` | `() -> number` | Returns current follow damping speed |
 | `Camera.SetFollowOffset` | `(ox: number, oy: number)` | Sets camera tracking offset in world units |
 | `Camera.GetFollowOffset` | `() -> number, number` | Returns camera tracking offset `ox, oy` |
+| `Camera.AddFollowTarget` | `(e: Entity)` | Adds an entity to the multi-target tracking group |
+| `Camera.RemoveFollowTarget` | `(e: Entity)` | Removes an entity from multi-target tracking |
+| `Camera.ClearFollowTargets` | `()` | Clears all tracked entities in the follow group |
+| `Camera.FollowGroup` | `(targets: Entity[], [mode], [padding])` | Replaces follow targets with a list and sets optional follow mode & padding |
+| `Camera.GetFollowTargets` | `() -> Entity[]` | Returns an array of all currently tracked entity IDs |
+| `Camera.GetFollowTargetCount` | `() -> integer` | Returns the number of currently tracked follow targets |
+| `Camera.SetMultiFollowMode` | `(mode: CameraMultiFollowMode \| integer \| string)` | Sets multi-follow mode: `Priority` (0), `Average` (1), `AutoFrame` (2) |
+| `Camera.GetMultiFollowMode` | `() -> integer` | Returns the active `CameraMultiFollowMode` integer value |
+| `Camera.SetAutoFramePadding` | `(padding: number)` | Sets world margin/padding added around tracked targets in AutoFrame mode |
+| `Camera.GetAutoFramePadding` | `() -> number` | Returns the active AutoFrame world margin padding |
+| `Camera.SetAutoFrameZoomLimits` | `(minZoom: number, maxZoom: number)` | Sets min and max zoom clamp boundaries for AutoFrame mode |
+| `Camera.GetAutoFrameZoomLimits` | `() -> minZoom, maxZoom` | Returns the min and max zoom boundaries |
+| `Camera.SetPrimary` | `(e: Entity)` | Sets the primary active camera entity |
+| `Camera.GetPrimary` | `() -> Entity` | Returns the primary active camera entity ID |
 | `Camera.SetBounds` | `(minX, minY, maxX, maxY, [clampEdges=true])` | Restricts camera movement within specified world bounding box |
 | `Camera.ClearBounds` | `()` | Clears world boundary constraints |
 | `Camera.HasBounds` | `() -> boolean` | Checks if world boundary constraints are active |
@@ -569,6 +597,14 @@ Export = {
 | `Camera.IsShaking` | `() -> boolean` | Returns true if screenshake is currently active |
 | `Camera.ScreenToWorld` | `(sx: number, sy: number) -> number, number` | Maps screen pixel coordinates to world coordinates |
 | `Camera.WorldToScreen` | `(wx: number, wy: number) -> number, number` | Maps world coordinates to screen pixel coordinates |
+
+#### `CameraMultiFollowMode` Enum Table
+
+| Constant | Value | Description |
+|---|---|---|
+| `CameraMultiFollowMode.Priority` | `0` | Tracks solely the highest-priority entity (`priority` field in `CameraComponent`) |
+| `CameraMultiFollowMode.Average` | `1` | Midpoint tracking: computes the average centroid position of all active entities |
+| `CameraMultiFollowMode.AutoFrame` | `2` | Intelligent dynamic framing: centers on target centroid and adjusts zoom to frame all targets with padding |
 
 ---
 

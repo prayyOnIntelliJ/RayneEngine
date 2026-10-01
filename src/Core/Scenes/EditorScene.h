@@ -24,7 +24,7 @@
 
 using json = nlohmann::json;
 
-enum class ObjectType { Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite };
+enum class ObjectType { Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite, Camera };
 
 struct EditorObject
 {
@@ -289,6 +289,10 @@ private:
         CameraOffsetX,
         CameraOffsetY,
         CameraZoom,
+        CameraPriority,
+        CameraMinZoom,
+        CameraMaxZoom,
+        CameraAutoFramePadding,
         UIText,
         ScriptProperty
     };

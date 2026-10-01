@@ -888,8 +888,17 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 m_CirclePreview.setPointCount(GetPolygonPointCount(m_PlacementType));
                 m_CirclePreview.setPosition(SnapToGrid(pos));
-            } else
+            } else if (m_PlacementType == ObjectType::Camera)
+            {
+                m_Preview.setSize({64.f, 48.f});
+                m_Preview.setFillColor(sf::Color(64, 160, 216, 100));
                 m_Preview.setPosition(SnapToGrid(pos));
+            } else
+            {
+                m_Preview.setSize({m_GridSize, m_GridSize});
+                m_Preview.setFillColor(sf::Color(255, 255, 255, 50));
+                m_Preview.setPosition(SnapToGrid(pos));
+            }
         }
 
         if (m_HierarchyPotentialDrag) {
@@ -1645,6 +1654,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     else if (a == "add_triangle") m_PlacementType = ObjectType::Triangle;
                     else if (a == "add_pentagon") m_PlacementType = ObjectType::Pentagon;
                     else if (a == "add_hexagon") m_PlacementType = ObjectType::Hexagon;
+                    else if (a == "add_cam_obj") m_PlacementType = ObjectType::Camera;
                     m_AddDropdownOpen = false;
                     return;
                 }
@@ -2015,6 +2025,41 @@ void EditorScene::Render(sf::RenderWindow &window)
             obj.circleShape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color::Transparent);
             obj.circleShape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 0.f);
             window.draw(obj.circleShape);
+        } else if (obj.objectType == ObjectType::Camera)
+        {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
+            obj.shape.setFillColor(sf::Color(35, 44, 58));
+            obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(64, 180, 240, 200));
+            obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(obj.shape);
+
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::CircleShape lens(12.f);
+            lens.setOrigin(12.f, 12.f);
+            lens.setPosition(center);
+            lens.setFillColor(sf::Color(20, 28, 38));
+            lens.setOutlineColor(sf::Color(80, 190, 250));
+            lens.setOutlineThickness(1.5f);
+            window.draw(lens);
+
+            sf::CircleShape pupil(6.f);
+            pupil.setOrigin(6.f, 6.f);
+            pupil.setPosition(center);
+            pupil.setFillColor(sf::Color(50, 150, 220, 200));
+            window.draw(pupil);
+
+            sf::RectangleShape notch({16.f, 5.f});
+            notch.setPosition(obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f - 8.f, -4.f));
+            notch.setFillColor(sf::Color(35, 44, 58));
+            notch.setOutlineColor(sf::Color(64, 180, 240, 180));
+            notch.setOutlineThickness(1.f);
+            window.draw(notch);
+
+            sf::CircleShape recDot(3.f);
+            recDot.setPosition(obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x - 9.f, 4.f));
+            recDot.setFillColor(sf::Color(255, 60, 60));
+            window.draw(recDot);
         } else
         {
             obj.shape.setScale(obj.scaleX, obj.scaleY);
@@ -2079,6 +2124,106 @@ void EditorScene::Render(sf::RenderWindow &window)
             idText.setPosition(obj.shape.getPosition() + sf::Vector2f(2.f, 2.f));
             window.draw(idText);
         }
+
+        if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity))
+        {
+            auto& cam = m_Registry.GetComponent<CameraComponent>(obj.entity);
+            float zoom = cam.zoom > 0.001f ? cam.zoom : 1.0f;
+            float viewW = 1920.f / zoom;
+            float viewH = 1080.f / zoom;
+            sf::Vector2f objCenter = obj.worldPosition + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::Vector2f camCenter = objCenter + sf::Vector2f(cam.offsetX, cam.offsetY);
+
+            if (std::abs(cam.offsetX) > 0.1f || std::abs(cam.offsetY) > 0.1f)
+            {
+                sf::Vertex line[] = {
+                    sf::Vertex(objCenter, sf::Color(64, 180, 240, 160)),
+                    sf::Vertex(camCenter, sf::Color(64, 180, 240, 160))
+                };
+                window.draw(line, 2, sf::Lines);
+            }
+
+            sf::RectangleShape frustum({viewW, viewH});
+            frustum.setOrigin(viewW * 0.5f, viewH * 0.5f);
+            frustum.setPosition(camCenter);
+            frustum.setRotation(obj.worldRotation);
+            frustum.setFillColor(sf::Color(64, 180, 240, obj.selected ? 16 : 5));
+            frustum.setOutlineColor(sf::Color(64, 180, 240, obj.selected ? 220 : 90));
+            frustum.setOutlineThickness(obj.selected ? 2.0f : 1.0f);
+            window.draw(frustum);
+
+            sf::RectangleShape crossH({24.f, 1.5f});
+            crossH.setOrigin(12.f, 0.75f);
+            crossH.setPosition(camCenter);
+            crossH.setFillColor(sf::Color(64, 180, 240, obj.selected ? 200 : 100));
+            window.draw(crossH);
+
+            sf::RectangleShape crossV({1.5f, 24.f});
+            crossV.setOrigin(0.75f, 12.f);
+            crossV.setPosition(camCenter);
+            crossV.setFillColor(sf::Color(64, 180, 240, obj.selected ? 200 : 100));
+            window.draw(crossV);
+
+            sf::Text vLabel;
+            vLabel.setFont(*m_Font);
+            vLabel.setCharacterSize(10);
+            vLabel.setFillColor(sf::Color(64, 180, 240, obj.selected ? 240 : 130));
+            std::string labelStr = "CAMERA VIEW [1920x1080]";
+            if (std::abs(zoom - 1.0f) > 0.01f) labelStr += " Zoom: " + FormatFloat(zoom, 2) + "x";
+            vLabel.setString(labelStr);
+            sf::Vector2f topPos = camCenter - sf::Vector2f(vLabel.getLocalBounds().width * 0.5f, viewH * 0.5f + 16.f);
+            vLabel.setPosition(topPos);
+            window.draw(vLabel);
+        }
+    }
+
+    // Multi-camera visualization
+    int activeCams = 0;
+    std::vector<sf::Vector2f> camPositions;
+    CameraMultiFollowMode sharedMode = CameraMultiFollowMode::Average;
+
+    for (const auto& obj : m_Objects) {
+        if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) {
+            auto& c = m_Registry.GetComponent<CameraComponent>(obj.entity);
+            if (c.active) {
+                activeCams++;
+                sharedMode = c.multiFollowMode;
+                sf::Vector2f p = obj.worldPosition + sf::Vector2f(obj.shape.getSize().x * 0.5f + c.offsetX, obj.shape.getSize().y * 0.5f + c.offsetY);
+                camPositions.push_back(p);
+            }
+        }
+    }
+
+    if (activeCams >= 2) {
+        for (size_t i = 0; i < camPositions.size() - 1; ++i) {
+            sf::Vertex link[] = {
+                sf::Vertex(camPositions[i], sf::Color(255, 200, 60, 140)),
+                sf::Vertex(camPositions[i+1], sf::Color(255, 200, 60, 140))
+            };
+            window.draw(link, 2, sf::Lines);
+        }
+
+        if (sharedMode == CameraMultiFollowMode::Average || sharedMode == CameraMultiFollowMode::AutoFrame) {
+            sf::Vector2f sumPos(0.f, 0.f);
+            for (const auto& p : camPositions) sumPos += p;
+            sf::Vector2f mid = sumPos / static_cast<float>(camPositions.size());
+
+            sf::CircleShape midMarker(6.f);
+            midMarker.setOrigin(6.f, 6.f);
+            midMarker.setPosition(mid);
+            midMarker.setFillColor(sf::Color(255, 200, 60, 200));
+            midMarker.setOutlineColor(sf::Color::White);
+            midMarker.setOutlineThickness(1.5f);
+            window.draw(midMarker);
+
+            sf::Text midText;
+            midText.setFont(*m_Font);
+            midText.setCharacterSize(10);
+            midText.setFillColor(sf::Color(255, 200, 60, 220));
+            midText.setString(sharedMode == CameraMultiFollowMode::AutoFrame ? "AUTO-FRAME FOCUS" : "CAMERA MIDPOINT");
+            midText.setPosition(mid + sf::Vector2f(-midText.getLocalBounds().width * 0.5f, 10.f));
+            window.draw(midText);
+        }
     }
 
     bool canPlace = true;
@@ -2106,6 +2251,28 @@ void EditorScene::Render(sf::RenderWindow &window)
     {
         if (IsPolygonType(m_PlacementType))
             window.draw(m_CirclePreview);
+        else if (m_PlacementType == ObjectType::Camera)
+        {
+            sf::Vector2f pPos = SnapToGrid(MouseWorldPos());
+            sf::Vector2f pCenter = pPos + sf::Vector2f(32.f, 24.f);
+            sf::RectangleShape previewFrustum({1920.f, 1080.f});
+            previewFrustum.setOrigin(960.f, 540.f);
+            previewFrustum.setPosition(pCenter);
+            previewFrustum.setFillColor(sf::Color(64, 180, 240, 12));
+            previewFrustum.setOutlineColor(sf::Color(64, 180, 240, 140));
+            previewFrustum.setOutlineThickness(1.5f);
+            window.draw(previewFrustum);
+
+            sf::Text vLabel;
+            vLabel.setFont(*m_Font);
+            vLabel.setCharacterSize(10);
+            vLabel.setFillColor(sf::Color(64, 180, 240, 180));
+            vLabel.setString("CAMERA VIEW [1920x1080]");
+            vLabel.setPosition(pCenter - sf::Vector2f(vLabel.getLocalBounds().width * 0.5f, 540.f + 16.f));
+            window.draw(vLabel);
+
+            window.draw(m_Preview);
+        }
         else
             window.draw(m_Preview);
     }
@@ -2641,7 +2808,9 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
         {"Circle", "add_circle", "Circle primitive", false},
         {"Triangle", "add_triangle", "Triangle primitive", false},
         {"Pentagon", "add_pentagon", "Pentagon primitive", false},
-        {"Hexagon", "add_hexagon", "Hexagon primitive", false}
+        {"Hexagon", "add_hexagon", "Hexagon primitive", false},
+        {"Objects", "", "", true},
+        {"Camera", "add_cam_obj", "In-game camera object", false}
     };
 
     float dropH = 12.f;
@@ -2676,7 +2845,8 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
                          (item.action == "add_circle" && m_PlacementType == ObjectType::Circle) ||
                          (item.action == "add_triangle" && m_PlacementType == ObjectType::Triangle) ||
                          (item.action == "add_pentagon" && m_PlacementType == ObjectType::Pentagon) ||
-                         (item.action == "add_hexagon" && m_PlacementType == ObjectType::Hexagon);
+                         (item.action == "add_hexagon" && m_PlacementType == ObjectType::Hexagon) ||
+                         (item.action == "add_cam_obj" && m_PlacementType == ObjectType::Camera);
 
         if (hov)
         {
@@ -3033,6 +3203,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         else if (target->objectType == ObjectType::Pentagon) typeLabel = "pentagon";
         else if (target->objectType == ObjectType::Hexagon) typeLabel = "hexagon";
         else if (target->objectType == ObjectType::Sprite) typeLabel = "sprite";
+        else if (target->objectType == ObjectType::Camera) typeLabel = "camera";
         y = DrawRow(window, "Type", typeLabel, panelX, y);
     }
     std::string parentDisplay = target->parentId.empty() ? "(None)" : target->parentId;
@@ -3277,7 +3448,35 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     {
         auto &cam = m_Registry.GetComponent<CameraComponent>(target->entity);
         y = DrawSectionHeader(window, "CAMERA", sf::Color(130, 200, 255), panelX, y);
-        y = DrawRow(window, "Status", "Following Entity", panelX, y);
+
+        int activeCamCount = 0;
+        m_Registry.ForEach<CameraComponent>([&activeCamCount](Entity, CameraComponent &c) {
+            if (c.active) activeCamCount++;
+        });
+
+        if (activeCamCount > 1)
+        {
+            y = DrawRow(window, "Status", "Multi-Target (" + std::to_string(activeCamCount) + " Active)", panelX, y);
+            std::string modeStr = "Average (Midpoint)";
+            if (cam.multiFollowMode == CameraMultiFollowMode::AutoFrame) modeStr = "Auto-Frame (Both in View)";
+            else if (cam.multiFollowMode == CameraMultiFollowMode::Priority) modeStr = "Priority (Leader)";
+
+            y = DrawActionButton(window, "Mode: " + modeStr, "cycle_cam_mode", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        }
+        else
+        {
+            y = DrawRow(window, "Status", "Single Camera", panelX, y);
+        }
+
+        y = DrawCheckboxRow(window, "Active", cam.active, "toggle_cam_active", panelX, y);
+
+        if (activeCamCount > 1 && cam.multiFollowMode == CameraMultiFollowMode::Priority)
+        {
+            std::string prioDisplay = (m_ActiveField == EditField::CameraPriority && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CameraPriority ? "|" : std::to_string(cam.priority));
+            y = DrawEditableRow(window, "Priority", prioDisplay, "edit_cam_prio", panelX, y);
+        }
 
         std::string speedDisplay = (m_ActiveField == EditField::CameraSmoothSpeed && !m_ActiveInputText.empty())
                                       ? m_ActiveInputText + "|"
@@ -3306,6 +3505,24 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                              ? "|"
                                              : FormatFloat(cam.zoom, 2));
         y = DrawEditableRow(window, "Zoom", zoomDisplay, "edit_cam_zoom", panelX, y);
+
+        if (cam.multiFollowMode == CameraMultiFollowMode::AutoFrame)
+        {
+            std::string padDisplay = (m_ActiveField == EditField::CameraAutoFramePadding && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CameraAutoFramePadding ? "|" : FormatFloat(cam.autoFramePadding, 1));
+            y = DrawEditableRow(window, "Frame Padding", padDisplay, "edit_cam_pad", panelX, y);
+
+            std::string minZDisplay = (m_ActiveField == EditField::CameraMinZoom && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CameraMinZoom ? "|" : FormatFloat(cam.minZoom, 2));
+            y = DrawEditableRow(window, "Min Zoom", minZDisplay, "edit_cam_minz", panelX, y);
+
+            std::string maxZDisplay = (m_ActiveField == EditField::CameraMaxZoom && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CameraMaxZoom ? "|" : FormatFloat(cam.maxZoom, 2));
+            y = DrawEditableRow(window, "Max Zoom", maxZDisplay, "edit_cam_maxz", panelX, y);
+        }
 
         y += 4.f;
         y = DrawActionButton(window, "Remove Camera", "remove_camera", panelX, y, C_DANGER_DIM, C_DANGER);
@@ -4518,12 +4735,55 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 m_ActiveInputText = "0.00";
         } else if (btn.action == "add_camera" && target)
         {
-            m_Registry.ForEach<CameraComponent>([this](Entity e, CameraComponent &) {
-                m_Registry.RemoveComponent<CameraComponent>(e);
-            });
-            m_Registry.AddComponent(target->entity, CameraComponent{true});
+            if (!m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_Registry.AddComponent(target->entity, CameraComponent{true});
             std::cout << "[INFO] [Inspector] CameraComponent added to " << target->id << "\n";
             SetDirty(true);
+        } else if (btn.action == "cycle_cam_mode" && target)
+        {
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+            {
+                auto &c = m_Registry.GetComponent<CameraComponent>(target->entity);
+                int nextMode = (static_cast<int>(c.multiFollowMode) + 1) % 3;
+                c.multiFollowMode = static_cast<CameraMultiFollowMode>(nextMode);
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_cam_active" && target)
+        {
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+            {
+                auto &c = m_Registry.GetComponent<CameraComponent>(target->entity);
+                c.active = !c.active;
+                SetDirty(true);
+            }
+        } else if (btn.action == "edit_cam_prio" && target)
+        {
+            m_ActiveField = EditField::CameraPriority;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<CameraComponent>(target->entity).priority);
+            else
+                m_ActiveInputText = "0";
+        } else if (btn.action == "edit_cam_pad" && target)
+        {
+            m_ActiveField = EditField::CameraAutoFramePadding;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).autoFramePadding, 1);
+            else
+                m_ActiveInputText = "200.0";
+        } else if (btn.action == "edit_cam_minz" && target)
+        {
+            m_ActiveField = EditField::CameraMinZoom;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).minZoom, 2);
+            else
+                m_ActiveInputText = "0.30";
+        } else if (btn.action == "edit_cam_maxz" && target)
+        {
+            m_ActiveField = EditField::CameraMaxZoom;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).maxZoom, 2);
+            else
+                m_ActiveInputText = "3.00";
         } else if (btn.action == "remove_camera" && target)
         {
             m_Registry.RemoveComponent<CameraComponent>(target->entity);
@@ -4903,13 +5163,33 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
     else if (type == ObjectType::Triangle) { c = sf::Color(149, 237, 100); ts = "triangle"; }
     else if (type == ObjectType::Pentagon) { c = sf::Color(237, 100, 237); ts = "pentagon"; }
     else if (type == ObjectType::Hexagon) { c = sf::Color(237, 237, 100); ts = "hexagon"; }
+    else if (type == ObjectType::Camera) { c = sf::Color(64, 160, 216); ts = "camera"; }
 
     sf::Vector2f p = SnapToGrid(pos);
     json j;
     j["id"] = id;
     j["type"] = ts;
+    if (type == ObjectType::Camera) {
+        j["tag"] = "Camera";
+        j["width"] = 64.f;
+        j["height"] = 48.f;
+        j["camera"] = {
+            {"active", true},
+            {"smoothSpeed", 0.0f},
+            {"offsetX", 0.0f},
+            {"offsetY", 0.0f},
+            {"zoom", 1.0f},
+            {"priority", 0},
+            {"multiFollowMode", 1},
+            {"minZoom", 0.3f},
+            {"maxZoom", 3.0f},
+            {"autoFramePadding", 200.0f}
+        };
+    } else {
+        j["width"] = m_GridSize;
+        j["height"] = m_GridSize;
+    }
     j["x"] = p.x; j["y"] = p.y;
-    j["width"] = m_GridSize; j["height"] = m_GridSize;
     j["color"] = {c.r, c.g, c.b};
     j["rotation"] = 0.f;
     j["scaleX"] = 1.f;
@@ -5265,6 +5545,7 @@ void EditorScene::LoadFromJson(const std::string &path)
         else if (typeStr == "pentagon") obj.objectType = ObjectType::Pentagon;
         else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
         else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
+        else if (typeStr == "camera") obj.objectType = ObjectType::Camera;
         else obj.objectType = ObjectType::Rectangle;
 
         if (IsPolygonType(obj.objectType))
@@ -5374,7 +5655,15 @@ void EditorScene::LoadFromJson(const std::string &path)
                 cam.offsetX = j["camera"].value("offsetX", 0.0f);
                 cam.offsetY = j["camera"].value("offsetY", 0.0f);
                 cam.zoom = j["camera"].value("zoom", 1.0f);
+                cam.priority = j["camera"].value("priority", 0);
+                cam.multiFollowMode = static_cast<CameraMultiFollowMode>(j["camera"].value("multiFollowMode", 1));
+                cam.minZoom = j["camera"].value("minZoom", 0.3f);
+                cam.maxZoom = j["camera"].value("maxZoom", 3.0f);
+                cam.autoFramePadding = j["camera"].value("autoFramePadding", 200.0f);
             }
+            m_Registry.AddComponent(obj.entity, cam);
+        } else if (obj.objectType == ObjectType::Camera) {
+            CameraComponent cam{true, 0.0f, 0.0f, 0.0f, 1.0f, 0, CameraMultiFollowMode::Average, 0.3f, 3.0f, 200.0f};
             m_Registry.AddComponent(obj.entity, cam);
         }
 
@@ -5673,6 +5962,34 @@ void EditorScene::CommitActiveField()
             {
                 if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
                     m_Registry.GetComponent<CameraComponent>(inputTarget->entity).zoom = std::max(0.01f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraPriority)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).priority = std::stoi(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraAutoFramePadding)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).autoFramePadding = std::max(0.0f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraMinZoom)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).minZoom = std::max(0.01f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraMaxZoom)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).maxZoom = std::max(0.01f, std::stof(m_ActiveInputText));
             } catch (...) {}
         }
         SetDirty(true);
@@ -7194,6 +7511,7 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     else if (obj.objectType == ObjectType::Pentagon) typeStr = "pentagon";
     else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
     else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
+    else if (obj.objectType == ObjectType::Camera) typeStr = "camera";
     j["type"] = typeStr;
     j["x"] = obj.localPosition.x;
     j["y"] = obj.localPosition.y;
@@ -7264,7 +7582,12 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
             {"smoothSpeed", cam.smoothSpeed},
             {"offsetX", cam.offsetX},
             {"offsetY", cam.offsetY},
-            {"zoom", cam.zoom}
+            {"zoom", cam.zoom},
+            {"priority", cam.priority},
+            {"multiFollowMode", static_cast<int>(cam.multiFollowMode)},
+            {"minZoom", cam.minZoom},
+            {"maxZoom", cam.maxZoom},
+            {"autoFramePadding", cam.autoFramePadding}
         };
     }
 
@@ -7318,6 +7641,7 @@ void EditorScene::DeserializeObject(const json& j) {
     else if (typeStr == "pentagon") obj.objectType = ObjectType::Pentagon;
     else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
     else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
+    else if (typeStr == "camera") obj.objectType = ObjectType::Camera;
     else obj.objectType = ObjectType::Rectangle;
 
     if (IsPolygonType(obj.objectType)) {
@@ -7423,7 +7747,15 @@ void EditorScene::DeserializeObject(const json& j) {
             cam.offsetX = j["camera"].value("offsetX", 0.0f);
             cam.offsetY = j["camera"].value("offsetY", 0.0f);
             cam.zoom = j["camera"].value("zoom", 1.0f);
+            cam.priority = j["camera"].value("priority", 0);
+            cam.multiFollowMode = static_cast<CameraMultiFollowMode>(j["camera"].value("multiFollowMode", 1));
+            cam.minZoom = j["camera"].value("minZoom", 0.3f);
+            cam.maxZoom = j["camera"].value("maxZoom", 3.0f);
+            cam.autoFramePadding = j["camera"].value("autoFramePadding", 200.0f);
         }
+        m_Registry.AddComponent(obj.entity, cam);
+    } else if (obj.objectType == ObjectType::Camera) {
+        CameraComponent cam{true, 0.0f, 0.0f, 0.0f, 1.0f, 0, CameraMultiFollowMode::Average, 0.3f, 3.0f, 200.0f};
         m_Registry.AddComponent(obj.entity, cam);
     }
 

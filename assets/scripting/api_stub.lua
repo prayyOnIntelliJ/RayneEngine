@@ -567,12 +567,24 @@ function HasSprite(e) end
 ---@param a? number
 function SetColor(e, r, g, b, a) end
 
+---@enum CameraMultiFollowMode
+CameraMultiFollowMode = {
+    Priority = 0,
+    Average = 1,
+    AutoFrame = 2,
+}
+
 ---@class CameraComponent
 ---@field active boolean
 ---@field smoothSpeed number Smooth follow speed (0 for instant snapping, >0 for smooth lerp)
 ---@field offsetX number Horizontal follow offset in world units
 ---@field offsetY number Vertical follow offset in world units
 ---@field zoom number Camera zoom factor (1.0 = normal)
+---@field priority integer Priority value (higher priority camera wins in Priority mode)
+---@field multiFollowMode CameraMultiFollowMode|integer 0 = Priority, 1 = Average (Midpoint), 2 = AutoFrame (Smart framing)
+---@field minZoom number Minimum allowed zoom for auto-framing (default: 0.3)
+---@field maxZoom number Maximum allowed zoom for auto-framing (default: 3.0)
+---@field autoFramePadding number World unit padding around framed targets (default: 200.0)
 CameraComponent = {}
 
 ---Adds a Camera Component to an Entity
@@ -581,8 +593,9 @@ CameraComponent = {}
 ---@param offsetX? number Follow offset X in world units
 ---@param offsetY? number Follow offset Y in world units
 ---@param zoom? number Camera zoom factor (default: 1.0)
+---@param priority? integer Camera priority value (default: 0)
 ---@return CameraComponent
-function AddCamera(e, smoothSpeed, offsetX, offsetY, zoom) end
+function AddCamera(e, smoothSpeed, offsetX, offsetY, zoom, priority) end
 
 ---Gets the Camera Component of an Entity, or nil if none exists
 ---@param e Entity
@@ -1555,4 +1568,57 @@ function Camera.ScreenToWorld(sx, sy) end
 ---@param wy number World Y coordinate
 ---@return number sx, number sy
 function Camera.WorldToScreen(wx, wy) end
+
+---Sets the multi-target follow strategy
+---@param mode CameraMultiFollowMode|integer|string 0 / "priority", 1 / "average", 2 / "auto_frame"
+function Camera.SetMultiFollowMode(mode) end
+
+---Gets the current multi-target follow strategy name ("priority", "average", "auto_frame")
+---@return string
+function Camera.GetMultiFollowMode() end
+
+---Adds an entity to the multi-target camera follow group
+---@param entity Entity The entity to follow
+function Camera.AddFollowTarget(entity) end
+
+---Removes an entity from the multi-target camera follow group
+---@param entity Entity The entity to remove
+function Camera.RemoveFollowTarget(entity) end
+
+---Clears all entities from the multi-target follow group
+function Camera.ClearFollowTargets() end
+
+---Sets a group of entities for the camera to follow together
+---@param targets Entity[] Array of entities to track
+function Camera.FollowGroup(targets) end
+
+---Returns the list of entities currently followed in the group
+---@return Entity[]
+function Camera.GetFollowTargets() end
+
+---Sets the padding (margin) around framed targets when in AutoFrame mode
+---@param padding number World units padding (default: 200.0)
+function Camera.SetAutoFramePadding(padding) end
+
+---Gets the padding around framed targets when in AutoFrame mode
+---@return number
+function Camera.GetAutoFramePadding() end
+
+---Sets the minimum and maximum allowed zoom bounds for auto-framing
+---@param minZoom number Minimum zoom (default: 0.3)
+---@param maxZoom number Maximum zoom (default: 3.0)
+function Camera.SetAutoFrameZoomLimits(minZoom, maxZoom) end
+
+---Gets the minimum and maximum allowed zoom bounds for auto-framing
+---@return number minZoom, number maxZoom
+function Camera.GetAutoFrameZoomLimits() end
+
+---Sets the designated primary camera entity (highest priority tiebreaker)
+---@param entity Entity The primary camera entity
+function Camera.SetPrimary(entity) end
+
+---Gets the designated primary camera entity (or 0 if none)
+---@return Entity
+function Camera.GetPrimary() end
+
 

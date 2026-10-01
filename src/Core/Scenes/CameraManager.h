@@ -55,6 +55,23 @@ public:
     void SetFollowOffset(float offsetX, float offsetY) { m_FollowOffset = {offsetX, offsetY}; }
     sf::Vector2f GetFollowOffset() const { return m_FollowOffset; }
 
+    // Multi-Target / Multi-Camera Follow
+    void SetMultiFollowMode(CameraMultiFollowMode mode) { m_MultiFollowMode = mode; }
+    CameraMultiFollowMode GetMultiFollowMode() const { return m_MultiFollowMode; }
+    void SetAutoFramePadding(float padding) { m_AutoFramePadding = padding; }
+    float GetAutoFramePadding() const { return m_AutoFramePadding; }
+    void SetAutoFrameZoomLimits(float minZoom, float maxZoom) { m_MinAutoZoom = minZoom; m_MaxAutoZoom = maxZoom; }
+    float GetMinAutoZoom() const { return m_MinAutoZoom; }
+    float GetMaxAutoZoom() const { return m_MaxAutoZoom; }
+
+    void AddFollowTarget(Entity entity);
+    void RemoveFollowTarget(Entity entity);
+    void ClearFollowTargets();
+    const std::vector<Entity>& GetFollowTargets() const { return m_FollowTargets; }
+
+    void SetPrimaryCamera(Entity entity) { m_PrimaryCamera = entity; }
+    Entity GetPrimaryCamera() const { return m_PrimaryCamera; }
+
     // Bounds Constraint
     void SetBounds(float minX, float minY, float maxX, float maxY, bool clampEdges = true);
     void ClearBounds() { m_HasBounds = false; }
@@ -96,6 +113,13 @@ private:
     float m_FollowSpeed = 0.0f;
     sf::Vector2f m_FollowOffset = {0.f, 0.f};
     bool m_ManualFollowDisabled = false;
+
+    CameraMultiFollowMode m_MultiFollowMode = CameraMultiFollowMode::Average;
+    float m_AutoFramePadding = 200.0f;
+    float m_MinAutoZoom = 0.3f;
+    float m_MaxAutoZoom = 3.0f;
+    std::vector<Entity> m_FollowTargets;
+    Entity m_PrimaryCamera = 0;
 
     // Bounds
     bool m_HasBounds = false;
