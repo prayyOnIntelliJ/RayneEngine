@@ -15,6 +15,7 @@
 #include "TimerManager.h"
 #include "TweenManager.h"
 #include "../Scenes/SceneSerializer.h"
+#include "../Scenes/CameraManager.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -259,15 +260,6 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     });
 
     s_Lua.set_function("HasSprite", [&](const Entity e) -> bool { return registry.HasComponent<SpriteComponent>(e); });
-
-    s_Lua.set_function("AddCamera", [&](const Entity e) { registry.AddComponent(e, CameraComponent{true}); });
-
-    s_Lua.set_function("RemoveCamera", [&](const Entity e) {
-        if (registry.HasComponent<CameraComponent>(e))
-            registry.RemoveComponent<CameraComponent>(e);
-    });
-
-    s_Lua.set_function("HasCamera", [&](const Entity e) -> bool { return registry.HasComponent<CameraComponent>(e); });
 
     s_Lua.set_function("AddCollision", [&](const Entity e, sol::optional<int> channel) {
         registry.AddComponent(e, CollisionComponent{channel.value_or(0)});
@@ -709,6 +701,7 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
     std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
 
     PhysicsSystem::RegisterLua(s_Lua, registry);
+    CameraManager::RegisterLua(s_Lua, registry);
 }
 
 sol::state &LuaState::GetLua() { return s_Lua; }

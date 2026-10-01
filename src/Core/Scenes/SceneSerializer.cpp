@@ -106,7 +106,18 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             }
         }
 
-        if (j.contains("camera") && j["camera"] == true) { registry.AddComponent(entity, CameraComponent{true}); }
+        if (j.contains("camera") && (j["camera"] == true || j["camera"].is_object()))
+        {
+            CameraComponent cam{true};
+            if (j["camera"].is_object()) {
+                cam.active = j["camera"].value("active", true);
+                cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
+                cam.offsetX = j["camera"].value("offsetX", 0.0f);
+                cam.offsetY = j["camera"].value("offsetY", 0.0f);
+                cam.zoom = j["camera"].value("zoom", 1.0f);
+            }
+            registry.AddComponent(entity, cam);
+        }
 
         if (j.contains("collision")) 
         { 
@@ -302,7 +313,18 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             }
         }
 
-        if (j.contains("camera") && j["camera"] == true) { registry.AddComponent(entity, CameraComponent{true}); }
+        if (j.contains("camera") && (j["camera"] == true || j["camera"].is_object()))
+        {
+            CameraComponent cam{true};
+            if (j["camera"].is_object()) {
+                cam.active = j["camera"].value("active", true);
+                cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
+                cam.offsetX = j["camera"].value("offsetX", 0.0f);
+                cam.offsetY = j["camera"].value("offsetY", 0.0f);
+                cam.zoom = j["camera"].value("zoom", 1.0f);
+            }
+            registry.AddComponent(entity, cam);
+        }
 
         if (j.contains("collision")) 
         { 

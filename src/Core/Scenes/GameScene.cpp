@@ -1,4 +1,5 @@
 #include "GameScene.h"
+#include "CameraManager.h"
 #include "../Scenes/SceneManager.h"
 #include <iostream>
 #include "../Application/Application.h"
@@ -215,7 +216,8 @@ void GameScene::OnEnter()
         + " - RayneEngine " + Rayne::VersionString());
 #endif
 
-    m_Camera = m_Window.getDefaultView();
+    CameraManager::Get().Init(m_Window.getDefaultView(), &m_Window);
+    m_Camera = CameraManager::Get().GetView();
     m_LastCollisions.clear();
     PhysicsSystem::Reset();
 
@@ -277,7 +279,7 @@ void GameScene::OnEnter()
 
     EventManager::Get().SubscribeInput([this](const sf::Event &event) {
         sol::state &lua = LuaState::GetLua();
-        sol::table eventTable = CreateInputEventTable(lua, event, m_Window, m_Camera);
+        sol::table eventTable = CreateInputEventTable(lua, event, m_Window, CameraManager::Get().GetView());
         lua["__last_input_event"] = eventTable;
 
         m_Registry.ForEach<ScriptComponent>([&eventTable](Entity, ScriptComponent &sc) {
@@ -332,6 +334,7 @@ void GameScene::OnExit()
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();
     EventManager::Get().Clear();
+    CameraManager::Get().Reset();
 
     AudioManager::Get().StopAllSounds();
     AudioManager::Get().StopMusic();
@@ -512,8 +515,8 @@ void GameScene::Update(float deltaTime)
         HierarchySystem::UpdateWorldTransforms(m_Registry);
     }
 
-    m_Registry.ForEach<TransformComponent, CameraComponent>(
-        [this](Entity, TransformComponent &t, CameraComponent &c) { if (c.active) { m_Camera.setCenter(t.worldX, t.worldY); } });
+    CameraManager::Get().Update(effectiveDt, m_Registry);
+    m_Camera = CameraManager::Get().GetView();
 
     UIManager::Get().ClearClickedButton();
 }
@@ -523,6 +526,7 @@ void GameScene::Render(sf::RenderWindow &window)
     sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
     uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
 
+    m_Camera = CameraManager::Get().GetView();
     window.setView(m_Camera);
 
     struct RenderEntry {

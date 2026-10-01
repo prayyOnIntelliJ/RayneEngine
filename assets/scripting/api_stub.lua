@@ -567,9 +567,27 @@ function HasSprite(e) end
 ---@param a? number
 function SetColor(e, r, g, b, a) end
 
+---@class CameraComponent
+---@field active boolean
+---@field smoothSpeed number Smooth follow speed (0 for instant snapping, >0 for smooth lerp)
+---@field offsetX number Horizontal follow offset in world units
+---@field offsetY number Vertical follow offset in world units
+---@field zoom number Camera zoom factor (1.0 = normal)
+CameraComponent = {}
+
 ---Adds a Camera Component to an Entity
 ---@param e Entity
-function AddCamera(e) end
+---@param smoothSpeed? number Smooth follow speed (0 for instant snapping, >0 for smooth lerp)
+---@param offsetX? number Follow offset X in world units
+---@param offsetY? number Follow offset Y in world units
+---@param zoom? number Camera zoom factor (default: 1.0)
+---@return CameraComponent
+function AddCamera(e, smoothSpeed, offsetX, offsetY, zoom) end
+
+---Gets the Camera Component of an Entity, or nil if none exists
+---@param e Entity
+---@return CameraComponent|nil
+function GetCamera(e) end
 
 ---Removes the Camera Component from an Entity
 ---@param e Entity
@@ -1393,4 +1411,148 @@ function Physics.SetFixedTimestep(dt) end
 
 ---Gets the fixed simulation timestep for physics
 ---@return number dt The timestep duration in seconds
-function Physics.GetFixedTimestep() end
+function Physics.GetFixedTimestep() end
+
+---@class Camera
+Camera = {}
+
+---Sets the absolute world position of the camera center
+---@param x number World X coordinate
+---@param y number World Y coordinate
+function Camera.SetPosition(x, y) end
+
+---Gets the current world position of the camera center
+---@return number x, number y
+function Camera.GetPosition() end
+
+---Gets the current world X position of the camera center
+---@return number
+function Camera.GetX() end
+
+---Gets the current world Y position of the camera center
+---@return number
+function Camera.GetY() end
+
+---Moves the camera center by a relative delta (in world units)
+---@param dx number Delta X
+---@param dy number Delta Y
+function Camera.Move(dx, dy) end
+
+---Sets the camera zoom factor (1.0 = default 1:1, >1 = zoomed in, <1 = zoomed out)
+---@param zoom number
+function Camera.SetZoom(zoom) end
+
+---Gets the current camera zoom factor
+---@return number
+function Camera.GetZoom() end
+
+---Multiplies the current camera zoom by a factor (e.g. 1.1 to zoom in, 0.9 to zoom out)
+---@param factor number
+function Camera.Zoom(factor) end
+
+---Sets the rotation of the camera in degrees
+---@param deg number Angle in degrees
+function Camera.SetRotation(deg) end
+
+---Gets the current camera rotation in degrees
+---@return number
+function Camera.GetRotation() end
+
+---Rotates the camera by a delta angle in degrees
+---@param deltaDeg number Delta angle in degrees
+function Camera.Rotate(deltaDeg) end
+
+---Sets the base size of the camera view
+---@param w number Width in units
+---@param h number Height in units
+function Camera.SetSize(w, h) end
+
+---Gets the base size of the camera view
+---@return number w, number h
+function Camera.GetSize() end
+
+---Resets the camera to default position, zoom (1.0), rotation (0.0), no shake, and no follow target
+function Camera.Reset() end
+
+---Follows an entity with optional smooth damping and positional offset
+---@param entity Entity The entity to follow
+---@param smoothSpeed? number Smooth lerp speed (0 = instant snapping, >0 = smooth lerp)
+---@param offsetX? number Follow offset X in world units
+---@param offsetY? number Follow offset Y in world units
+function Camera.Follow(entity, smoothSpeed, offsetX, offsetY) end
+
+---Stops following any target entity
+function Camera.StopFollow() end
+
+---Resumes following the target entity if one was set
+function Camera.ResumeFollow() end
+
+---Returns true if the camera is currently following an entity
+---@return boolean
+function Camera.IsFollowing() end
+
+---Returns the entity currently followed by the camera (or 0 if none)
+---@return Entity
+function Camera.GetFollowTarget() end
+
+---Sets the follow lerp speed (0 = instant, >0 = smooth lerp)
+---@param speed number
+function Camera.SetFollowSpeed(speed) end
+
+---Gets the current follow lerp speed
+---@return number
+function Camera.GetFollowSpeed() end
+
+---Sets the follow positional offset in world units
+---@param ox number Offset X
+---@param oy number Offset Y
+function Camera.SetFollowOffset(ox, oy) end
+
+---Gets the follow positional offset
+---@return number ox, number oy
+function Camera.GetFollowOffset() end
+
+---Sets world boundaries that restrict camera movement
+---@param minX number Left boundary
+---@param minY number Top boundary
+---@param maxX number Right boundary
+---@param maxY number Bottom boundary
+---@param clampEdges? boolean If true, camera edges won't show past bounds; if false, camera center is clamped (default: true)
+function Camera.SetBounds(minX, minY, maxX, maxY, clampEdges) end
+
+---Clears camera boundary limits
+function Camera.ClearBounds() end
+
+---Returns true if camera movement boundaries are active
+---@return boolean
+function Camera.HasBounds() end
+
+---Gets the active camera boundaries (minX, minY, maxX, maxY)
+---@return number minX, number minY, number maxX, number maxY
+function Camera.GetBounds() end
+
+---Triggers a screen shake effect
+---@param intensity number Shake intensity in pixels/world units
+---@param duration number Shake duration in seconds
+---@param decay? boolean Whether the shake decays smoothly over duration (default: true)
+function Camera.Shake(intensity, duration, decay) end
+
+---Immediately stops any active screen shake
+function Camera.StopShake() end
+
+---Returns true if the camera is currently shaking
+---@return boolean
+function Camera.IsShaking() end
+
+---Converts screen pixel coordinates to world coordinates taking current camera view and zoom into account
+---@param sx number Screen X coordinate
+---@param sy number Screen Y coordinate
+---@return number wx, number wy
+function Camera.ScreenToWorld(sx, sy) end
+
+---Converts world coordinates to screen pixel coordinates taking current camera view and zoom into account
+---@param wx number World X coordinate
+---@param wy number World Y coordinate
+---@return number sx, number sy
+function Camera.WorldToScreen(wx, wy) end
+

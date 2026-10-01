@@ -42,6 +42,21 @@
 ## Recent Changelog
 
 ### Added
+- **In-Game Camera System & Scripting Library (`Camera`):**
+  - Added full-featured `CameraManager` handling dynamic viewport transforms, zoom, rotation, screen shake, entity following, and bounds constraints during play mode.
+  - Added global `Camera` Lua library table for complete runtime control:
+    - **Position & Free Movement:** `Camera.SetPosition(x, y)`, `Camera.GetPosition()`, `Camera.GetX()`, `Camera.GetY()`, `Camera.Move(dx, dy)`.
+    - **Zoom:** `Camera.SetZoom(zoom)`, `Camera.GetZoom()`, `Camera.Zoom(factor)`.
+    - **Rotation:** `Camera.SetRotation(deg)`, `Camera.GetRotation()`, `Camera.Rotate(deltaDeg)`.
+    - **View Size & Reset:** `Camera.SetSize(w, h)`, `Camera.GetSize()`, `Camera.Reset()`.
+    - **Target Following:** `Camera.Follow(entity, [smoothSpeed], [offsetX], [offsetY])`, `Camera.StopFollow()`, `Camera.ResumeFollow()`, `Camera.IsFollowing()`, `Camera.GetFollowTarget()`, `Camera.SetFollowSpeed(speed)`, `Camera.GetFollowSpeed()`, `Camera.SetFollowOffset(ox, oy)`, `Camera.GetFollowOffset()`.
+    - **Boundary Constraints:** `Camera.SetBounds(minX, minY, maxX, maxY, [clampEdges=true])`, `Camera.ClearBounds()`, `Camera.HasBounds()`, `Camera.GetBounds()`.
+    - **Screen Shake:** `Camera.Shake(intensity, duration, [decay=true])`, `Camera.StopShake()`, `Camera.IsShaking()`.
+    - **Coordinate Mapping:** `Camera.ScreenToWorld(screenX, screenY)`, `Camera.WorldToScreen(worldX, worldY)` converting seamlessly with view transformations.
+  - Upgraded `CameraComponent` with `smoothSpeed`, `offsetX`, `offsetY`, and `zoom` properties.
+  - Added full interactive Inspector UI for `CameraComponent` in `EditorScene` allowing live editing of smooth follow speed, positional offsets, and zoom factors.
+  - Upgraded `AddCamera(e, [smoothSpeed], [offsetX], [offsetY], [zoom])` and added `GetCamera(e) -> CameraComponent`.
+  - Added comprehensive test script: `assets/scripting/CameraTestScript.lua`.
 - **Event-Driven Input System (`OnInputReceived` / `OnInputReceiced`):**
   - Added dedicated script callback `OnInputReceived(self, event)` (with `OnInputReceiced` alias) that triggers exclusively when hardware input arrives (keyboard, mouse, joystick, text) rather than polling every frame.
   - Added typed enum table `InputEvent` (with aliases `InputEventType`, `EventType`) supporting enum comparisons like `if event.type == InputEvent.KeyDown` or `if event.type == InputEvent.Keydown`.
@@ -286,7 +301,7 @@ The custom ECS emphasizes data locality, cache friendliness, and clean decouplin
   - `Rigidbody2DComponent`: Physics body attributes (`BodyType` dynamic/kinematic/static, `mass`, `gravityScale`, `restitution`, `drag`, `freezeRotation`).
   - `RenderComponent`: Visual representation (`sf::Color`, `sf::Vector2f size`, and `ShapeType`: Rectangle, Circle, Triangle, Pentagon, Hexagon).
   - `SpriteComponent`: Renderable SFML sprite with texture handle and dimensions; auto-loads via `ResourceManager` and computes scale on construction.
-  - `CameraComponent`: Marks an entity as the active camera focus (`bool active`).
+  - `CameraComponent`: Marks an entity as the active camera focus (`bool active`, `float smoothSpeed`, `float offsetX`, `float offsetY`, `float zoom`).
   - `CollisionComponent`: Configures collision filtering via integer `channel`, collision type (`Static`, `Solid`), collider shape (`Box`, `Circle`), and trigger flag (`isTrigger`).
   - `ScriptComponent`: Encapsulates a sol2 Lua environment, filesystem modification timestamp tracking for live hot-reloading, exported variables, and lifecycle hooks.
 
@@ -493,7 +508,8 @@ Export = {
 | `SetSpriteSize` | `(e: Entity, w: number, h: number)` | Updates rendered dimensions of sprite |
 | `HasSprite` | `(e: Entity) -> boolean` | Checks if entity has a sprite |
 | `SetColor` | `(e: Entity, r: number, g: number, b: number, [a]: number)` | Sets color of `RenderComponent` (0–255) |
-| `AddCamera` | `(e: Entity)` | Attaches camera tracking component |
+| `AddCamera` | `(e: Entity, [smoothSpeed=0.0], [ox=0.0], [oy=0.0], [zoom=1.0]) -> CameraComponent` | Attaches or updates camera tracking component |
+| `GetCamera` | `(e: Entity) -> CameraComponent \| nil` | Reads camera component reference |
 | `RemoveCamera` | `(e: Entity)` | Removes camera component |
 | `HasCamera` | `(e: Entity) -> boolean` | Checks if entity has camera tracking |
 | `AddCollision` | `(e: Entity, [channel]: integer)` | Attaches a `CollisionComponent` (default channel `0`, type `Static`) |
@@ -514,6 +530,45 @@ Export = {
 | `LoadScene` | `(sceneName: string)` | Switches active scene to `assets/scenes/<sceneName>.json` |
 
 > **Tip:** `GetTransform(e)` returns a mutable table — you can read and write `t.x`, `t.y`, `t.rotation`, `t.scaleX`, `t.scaleY` directly on the returned reference.
+
+---
+
+### In-Game Camera Library (`Camera`)
+
+| Function | Signature | Description |
+|---|---|---|
+| `Camera.SetPosition` | `(x: number, y: number)` | Sets absolute world center of the camera |
+| `Camera.GetPosition` | `() -> number, number` | Returns world center `x, y` of the camera |
+| `Camera.GetX` | `() -> number` | Returns camera center world X |
+| `Camera.GetY` | `() -> number` | Returns camera center world Y |
+| `Camera.Move` | `(dx: number, dy: number)` | Translates camera position by relative world offsets |
+| `Camera.SetZoom` | `(zoom: number)` | Sets camera zoom factor (`1.0` = normal, `>1` = in, `<1` = out) |
+| `Camera.GetZoom` | `() -> number` | Returns current camera zoom factor |
+| `Camera.Zoom` | `(factor: number)` | Multiplies camera zoom by a multiplier |
+| `Camera.SetRotation` | `(deg: number)` | Sets camera rotation angle in degrees |
+| `Camera.GetRotation` | `() -> number` | Returns camera rotation angle in degrees |
+| `Camera.Rotate` | `(deltaDeg: number)` | Rotates camera by delta angle in degrees |
+| `Camera.SetSize` | `(w: number, h: number)` | Sets base viewport dimensions |
+| `Camera.GetSize` | `() -> number, number` | Returns base viewport dimensions `w, h` |
+| `Camera.Reset` | `()` | Resets camera to default position, zoom (`1.0`), rotation (`0.0`), shake, and clears follow target |
+| `Camera.Follow` | `(e: Entity, [smoothSpeed=0.0], [ox=0.0], [oy=0.0])` | Follows entity target with optional smooth damping and offset |
+| `Camera.StopFollow` | `()` | Disables following any entity target |
+| `Camera.ResumeFollow` | `()` | Resumes following the active entity target |
+| `Camera.IsFollowing` | `() -> boolean` | Returns true if the camera is actively tracking an entity |
+| `Camera.GetFollowTarget` | `() -> Entity` | Returns tracked entity ID (or `0` if none) |
+| `Camera.SetFollowSpeed` | `(speed: number)` | Sets follow smooth damping speed (`0` for instant snapping) |
+| `Camera.GetFollowSpeed` | `() -> number` | Returns current follow damping speed |
+| `Camera.SetFollowOffset` | `(ox: number, oy: number)` | Sets camera tracking offset in world units |
+| `Camera.GetFollowOffset` | `() -> number, number` | Returns camera tracking offset `ox, oy` |
+| `Camera.SetBounds` | `(minX, minY, maxX, maxY, [clampEdges=true])` | Restricts camera movement within specified world bounding box |
+| `Camera.ClearBounds` | `()` | Clears world boundary constraints |
+| `Camera.HasBounds` | `() -> boolean` | Checks if world boundary constraints are active |
+| `Camera.GetBounds` | `() -> minX, minY, maxX, maxY` | Returns active camera boundary box coordinates |
+| `Camera.Shake` | `(intensity: number, duration: number, [decay=true])` | Triggers screenshake with optional decay over duration |
+| `Camera.StopShake` | `()` | Immediately stops active screenshake |
+| `Camera.IsShaking` | `() -> boolean` | Returns true if screenshake is currently active |
+| `Camera.ScreenToWorld` | `(sx: number, sy: number) -> number, number` | Maps screen pixel coordinates to world coordinates |
+| `Camera.WorldToScreen` | `(wx: number, wy: number) -> number, number` | Maps world coordinates to screen pixel coordinates |
 
 ---
 

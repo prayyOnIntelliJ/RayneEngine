@@ -77,6 +77,10 @@ struct SpriteComponent
 struct CameraComponent
 {
     bool active = true;
+    float smoothSpeed = 0.0f;
+    float offsetX = 0.0f;
+    float offsetY = 0.0f;
+    float zoom = 1.0f;
 };
 
 enum class CollisionType { Static, Solid };

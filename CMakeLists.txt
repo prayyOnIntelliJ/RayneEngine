@@ -85,6 +85,8 @@ add_executable(RayneEngine
         src/Core/Scenes/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
+        src/Core/Scenes/CameraManager.cpp
+        src/Core/Scenes/CameraManager.h
         src/Core/Input/InputManager.cpp
         src/Core/Input/InputManager.h
         src/Core/Scripting/EventManager.cpp
@@ -196,6 +198,8 @@ add_executable(RayneGame
         src/Core/Scenes/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
+        src/Core/Scenes/CameraManager.cpp
+        src/Core/Scenes/CameraManager.h
         src/Core/Input/InputManager.cpp
         src/Core/Input/InputManager.h
         src/Core/Scripting/EventManager.cpp

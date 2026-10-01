@@ -3275,8 +3275,38 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     if (target->entity != 0 && m_Registry.HasComponent<CameraComponent>(target->entity))
     {
-        y = DrawSectionHeader(window, "CAMERA", C_TEXT_SECONDARY, panelX, y);
+        auto &cam = m_Registry.GetComponent<CameraComponent>(target->entity);
+        y = DrawSectionHeader(window, "CAMERA", sf::Color(130, 200, 255), panelX, y);
         y = DrawRow(window, "Status", "Following Entity", panelX, y);
+
+        std::string speedDisplay = (m_ActiveField == EditField::CameraSmoothSpeed && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CameraSmoothSpeed
+                                             ? "|"
+                                             : FormatFloat(cam.smoothSpeed, 2));
+        y = DrawEditableRow(window, "Smooth Speed", speedDisplay, "edit_cam_speed", panelX, y);
+
+        std::string oxDisplay = (m_ActiveField == EditField::CameraOffsetX && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CameraOffsetX
+                                             ? "|"
+                                             : FormatFloat(cam.offsetX, 2));
+        y = DrawEditableRow(window, "Offset X", oxDisplay, "edit_cam_ox", panelX, y);
+
+        std::string oyDisplay = (m_ActiveField == EditField::CameraOffsetY && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CameraOffsetY
+                                             ? "|"
+                                             : FormatFloat(cam.offsetY, 2));
+        y = DrawEditableRow(window, "Offset Y", oyDisplay, "edit_cam_oy", panelX, y);
+
+        std::string zoomDisplay = (m_ActiveField == EditField::CameraZoom && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CameraZoom
+                                             ? "|"
+                                             : FormatFloat(cam.zoom, 2));
+        y = DrawEditableRow(window, "Zoom", zoomDisplay, "edit_cam_zoom", panelX, y);
+
         y += 4.f;
         y = DrawActionButton(window, "Remove Camera", "remove_camera", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
@@ -4499,6 +4529,34 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_Registry.RemoveComponent<CameraComponent>(target->entity);
             std::cout << "[INFO] [Inspector] CameraComponent removed from " << target->id << "\n";
             SetDirty(true);
+        } else if (btn.action == "edit_cam_speed" && target)
+        {
+            m_ActiveField = EditField::CameraSmoothSpeed;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).smoothSpeed, 2);
+            else
+                m_ActiveInputText = "0.00";
+        } else if (btn.action == "edit_cam_ox" && target)
+        {
+            m_ActiveField = EditField::CameraOffsetX;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).offsetX, 2);
+            else
+                m_ActiveInputText = "0.00";
+        } else if (btn.action == "edit_cam_oy" && target)
+        {
+            m_ActiveField = EditField::CameraOffsetY;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).offsetY, 2);
+            else
+                m_ActiveInputText = "0.00";
+        } else if (btn.action == "edit_cam_zoom" && target)
+        {
+            m_ActiveField = EditField::CameraZoom;
+            if (m_Registry.HasComponent<CameraComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CameraComponent>(target->entity).zoom, 2);
+            else
+                m_ActiveInputText = "1.00";
         } else if (btn.action == "add_collision" && target)
         {
             m_Registry.AddComponent(target->entity, CollisionComponent{0});
@@ -5308,7 +5366,17 @@ void EditorScene::LoadFromJson(const std::string &path)
             }
         }
 
-        if (j.contains("camera")) { m_Registry.AddComponent(obj.entity, CameraComponent{true}); }
+        if (j.contains("camera")) {
+            CameraComponent cam{true};
+            if (j["camera"].is_object()) {
+                cam.active = j["camera"].value("active", true);
+                cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
+                cam.offsetX = j["camera"].value("offsetX", 0.0f);
+                cam.offsetY = j["camera"].value("offsetY", 0.0f);
+                cam.zoom = j["camera"].value("zoom", 1.0f);
+            }
+            m_Registry.AddComponent(obj.entity, cam);
+        }
 
         if (j.contains("collision"))
         {
@@ -5577,6 +5645,34 @@ void EditorScene::CommitActiveField()
                     else
                         m_Registry.AddComponent(inputTarget->entity, VelocityComponent{0.f, val});
                 }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraSmoothSpeed)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).smoothSpeed = std::max(0.0f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraOffsetX)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).offsetX = std::stof(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraOffsetY)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).offsetY = std::stof(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CameraZoom)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CameraComponent>(inputTarget->entity).zoom = std::max(0.01f, std::stof(m_ActiveInputText));
             } catch (...) {}
         }
         SetDirty(true);
@@ -7161,7 +7257,16 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
         }
     }
 
-    if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) { j["camera"] = true; }
+    if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity)) {
+        auto &cam = m_Registry.GetComponent<CameraComponent>(obj.entity);
+        j["camera"] = {
+            {"active", cam.active},
+            {"smoothSpeed", cam.smoothSpeed},
+            {"offsetX", cam.offsetX},
+            {"offsetY", cam.offsetY},
+            {"zoom", cam.zoom}
+        };
+    }
 
     if (obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity)) {
         auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
@@ -7310,7 +7415,17 @@ void EditorScene::DeserializeObject(const json& j) {
         }
     }
 
-    if (j.contains("camera")) { m_Registry.AddComponent(obj.entity, CameraComponent{true}); }
+    if (j.contains("camera")) {
+        CameraComponent cam{true};
+        if (j["camera"].is_object()) {
+            cam.active = j["camera"].value("active", true);
+            cam.smoothSpeed = j["camera"].value("smoothSpeed", 0.0f);
+            cam.offsetX = j["camera"].value("offsetX", 0.0f);
+            cam.offsetY = j["camera"].value("offsetY", 0.0f);
+            cam.zoom = j["camera"].value("zoom", 1.0f);
+        }
+        m_Registry.AddComponent(obj.entity, cam);
+    }
 
     if (j.contains("collision")) {
         CollisionType cType = CollisionType::Solid;

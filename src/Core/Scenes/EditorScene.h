@@ -285,6 +285,10 @@ private:
         RigidbodyDrag,
         VelocityDX,
         VelocityDY,
+        CameraSmoothSpeed,
+        CameraOffsetX,
+        CameraOffsetY,
+        CameraZoom,
         UIText,
         ScriptProperty
     };
