@@ -48,7 +48,11 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
 
     s_Lua.new_usertype<VelocityComponent>("Velocity",
                                           "dx", &VelocityComponent::dx,
-                                          "dy", &VelocityComponent::dy);
+                                          "dy", &VelocityComponent::dy,
+                                          "vx", &VelocityComponent::dx,
+                                          "vy", &VelocityComponent::dy,
+                                          "x", &VelocityComponent::dx,
+                                          "y", &VelocityComponent::dy);
 
     s_Lua.set_function("CreateEntity", [&]() { return registry.CreateEntity(); });
 
@@ -188,8 +192,15 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return std::make_tuple(1.f, 1.f);
     });
 
-    s_Lua.set_function("AddVelocity", [&](const Entity e, const float dx, const float dy) {
-        registry.AddComponent(e, VelocityComponent{dx, dy});
+    s_Lua.set_function("AddVelocity", [&](const Entity e, const float dx, const float dy) -> VelocityComponent& {
+        if (registry.HasComponent<VelocityComponent>(e))
+        {
+            auto &v = registry.GetComponent<VelocityComponent>(e);
+            v.dx = dx;
+            v.dy = dy;
+            return v;
+        }
+        return registry.AddComponent(e, VelocityComponent{dx, dy});
     });
 
     s_Lua.set_function("GetVelocity", [&](const Entity e) -> VelocityComponent * {
@@ -208,6 +219,15 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
             v.dx = dx;
             v.dy = dy;
         }
+        else
+        {
+            registry.AddComponent(e, VelocityComponent{dx, dy});
+        }
+    });
+
+    s_Lua.set_function("RemoveVelocity", [&](const Entity e) {
+        if (registry.HasComponent<VelocityComponent>(e))
+            registry.RemoveComponent<VelocityComponent>(e);
     });
 
     s_Lua.set_function("AddSprite", [&](const Entity e, const std::string &path, const float w, const float h) {

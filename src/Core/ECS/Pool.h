@@ -30,7 +30,11 @@ public:
 
     T &Add(const Entity e, T component)
     {
-        if (Has(e)) return Get(e);
+        if (Has(e))
+        {
+            data[entityToIndex[e]] = std::move(component);
+            return data[entityToIndex[e]];
+        }
 
         entityToIndex[e] = data.size();
         data.push_back(std::move(component));

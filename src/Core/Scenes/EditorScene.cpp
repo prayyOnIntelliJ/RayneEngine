@@ -485,10 +485,20 @@ void EditorScene::HandleMenuAction(const std::string &action)
     {
         if (m_Selected)
         {
-            const ObjectType t = (m_Selected->objectType == ObjectType::Sprite)
-                                     ? ObjectType::Rectangle
-                                     : m_Selected->objectType;
-            AddObject(m_Selected->shape.getPosition() + sf::Vector2f(m_GridSize, 0.f), t);
+            json j = SerializeObject(*m_Selected);
+            std::string newId = NextId();
+            j["id"] = newId;
+            j["x"] = j.value("x", 0.f) + m_GridSize;
+            j["y"] = j.value("y", 0.f) + m_GridSize;
+            DeserializeObject(j);
+            EditorObject* newObj = ObjectById(newId);
+            if (newObj) {
+                SelectObject(newObj, false);
+                auto cmd = std::make_shared<ObjectStateCommand>(newId, json(nullptr), SerializeObject(*newObj));
+                m_UndoStack.push_back(cmd);
+                m_RedoStack.clear();
+                SetDirty(true);
+            }
         }
     } else if (action == "copy")
     {
@@ -1268,225 +1278,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         } else if (
             event.text.unicode == '\r' || event.text.unicode == '\n')
         {
-            EditorObject* inputTarget = GetInspectedObject();
-            if (inputTarget && !m_ActiveInputText.empty())
-            {
-                if (m_ActiveField == EditField::Name)
-                {
-                    if (m_InspectorLocked && m_LockedObjectId == inputTarget->id)
-                    {
-                        m_LockedObjectId = m_ActiveInputText;
-                    }
-                    inputTarget->id = m_ActiveInputText;
-                    UpdateStatusText();
-                } else if (m_ActiveField == EditField::Tag)
-                {
-                    inputTarget->tag = m_ActiveInputText;
-                    if (inputTarget->entity != 0)
-                    {
-                        if (m_Registry.HasComponent<TagComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<TagComponent>(inputTarget->entity).tag = inputTarget->tag;
-                        else
-                            m_Registry.AddComponent(inputTarget->entity, TagComponent{inputTarget->tag});
-                    }
-                    UpdateStatusText();
-                } else if (m_ActiveField == EditField::Script)
-                {
-                    std::string fullPath = std::string(ASSET_PATH) + "/" + m_ActiveInputText + ".lua";
-                    std::ifstream check(fullPath);
-                    if (!check.is_open())
-                    {
-                        std::ofstream newFile(fullPath);
-                        newFile << "function OnCreate()\n\nend\n\n";
-                        newFile << "function OnUpdate(dt)\n\nend\n";
-                        newFile.close();
-                        std::cout << "[INFO] [Inspector] Created new Lua script file: " << fullPath << "\n";
-                    }
-                    check.close();
-                    auto &sc = m_Registry.AddComponent(inputTarget->entity,
-                                                       ScriptComponent(LuaState::GetLua(), fullPath));
-                    sc.SetEntity(inputTarget->entity);
-                    inputTarget->scriptPath = fullPath;
-                    
-                    for (const auto& prop : sc.GetExportedProperties()) {
-                        inputTarget->scriptProperties[prop.name] = prop;
-                    }
-
-                    std::cout << "[INFO] [Inspector] Script assigned to entity: " << fullPath << "\n";
-                } else if (m_ActiveField == EditField::TransformX || m_ActiveField == EditField::TransformY)
-                {
-                    try
-                    {
-                        float val = std::stof(m_ActiveInputText);
-                        sf::Vector2f pos = inputTarget->localPosition;
-                        if (m_ActiveField == EditField::TransformX) pos.x = val;
-                        else pos.y = val;
-                        inputTarget->localPosition = pos;
-                        UpdateWorldTransforms();
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::Rotation)
-                {
-                    try
-                    {
-                        float val = std::stof(m_ActiveInputText);
-                        inputTarget->rotation = val;
-                        UpdateWorldTransforms();
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::ScaleX || m_ActiveField == EditField::ScaleY)
-                {
-                    try
-                    {
-                        float val = std::stof(m_ActiveInputText);
-                        if (m_ActiveField == EditField::ScaleX) inputTarget->scaleX = val;
-                        else inputTarget->scaleY = val;
-                        UpdateWorldTransforms();
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::SizeW || m_ActiveField == EditField::SizeH)
-                {
-                    try
-                    {
-                        float val = std::max(4.f, std::stof(m_ActiveInputText));
-                        sf::Vector2f size = inputTarget->shape.getSize();
-                        if (m_ActiveField == EditField::SizeW) size.x = val;
-                        else size.y = val;
-                        inputTarget->shape.setSize(size);
-
-                        if (IsPolygonType(inputTarget->objectType))
-                        {
-                            float rx = size.x * 0.5f;
-                            float ry = size.y * 0.5f;
-                            if (rx > 0.001f && ry > 0.001f)
-                            {
-                                inputTarget->circleShape.setRadius(rx);
-                                inputTarget->circleShape.setScale(inputTarget->scaleX, inputTarget->scaleY * (ry / rx));
-                            }
-                        }
-
-                        if (inputTarget->previewTexture)
-                        {
-                            const sf::Vector2u ts = inputTarget->previewTexture->getSize();
-                            if (ts.x > 0 && ts.y > 0)
-                                inputTarget->previewSprite.setScale((size.x / ts.x) * inputTarget->scaleX, (size.y / ts.y) * inputTarget->scaleY);
-                        }
-
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<RenderComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<RenderComponent>(inputTarget->entity).size = size;
-
-                        if (!inputTarget->spritePath.empty() && inputTarget->entity != 0 &&
-                            m_Registry.HasComponent<SpriteComponent>(inputTarget->entity))
-                        {
-                            m_Registry.GetComponent<SpriteComponent>(inputTarget->entity) =
-                                    SpriteComponent(inputTarget->spritePath, size);
-                        }
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::ColorR || m_ActiveField == EditField::ColorG ||
-                           m_ActiveField == EditField::ColorB)
-                {
-                    try
-                    {
-                        int val = std::clamp(std::stoi(m_ActiveInputText), 0, 255);
-                        if (m_ActiveField == EditField::ColorR) inputTarget->color.r = val;
-                        else if (m_ActiveField == EditField::ColorG) inputTarget->color.g = val;
-                        else inputTarget->color.b = val;
-                        inputTarget->shape.setFillColor(inputTarget->color);
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::ScriptProperty)
-                {
-                    bool handledAsVec2 = false;
-                    if (m_ActiveScriptProperty.size() > 2)
-                    {
-                        std::string suffix = m_ActiveScriptProperty.substr(m_ActiveScriptProperty.size() - 2);
-                        if (suffix == "_x" || suffix == "_y")
-                        {
-                            std::string baseName = m_ActiveScriptProperty.substr(0, m_ActiveScriptProperty.size() - 2);
-                            auto baseIt = inputTarget->scriptProperties.find(baseName);
-                            if (baseIt != inputTarget->scriptProperties.end() &&
-                                baseIt->second.type == ScriptComponent::PropertyType::Vec2)
-                            {
-                                handledAsVec2 = true;
-                                try {
-                                    float val = std::stof(m_ActiveInputText);
-                                    if (suffix == "_x") baseIt->second.floatVal = val;
-                                    else baseIt->second.vec2Y = val;
-                                    if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
-                                        m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(baseIt->second);
-                                } catch (...) {}
-                            }
-                        }
-                    }
-
-                    if (!handledAsVec2)
-                    {
-                        auto it = inputTarget->scriptProperties.find(m_ActiveScriptProperty);
-                        if (it != inputTarget->scriptProperties.end())
-                        {
-                            auto& prop = it->second;
-                            try {
-                                if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = std::stoi(m_ActiveInputText);
-                                else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = std::stof(m_ActiveInputText);
-                                else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = (m_ActiveInputText == "true" || m_ActiveInputText == "1");
-                                else if (prop.type == ScriptComponent::PropertyType::String ||
-                                         prop.type == ScriptComponent::PropertyType::Template ||
-                                         prop.type == ScriptComponent::PropertyType::Image ||
-                                         prop.type == ScriptComponent::PropertyType::Entity) prop.stringVal = m_ActiveInputText;
-
-                                if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
-                                {
-                                    m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(prop);
-                                }
-                            } catch (...) {}
-                        }
-                    }
-                } else if (m_ActiveField == EditField::ZIndex)
-                {
-                    try
-                    {
-                        inputTarget->zIndex = std::stoi(m_ActiveInputText);
-                        SyncToRegistry();
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::CollisionChannel)
-                {
-                    try
-                    {
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).channel = std::stoi(m_ActiveInputText);
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::RigidbodyMass)
-                {
-                    try
-                    {
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).mass = std::max(0.001f, std::stof(m_ActiveInputText));
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::RigidbodyGravity)
-                {
-                    try
-                    {
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).gravityScale = std::stof(m_ActiveInputText);
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::RigidbodyRestitution)
-                {
-                    try
-                    {
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).restitution = std::clamp(std::stof(m_ActiveInputText), 0.0f, 1.0f);
-                    } catch (...) {}
-                } else if (m_ActiveField == EditField::RigidbodyDrag)
-                {
-                    try
-                    {
-                        if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
-                            m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).drag = std::max(0.0f, std::stof(m_ActiveInputText));
-                    } catch (...) {}
-                }
-                SetDirty(true);
-            }
-
-            m_ActiveField = EditField::None;
-            m_ActiveInputText.clear();
-            m_InputSelectionStart = -1;
-            m_InputSelectionEnd = -1;
+            CommitActiveField();
         } else if (event.text.unicode >= 32 && event.text.unicode < 128)
         {
             char c = static_cast<char>(event.text.unicode);
@@ -1794,24 +1586,20 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         DeleteSelected();
                     } else if (action == "duplicate" && m_ContextObject)
                     {
-                        EditorObject newObj = *m_ContextObject;
-                        newObj.id = NextId();
-                        newObj.selected = false;
-                        newObj.shape.setPosition(m_ContextObject->shape.getPosition() + sf::Vector2f(20.f, 20.f));
-                        if (newObj.objectType == ObjectType::Circle)
-                            newObj.circleShape.setPosition(
-                                newObj.shape.getPosition());
-                        if (newObj.entity != 0)
-                        {
-                            newObj.entity = m_Registry.CreateEntity();
-                            m_Registry.AddComponent(newObj.entity, TransformComponent{
-                                                        newObj.shape.getPosition().x, newObj.shape.getPosition().y
-                                                    });
-                            m_Registry.AddComponent(newObj.entity,
-                                                    RenderComponent{newObj.color, newObj.shape.getSize(), MapToShapeType(newObj.objectType)});
-                            if (!newObj.spritePath.empty()) ApplySpriteToObject(newObj, newObj.spritePath);
+                        json j = SerializeObject(*m_ContextObject);
+                        std::string newId = NextId();
+                        j["id"] = newId;
+                        j["x"] = j.value("x", 0.f) + 20.f;
+                        j["y"] = j.value("y", 0.f) + 20.f;
+                        DeserializeObject(j);
+                        EditorObject* newObj = ObjectById(newId);
+                        if (newObj) {
+                            SelectObject(newObj, false);
+                            auto cmd = std::make_shared<ObjectStateCommand>(newId, json(nullptr), SerializeObject(*newObj));
+                            m_UndoStack.push_back(cmd);
+                            m_RedoStack.clear();
+                            SetDirty(true);
                         }
-                        m_Objects.push_back(std::move(newObj));
                     } else if (action == "save_template" && m_ContextObject)
                     {
                         SaveAsTemplate(m_ContextObject, "");
@@ -1942,7 +1730,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (inBrowser) return;
 
-        m_ActiveField = EditField::None;
+        CommitActiveField();
 
         sf::Vector2f pos = MouseWorldPos();
 
@@ -3460,9 +3248,22 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     if (target->entity != 0 && m_Registry.HasComponent<VelocityComponent>(target->entity))
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(target->entity);
-        y = DrawSectionHeader(window, "VELOCITY", C_TEXT_SECONDARY, panelX, y);
-        y = DrawRow(window, "Velocity X", FormatFloat(vel.dx, 2), panelX, y);
-        y = DrawRow(window, "Velocity Y", FormatFloat(vel.dy, 2), panelX, y);
+        y = DrawSectionHeader(window, "VELOCITY", sf::Color(100, 220, 160), panelX, y);
+
+        std::string vxDisplay = (m_ActiveField == EditField::VelocityDX && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::VelocityDX
+                                             ? "|"
+                                             : FormatFloat(vel.dx, 2));
+        y = DrawEditableRow(window, "Velocity X", vxDisplay, "edit_vel_dx", panelX, y);
+
+        std::string vyDisplay = (m_ActiveField == EditField::VelocityDY && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::VelocityDY
+                                             ? "|"
+                                             : FormatFloat(vel.dy, 2));
+        y = DrawEditableRow(window, "Velocity Y", vyDisplay, "edit_vel_dy", panelX, y);
+
         y += 4.f;
         y = DrawActionButton(window, "Remove Velocity", "remove_velocity", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
@@ -4671,6 +4472,20 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_Registry.RemoveComponent<VelocityComponent>(target->entity);
             std::cout << "[INFO] [Inspector] VelocityComponent removed from " << target->id << "\n";
             SetDirty(true);
+        } else if (btn.action == "edit_vel_dx" && target)
+        {
+            m_ActiveField = EditField::VelocityDX;
+            if (m_Registry.HasComponent<VelocityComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<VelocityComponent>(target->entity).dx, 2);
+            else
+                m_ActiveInputText = "0.00";
+        } else if (btn.action == "edit_vel_dy" && target)
+        {
+            m_ActiveField = EditField::VelocityDY;
+            if (m_Registry.HasComponent<VelocityComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<VelocityComponent>(target->entity).dy, 2);
+            else
+                m_ActiveInputText = "0.00";
         } else if (btn.action == "add_camera" && target)
         {
             m_Registry.ForEach<CameraComponent>([this](Entity e, CameraComponent &) {
@@ -4888,12 +4703,14 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_ActiveInputText = target->tag;
         } else if (btn.action == "edit_x" && target)
         {
+            CommitActiveField();
             m_ActiveField = EditField::TransformX;
-            m_ActiveInputText = std::to_string((int) target->shape.getPosition().x);
+            m_ActiveInputText = std::to_string((int) target->localPosition.x);
         } else if (btn.action == "edit_y" && target)
         {
+            CommitActiveField();
             m_ActiveField = EditField::TransformY;
-            m_ActiveInputText = std::to_string((int) target->shape.getPosition().y);
+            m_ActiveInputText = std::to_string((int) target->localPosition.y);
         } else if (btn.action == "edit_rot" && target)
         {
             m_ActiveField = EditField::Rotation;
@@ -5281,6 +5098,9 @@ void EditorScene::DrawDeleteModal(sf::RenderWindow &window)
 
 void EditorScene::SaveToJson(const std::string &path)
 {
+    CommitActiveField();
+    SyncToRegistry();
+
     std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
     if (!std::filesystem::exists(uiPath))
@@ -5372,7 +5192,7 @@ void EditorScene::LoadFromJson(const std::string &path)
         obj.parentId = j.value("parent", "");
         obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
         obj.shape.setSize({j["width"], j["height"]});
-        obj.localPosition = {j["x"].get<float>(), j["y"].get<float>()};
+        obj.localPosition = {j.value("x", 0.f), j.value("y", 0.f)};
         obj.shape.setPosition(obj.localPosition);
         if (j.contains("rotation")) obj.rotation = j["rotation"];
         if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
@@ -5438,10 +5258,12 @@ void EditorScene::LoadFromJson(const std::string &path)
             obj.templatePath = tp;
         }
 
-        if (j.contains("velocity"))
-            m_Registry.AddComponent(obj.entity, VelocityComponent{
-                                        j["velocity"]["dx"], j["velocity"]["dy"]
-                                    });
+        if (j.contains("velocity") && j["velocity"].is_object())
+        {
+            float dx = j["velocity"].value("dx", 0.f);
+            float dy = j["velocity"].value("dy", 0.f);
+            m_Registry.AddComponent(obj.entity, VelocityComponent{dx, dy});
+        }
 
         if (j.contains("script"))
         {
@@ -5464,7 +5286,21 @@ void EditorScene::LoadFromJson(const std::string &path)
                     if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
                     else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
                     else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
+                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template ||
+                             prop.type == ScriptComponent::PropertyType::Image || prop.type == ScriptComponent::PropertyType::Entity) prop.stringVal = it.value()["value"].get<std::string>();
+                    else if (prop.type == ScriptComponent::PropertyType::Vec2) {
+                        if (it.value()["value"].is_object()) {
+                            prop.floatVal = it.value()["value"].value("x", 0.f);
+                            prop.vec2Y = it.value()["value"].value("y", 0.f);
+                        }
+                    }
+                    else if (prop.type == ScriptComponent::PropertyType::Color) {
+                        if (it.value()["value"].is_object()) {
+                            prop.colorR = it.value()["value"].value("r", 255);
+                            prop.colorG = it.value()["value"].value("g", 255);
+                            prop.colorB = it.value()["value"].value("b", 255);
+                        }
+                    }
                     
                     obj.scriptProperties[prop.name] = prop;
                     sc.SetExportedProperty(prop);
@@ -5503,6 +5339,8 @@ void EditorScene::LoadFromJson(const std::string &path)
             rb.drag = j["rigidbody"].value("drag", 0.05f);
             rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
             m_Registry.AddComponent(obj.entity, rb);
+            if (!m_Registry.HasComponent<VelocityComponent>(obj.entity))
+                m_Registry.AddComponent(obj.entity, VelocityComponent{0.f, 0.f});
         }
 
         m_Registry.AddComponent(obj.entity, HierarchyComponent{});
@@ -5512,6 +5350,242 @@ void EditorScene::LoadFromJson(const std::string &path)
     UpdateWorldTransforms();
     SetDirty(false);
     UpdateStatusText();
+}
+
+void EditorScene::CommitActiveField()
+{
+    if (m_ActiveField == EditField::None) return;
+
+    EditorObject* inputTarget = GetInspectedObject();
+    if (inputTarget && !m_ActiveInputText.empty())
+    {
+        if (m_ActiveField == EditField::Name)
+        {
+            if (m_InspectorLocked && m_LockedObjectId == inputTarget->id)
+            {
+                m_LockedObjectId = m_ActiveInputText;
+            }
+            inputTarget->id = m_ActiveInputText;
+            UpdateStatusText();
+        } else if (m_ActiveField == EditField::Tag)
+        {
+            inputTarget->tag = m_ActiveInputText;
+            if (inputTarget->entity != 0)
+            {
+                if (m_Registry.HasComponent<TagComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<TagComponent>(inputTarget->entity).tag = inputTarget->tag;
+                else
+                    m_Registry.AddComponent(inputTarget->entity, TagComponent{inputTarget->tag});
+            }
+            UpdateStatusText();
+        } else if (m_ActiveField == EditField::Script)
+        {
+            std::string fullPath = std::string(ASSET_PATH) + "/" + m_ActiveInputText + ".lua";
+            std::ifstream check(fullPath);
+            if (!check.is_open())
+            {
+                std::ofstream newFile(fullPath);
+                newFile << "function OnCreate()\n\nend\n\n";
+                newFile << "function OnUpdate(dt)\n\nend\n";
+                newFile.close();
+                std::cout << "[INFO] [Inspector] Created new Lua script file: " << fullPath << "\n";
+            }
+            check.close();
+            auto &sc = m_Registry.AddComponent(inputTarget->entity,
+                                               ScriptComponent(LuaState::GetLua(), fullPath));
+            sc.SetEntity(inputTarget->entity);
+            inputTarget->scriptPath = fullPath;
+            
+            for (const auto& prop : sc.GetExportedProperties()) {
+                inputTarget->scriptProperties[prop.name] = prop;
+            }
+
+            std::cout << "[INFO] [Inspector] Script assigned to entity: " << fullPath << "\n";
+        } else if (m_ActiveField == EditField::TransformX || m_ActiveField == EditField::TransformY)
+        {
+            try
+            {
+                float val = std::stof(m_ActiveInputText);
+                sf::Vector2f pos = inputTarget->localPosition;
+                if (m_ActiveField == EditField::TransformX) pos.x = val;
+                else pos.y = val;
+                inputTarget->localPosition = pos;
+                UpdateWorldTransforms();
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::Rotation)
+        {
+            try
+            {
+                float val = std::stof(m_ActiveInputText);
+                inputTarget->rotation = val;
+                UpdateWorldTransforms();
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ScaleX || m_ActiveField == EditField::ScaleY)
+        {
+            try
+            {
+                float val = std::stof(m_ActiveInputText);
+                if (m_ActiveField == EditField::ScaleX) inputTarget->scaleX = val;
+                else inputTarget->scaleY = val;
+                UpdateWorldTransforms();
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::SizeW || m_ActiveField == EditField::SizeH)
+        {
+            try
+            {
+                float val = std::max(4.f, std::stof(m_ActiveInputText));
+                sf::Vector2f size = inputTarget->shape.getSize();
+                if (m_ActiveField == EditField::SizeW) size.x = val;
+                else size.y = val;
+                inputTarget->shape.setSize(size);
+
+                if (IsPolygonType(inputTarget->objectType))
+                {
+                    float rx = size.x * 0.5f;
+                    float ry = size.y * 0.5f;
+                    if (rx > 0.001f && ry > 0.001f)
+                    {
+                        inputTarget->circleShape.setRadius(rx);
+                        inputTarget->circleShape.setScale(inputTarget->scaleX, inputTarget->scaleY * (ry / rx));
+                    }
+                }
+                if (inputTarget->objectType == ObjectType::Sprite && inputTarget->previewTexture)
+                {
+                    const sf::Vector2u ts = inputTarget->previewTexture->getSize();
+                    if (ts.x > 0 && ts.y > 0)
+                        inputTarget->previewSprite.setScale(size.x / ts.x, size.y / ts.y);
+                }
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<RenderComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<RenderComponent>(inputTarget->entity).size = size;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ColorR || m_ActiveField == EditField::ColorG || m_ActiveField == EditField::ColorB)
+        {
+            try
+            {
+                int val = std::clamp(std::stoi(m_ActiveInputText), 0, 255);
+                if (m_ActiveField == EditField::ColorR) inputTarget->color.r = val;
+                else if (m_ActiveField == EditField::ColorG) inputTarget->color.g = val;
+                else inputTarget->color.b = val;
+                inputTarget->shape.setFillColor(inputTarget->color);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ScriptProperty)
+        {
+            bool handledAsVec2 = false;
+            if (m_ActiveScriptProperty.size() > 2)
+            {
+                std::string suffix = m_ActiveScriptProperty.substr(m_ActiveScriptProperty.size() - 2);
+                if (suffix == "_x" || suffix == "_y")
+                {
+                    std::string baseName = m_ActiveScriptProperty.substr(0, m_ActiveScriptProperty.size() - 2);
+                    auto baseIt = inputTarget->scriptProperties.find(baseName);
+                    if (baseIt != inputTarget->scriptProperties.end() &&
+                        baseIt->second.type == ScriptComponent::PropertyType::Vec2)
+                    {
+                        handledAsVec2 = true;
+                        try {
+                            float val = std::stof(m_ActiveInputText);
+                            if (suffix == "_x") baseIt->second.floatVal = val;
+                            else baseIt->second.vec2Y = val;
+                            if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
+                                m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(baseIt->second);
+                        } catch (...) {}
+                    }
+                }
+            }
+
+            if (!handledAsVec2)
+            {
+                auto it = inputTarget->scriptProperties.find(m_ActiveScriptProperty);
+                if (it != inputTarget->scriptProperties.end())
+                {
+                    auto& prop = it->second;
+                    try {
+                        if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = std::stoi(m_ActiveInputText);
+                        else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = std::stof(m_ActiveInputText);
+                        else if (prop.type == ScriptComponent::PropertyType::String) prop.stringVal = m_ActiveInputText;
+                        if (inputTarget->entity != 0 && m_Registry.HasComponent<ScriptComponent>(inputTarget->entity))
+                        {
+                            m_Registry.GetComponent<ScriptComponent>(inputTarget->entity).SetExportedProperty(prop);
+                        }
+                    } catch (...) {}
+                }
+            }
+        } else if (m_ActiveField == EditField::ZIndex)
+        {
+            try
+            {
+                inputTarget->zIndex = std::stoi(m_ActiveInputText);
+                SyncToRegistry();
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionChannel)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).channel = std::stoi(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::RigidbodyMass)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).mass = std::max(0.001f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::RigidbodyGravity)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).gravityScale = std::stof(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::RigidbodyRestitution)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).restitution = std::clamp(std::stof(m_ActiveInputText), 0.0f, 1.0f);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::RigidbodyDrag)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<Rigidbody2DComponent>(inputTarget->entity).drag = std::max(0.0f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::VelocityDX)
+        {
+            try
+            {
+                if (inputTarget->entity != 0)
+                {
+                    float val = std::stof(m_ActiveInputText);
+                    if (m_Registry.HasComponent<VelocityComponent>(inputTarget->entity))
+                        m_Registry.GetComponent<VelocityComponent>(inputTarget->entity).dx = val;
+                    else
+                        m_Registry.AddComponent(inputTarget->entity, VelocityComponent{val, 0.f});
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::VelocityDY)
+        {
+            try
+            {
+                if (inputTarget->entity != 0)
+                {
+                    float val = std::stof(m_ActiveInputText);
+                    if (m_Registry.HasComponent<VelocityComponent>(inputTarget->entity))
+                        m_Registry.GetComponent<VelocityComponent>(inputTarget->entity).dy = val;
+                    else
+                        m_Registry.AddComponent(inputTarget->entity, VelocityComponent{0.f, val});
+                }
+            } catch (...) {}
+        }
+        SetDirty(true);
+    }
+
+    m_ActiveField = EditField::None;
+    m_ActiveInputText.clear();
+    m_InputSelectionStart = -1;
+    m_InputSelectionEnd = -1;
 }
 
 void EditorScene::SyncToRegistry()
@@ -5569,6 +5643,7 @@ void EditorScene::SyncToRegistry()
 
 void EditorScene::SnapshotState()
 {
+    SyncToRegistry();
     m_PlayModeSnapshot = json{};
     m_PlayModeSnapshot["name"] = "snapshot";
     m_PlayModeSnapshot["uiPath"] = UIManager::Get().GetCurrentUIPath();
@@ -5576,107 +5651,7 @@ void EditorScene::SnapshotState()
 
     for (auto &obj : m_Objects)
     {
-        json j;
-        j["id"] = obj.id;
-        j["tag"] = obj.tag;
-        std::string typeStr = "rectangle";
-        if (obj.objectType == ObjectType::Circle) typeStr = "circle";
-        else if (obj.objectType == ObjectType::Triangle) typeStr = "triangle";
-        else if (obj.objectType == ObjectType::Pentagon) typeStr = "pentagon";
-        else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
-        else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
-        j["type"] = typeStr;
-        j["x"] = obj.shape.getPosition().x;
-        j["y"] = obj.shape.getPosition().y;
-        j["rotation"] = obj.rotation;
-        j["scaleX"] = obj.scaleX;
-        j["scaleY"] = obj.scaleY;
-        j["zIndex"] = obj.zIndex;
-        j["width"] = obj.shape.getSize().x;
-        j["height"] = obj.shape.getSize().y;
-        j["color"] = {obj.color.r, obj.color.g, obj.color.b};
-
-        if (!obj.spritePath.empty())
-        {
-            std::error_code ec;
-            std::filesystem::path p(obj.spritePath);
-            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
-            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
-            j["sprite"] = ec ? obj.spritePath : rel;
-        }
-
-        if (!obj.templatePath.empty())
-        {
-            std::error_code ec;
-            std::filesystem::path p(obj.templatePath);
-            std::filesystem::path root = FindProjectRoot();
-            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
-            j["template"] = ec ? obj.templatePath : rel;
-        }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<VelocityComponent>(obj.entity))
-        {
-            auto &vel = m_Registry.GetComponent<VelocityComponent>(obj.entity);
-            j["velocity"] = {{"dx", vel.dx}, {"dy", vel.dy}};
-        }
-
-        if (!obj.scriptPath.empty())
-        {
-            std::error_code ec;
-            std::filesystem::path p(obj.scriptPath);
-            std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
-            std::string rel = std::filesystem::proximate(p, root, ec).generic_string();
-            j["script"] = ec ? obj.scriptPath : rel;
-
-            if (!obj.scriptProperties.empty())
-            {
-                json propsJson;
-                for (const auto& pair : obj.scriptProperties)
-                {
-                    const auto& prop = pair.second;
-                    json pJson;
-                    pJson["type"] = static_cast<int>(prop.type);
-                    if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
-                    else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
-                    else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
-                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) pJson["value"] = prop.stringVal;
-                    propsJson[pair.first] = pJson;
-                }
-                j["scriptProperties"] = propsJson;
-            }
-        }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<CameraComponent>(obj.entity))
-            j["camera"] = true;
-
-        if (obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity))
-        {
-            auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
-            j["collision"] = {
-                {"channel", col.channel},
-                {"type", col.type == CollisionType::Solid ? "solid" : "static"},
-                {"isTrigger", col.isTrigger},
-                {"shape", col.shape == ColliderShape::Circle ? "circle" : "box"}
-            };
-        }
-
-        if (obj.entity != 0 && m_Registry.HasComponent<Rigidbody2DComponent>(obj.entity))
-        {
-            auto &rb = m_Registry.GetComponent<Rigidbody2DComponent>(obj.entity);
-            std::string bt = "dynamic";
-            if (rb.bodyType == BodyType::Kinematic) bt = "kinematic";
-            else if (rb.bodyType == BodyType::Static) bt = "static";
-            j["rigidbody"] = {
-                {"bodyType", bt},
-                {"mass", rb.mass},
-                {"gravityScale", rb.gravityScale},
-                {"restitution", rb.restitution},
-                {"drag", rb.drag},
-                {"freezeRotation", rb.freezeRotation}
-            };
-        }
-
-        m_PlayModeSnapshot["objects"].push_back(j);
+        m_PlayModeSnapshot["objects"].push_back(SerializeObject(obj));
     }
 
     m_SnapshotEntityCounter = m_Registry.GetEntityCounter();
@@ -5708,150 +5683,18 @@ void EditorScene::RestoreSnapshot()
 
     m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
 
-    for (auto &j : m_PlayModeSnapshot["objects"])
+    if (m_PlayModeSnapshot.contains("objects") && m_PlayModeSnapshot["objects"].is_array())
     {
-        EditorObject obj;
-        obj.id = j["id"];
-        if (j.contains("tag")) obj.tag = j["tag"];
-        obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
-        obj.shape.setSize({j["width"], j["height"]});
-        obj.shape.setPosition(j["x"], j["y"]);
-        if (j.contains("rotation")) obj.rotation = j["rotation"];
-        if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
-        if (j.contains("scaleY")) obj.scaleY = j["scaleY"];
-        obj.zIndex = j.value("zIndex", 0);
-        obj.shape.setRotation(obj.rotation);
-        obj.shape.setScale(obj.scaleX, obj.scaleY);
-        obj.shape.setFillColor(obj.color);
-
-        const std::string typeStr = j.value("type", "rectangle");
-        if (typeStr == "circle") obj.objectType = ObjectType::Circle;
-        else if (typeStr == "triangle") obj.objectType = ObjectType::Triangle;
-        else if (typeStr == "pentagon") obj.objectType = ObjectType::Pentagon;
-        else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
-        else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
-        else obj.objectType = ObjectType::Rectangle;
-
-        if (IsPolygonType(obj.objectType))
+        for (auto &j : m_PlayModeSnapshot["objects"])
         {
-            obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
-            float rx = obj.shape.getSize().x * 0.5f;
-            float ry = obj.shape.getSize().y * 0.5f;
-            if (rx > 0.001f && ry > 0.001f)
-            {
-                obj.circleShape.setRadius(rx);
-                obj.circleShape.setScale(obj.scaleX, obj.scaleY * (ry / rx));
-            }
-            obj.circleShape.setPosition(obj.shape.getPosition());
-            obj.circleShape.setRotation(obj.rotation);
-            obj.circleShape.setFillColor(obj.color);
+            DeserializeObject(j);
         }
-
-        obj.entity = m_Registry.CreateEntity();
-
-        TransformComponent t;
-        t.x = j["x"];
-        t.y = j["y"];
-        t.rotation = obj.rotation;
-        t.scaleX = obj.scaleX;
-        t.scaleY = obj.scaleY;
-        m_Registry.AddComponent(obj.entity, t);
-        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex});
-        if (!obj.tag.empty())
-            m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
-
-        if (j.contains("sprite"))
-        {
-            std::string sp = j["sprite"].get<std::string>();
-            std::filesystem::path p(sp);
-            if (!p.is_absolute())
-                sp = (std::filesystem::path(ASSET_PATH) / p).string();
-            ApplySpriteToObject(obj, sp);
-        }
-
-        if (j.contains("template"))
-        {
-            std::string tp = j["template"].get<std::string>();
-            std::filesystem::path p(tp);
-            if (!p.is_absolute()) {
-                tp = (FindProjectRoot() / p).string();
-            }
-            obj.templatePath = tp;
-        }
-
-        if (j.contains("velocity"))
-            m_Registry.AddComponent(obj.entity, VelocityComponent{
-                j["velocity"]["dx"], j["velocity"]["dy"]
-            });
-
-        if (j.contains("script"))
-        {
-            std::string sp = j["script"].get<std::string>();
-            std::filesystem::path p(sp);
-            if (!p.is_absolute())
-                sp = (std::filesystem::path(ASSET_PATH) / p).string();
-            auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
-            sc.SetEntity(obj.entity);
-            obj.scriptPath = sp;
-            for (const auto& prop : sc.GetExportedProperties()) {
-                obj.scriptProperties[prop.name] = prop;
-            }
-            if (j.contains("scriptProperties")) {
-                for (auto it = j["scriptProperties"].begin(); it != j["scriptProperties"].end(); ++it) {
-                    ScriptComponent::Property prop;
-                    prop.name = it.key();
-                    prop.type = static_cast<ScriptComponent::PropertyType>(it.value()["type"].get<int>());
-                    if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
-                    else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
-                    else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                    else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
-                    
-                    obj.scriptProperties[prop.name] = prop;
-                    sc.SetExportedProperty(prop);
-                }
-            }
-        }
-
-        if (j.contains("camera"))
-            m_Registry.AddComponent(obj.entity, CameraComponent{true});
-
-        if (j.contains("collision"))
-        {
-            CollisionType cType = CollisionType::Solid;
-            if (j["collision"].contains("type") && j["collision"]["type"] == "static")
-                cType = CollisionType::Static;
-            int ch = j["collision"].value("channel", 0);
-            bool isTrig = j["collision"].value("isTrigger", false);
-            ColliderShape shape = ColliderShape::Box;
-            if (j["collision"].contains("shape") && j["collision"]["shape"] == "circle")
-                shape = ColliderShape::Circle;
-            else if (obj.objectType == ObjectType::Circle)
-                shape = ColliderShape::Circle;
-            m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
-        }
-
-        if (j.contains("rigidbody"))
-        {
-            Rigidbody2DComponent rb;
-            std::string bt = j["rigidbody"].value("bodyType", "dynamic");
-            if (bt == "kinematic") rb.bodyType = BodyType::Kinematic;
-            else if (bt == "static") rb.bodyType = BodyType::Static;
-            else rb.bodyType = BodyType::Dynamic;
-
-            rb.mass = j["rigidbody"].value("mass", 1.0f);
-            rb.gravityScale = j["rigidbody"].value("gravityScale", 1.0f);
-            rb.restitution = j["rigidbody"].value("restitution", 0.0f);
-            rb.drag = j["rigidbody"].value("drag", 0.05f);
-            rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
-            m_Registry.AddComponent(obj.entity, rb);
-        }
-
-        m_Objects.push_back(std::move(obj));
     }
 
+    UpdateWorldTransforms();
+    UpdateStatusText();
     std::cout << "[INFO] [EditorScene] Play-mode snapshot restored (" << m_Objects.size() << " objects).\n";
 }
-
 sf::Vector2f EditorScene::SnapToGrid(sf::Vector2f pos) const
 {
     if (!m_SnapToGrid) return pos;
@@ -7097,11 +6940,20 @@ void EditorScene::UpdateWorldTransforms()
         if (!obj) return;
 
         if (obj->parentId.empty() || ObjectById(obj->parentId) == nullptr) {
+            if (obj->localPosition.x == 0.f && obj->localPosition.y == 0.f &&
+                (obj->shape.getPosition().x != 0.f || obj->shape.getPosition().y != 0.f)) {
+                obj->localPosition = obj->shape.getPosition();
+            }
             obj->worldPosition = obj->localPosition;
             obj->worldRotation = obj->rotation;
             obj->worldScaleX = obj->scaleX;
             obj->worldScaleY = obj->scaleY;
         } else {
+            auto* p = ObjectById(obj->parentId);
+            if (obj->localPosition.x == 0.f && obj->localPosition.y == 0.f &&
+                (obj->shape.getPosition().x != 0.f || obj->shape.getPosition().y != 0.f)) {
+                obj->localPosition = parentTransform.getInverse().transformPoint(obj->shape.getPosition());
+            }
             obj->worldPosition = parentTransform.transformPoint(obj->localPosition);
             obj->worldRotation = parentRot + obj->rotation;
             obj->worldScaleX = parentScaleX * obj->scaleX;
@@ -7297,7 +7149,12 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
                 if (prop.type == ScriptComponent::PropertyType::Int) pJson["value"] = prop.intVal;
                 else if (prop.type == ScriptComponent::PropertyType::Float) pJson["value"] = prop.floatVal;
                 else if (prop.type == ScriptComponent::PropertyType::Bool) pJson["value"] = prop.boolVal;
-                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) pJson["value"] = prop.stringVal;
+                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template ||
+                         prop.type == ScriptComponent::PropertyType::Image || prop.type == ScriptComponent::PropertyType::Entity) pJson["value"] = prop.stringVal;
+                else if (prop.type == ScriptComponent::PropertyType::Vec2)
+                    pJson["value"] = {{"x", prop.floatVal}, {"y", prop.vec2Y}};
+                else if (prop.type == ScriptComponent::PropertyType::Color)
+                    pJson["value"] = {{"r", prop.colorR}, {"g", prop.colorG}, {"b", prop.colorB}};
                 propsJson[pair.first] = pJson;
             }
             j["scriptProperties"] = propsJson;
@@ -7340,7 +7197,7 @@ void EditorScene::DeserializeObject(const json& j) {
     obj.parentId = j.value("parent", "");
     obj.color = sf::Color(j["color"][0], j["color"][1], j["color"][2]);
     obj.shape.setSize({j["width"], j["height"]});
-    obj.localPosition = {j["x"].get<float>(), j["y"].get<float>()};
+    obj.localPosition = {j.value("x", 0.f), j.value("y", 0.f)};
     obj.shape.setPosition(obj.localPosition);
     if (j.contains("rotation")) obj.rotation = j["rotation"];
     if (j.contains("scaleX")) obj.scaleX = j["scaleX"];
@@ -7404,10 +7261,12 @@ void EditorScene::DeserializeObject(const json& j) {
         obj.templatePath = tp;
     }
 
-    if (j.contains("velocity"))
-        m_Registry.AddComponent(obj.entity, VelocityComponent{
-                                    j["velocity"]["dx"], j["velocity"]["dy"]
-                                });
+    if (j.contains("velocity") && j["velocity"].is_object())
+    {
+        float dx = j["velocity"].value("dx", 0.f);
+        float dy = j["velocity"].value("dy", 0.f);
+        m_Registry.AddComponent(obj.entity, VelocityComponent{dx, dy});
+    }
 
     if (j.contains("script")) {
         std::string sp = j["script"].get<std::string>();
@@ -7429,7 +7288,21 @@ void EditorScene::DeserializeObject(const json& j) {
                 if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value()["value"].get<int>();
                 else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value()["value"].get<float>();
                 else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value()["value"].get<bool>();
-                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template) prop.stringVal = it.value()["value"].get<std::string>();
+                else if (prop.type == ScriptComponent::PropertyType::String || prop.type == ScriptComponent::PropertyType::Template ||
+                         prop.type == ScriptComponent::PropertyType::Image || prop.type == ScriptComponent::PropertyType::Entity) prop.stringVal = it.value()["value"].get<std::string>();
+                else if (prop.type == ScriptComponent::PropertyType::Vec2) {
+                    if (it.value()["value"].is_object()) {
+                        prop.floatVal = it.value()["value"].value("x", 0.f);
+                        prop.vec2Y = it.value()["value"].value("y", 0.f);
+                    }
+                }
+                else if (prop.type == ScriptComponent::PropertyType::Color) {
+                    if (it.value()["value"].is_object()) {
+                        prop.colorR = it.value()["value"].value("r", 255);
+                        prop.colorG = it.value()["value"].value("g", 255);
+                        prop.colorB = it.value()["value"].value("b", 255);
+                    }
+                }
                 
                 obj.scriptProperties[prop.name] = prop;
                 sc.SetExportedProperty(prop);
@@ -7466,6 +7339,8 @@ void EditorScene::DeserializeObject(const json& j) {
         rb.drag = j["rigidbody"].value("drag", 0.05f);
         rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
         m_Registry.AddComponent(obj.entity, rb);
+        if (!m_Registry.HasComponent<VelocityComponent>(obj.entity))
+            m_Registry.AddComponent(obj.entity, VelocityComponent{0.f, 0.f});
     }
 
     m_Registry.AddComponent(obj.entity, HierarchyComponent{});

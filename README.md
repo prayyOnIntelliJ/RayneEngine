@@ -57,7 +57,15 @@
   - Added physics lifecycle callbacks in Lua: `OnCollisionEnter(self, other, normalX, normalY)` and `OnTriggerEnter(self, other)`.
   - Added full Lua `Physics` library: `Physics.Raycast`, `Physics.ApplyForce`, `Physics.ApplyImpulse`, `Physics.SetVelocity`, `Physics.GetVelocity`, `Physics.SetGravity`, `Physics.GetGravity`, `Physics.SetFixedTimestep`, and `Physics.GetFixedTimestep`.
   - Added global entity Rigidbody Lua helpers: `AddRigidbody(entity, bodyType, mass, gravityScale)`, `GetRigidbody(entity)`, and `HasRigidbody(entity)`.
-  - Added dedicated Rigidbody 2D property inspector with real-time controls, body type selectors, and rotation locks.
+- **Velocity Component Overhaul & Editor Inspector Integration:**
+  - Added full interactive Inspector UI for `VelocityComponent` with editable `Velocity X` and `Velocity Y` numeric fields.
+  - Added convenient property aliases on Lua `Velocity` usertype: `.dx`, `.dy`, `.vx`, `.vy`, `.x`, and `.y`.
+  - Added `RemoveVelocity(entity)` Lua binding.
+  - Improved `SetVelocity(e, dx, dy)` in Lua to automatically attach `VelocityComponent` if not yet present.
+  - Improved `AddVelocity(e, dx, dy)` to return a reference to the component.
+  - Fixed component pool update semantics so adding or setting components on entities that already possess them updates their values in place instead of discarding changes.
+  - Ensured automatic attachment of `VelocityComponent` whenever a `Rigidbody2D` is created (via Inspector, templates, scenes, or Lua `AddRigidbody`) to guarantee physics simulation reliability.
+  - Added post-collision world transform synchronization so physics position corrections are immediately reflected in rendered positions.
 - **Inspector Lock Feature:**
   - Added Unity-style lock toggle button in the top-right corner of the Inspector panel.
   - Freezes the active inspector view on the selected object so clicking other entities in the viewport or hierarchy does not deselect or alter the inspector view.
@@ -98,6 +106,8 @@
 ### Fixed
 - Fixed input event dispatch ordering in `Application::SetEvents` so `InputManager` processes events before scene event handling, ensuring `Input.HasInput()` and queries are immediately up-to-date during script callbacks.
 - Fixed editor crash when opening the UI Editor for the first time in standalone builds.
+- Fixed scene save issue where objects could occasionally reset to (0, 0) by committing active input fields and ensuring local transforms are preserved.
+- Fixed `VelocityComponent` being non-editable in the Inspector and failing to update or simulate when attached to entities.
 - Fixed text underline disappearing when bold style is active in UIManager text rendering.
 - Fixed object rotation handle positioning and smooth angular dragging in the level editor viewport.
 - Fixed hit detection and selection on scaled entities to prevent miss-clicks and inaccurate marquee selection.
@@ -473,10 +483,11 @@ Export = {
 | `SetRotation` | `(e: Entity, angle: number)` | Sets spatial rotation angle in degrees |
 | `SetScale` | `(e: Entity, sx: number, sy: number)` | Sets spatial scale factors |
 | `HasTransform` | `(e: Entity) -> boolean` | Checks if entity has a transform |
-| `AddVelocity` | `(e: Entity, dx: number, dy: number)` | Attaches a `VelocityComponent` |
-| `GetVelocity` | `(e: Entity) -> Velocity` | Returns a mutable reference to `{ dx, dy }` |
-| `SetVelocity` | `(e: Entity, dx: number, dy: number)` | Sets velocity vector directly |
+| `AddVelocity` | `(e: Entity, dx: number, dy: number) -> Velocity` | Attaches or updates a `VelocityComponent` |
+| `GetVelocity` | `(e: Entity) -> Velocity` | Returns a mutable reference to `{ dx, dy, vx, vy, x, y }` |
+| `SetVelocity` | `(e: Entity, dx: number, dy: number)` | Sets velocity vector directly (attaches if not present) |
 | `HasVelocity` | `(e: Entity) -> boolean` | Checks if entity has velocity |
+| `RemoveVelocity` | `(e: Entity)` | Removes `VelocityComponent` from entity |
 | `AddSprite` | `(e: Entity, path: string, w: number, h: number)` | Attaches a `SpriteComponent` |
 | `SetSprite` | `(e: Entity, path: string)` | Updates or swaps the sprite texture |
 | `SetSpriteSize` | `(e: Entity, w: number, h: number)` | Updates rendered dimensions of sprite |

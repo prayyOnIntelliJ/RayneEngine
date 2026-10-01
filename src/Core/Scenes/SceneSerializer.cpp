@@ -73,10 +73,10 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             registry.AddComponent(entity, TagComponent{j["tag"].get<std::string>()});
         }
 
-        if (j.contains("velocity"))
+        if (j.contains("velocity") && j["velocity"].is_object())
         {
             registry.AddComponent(entity, VelocityComponent{
-                                      j["velocity"]["dx"], j["velocity"]["dy"]
+                                      j["velocity"].value("dx", 0.f), j["velocity"].value("dy", 0.f)
                                   });
         }
 
@@ -137,6 +137,8 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             rb.drag = j["rigidbody"].value("drag", 0.05f);
             rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
             registry.AddComponent(entity, rb);
+            if (!registry.HasComponent<VelocityComponent>(entity))
+                registry.AddComponent(entity, VelocityComponent{0.f, 0.f});
         }
     }
 
@@ -267,7 +269,7 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             registry.AddComponent(entity, TagComponent{j["tag"].get<std::string>()});
         }
 
-        if (j.contains("velocity"))
+        if (j.contains("velocity") && j["velocity"].is_object())
         {
             registry.AddComponent(entity, VelocityComponent{
                                       j["velocity"].value("dx", 0.f), j["velocity"].value("dy", 0.f)
@@ -331,6 +333,8 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             rb.drag = j["rigidbody"].value("drag", 0.05f);
             rb.freezeRotation = j["rigidbody"].value("freezeRotation", true);
             registry.AddComponent(entity, rb);
+            if (!registry.HasComponent<VelocityComponent>(entity))
+                registry.AddComponent(entity, VelocityComponent{0.f, 0.f});
         }
 
         registry.AddComponent(entity, HierarchyComponent{});

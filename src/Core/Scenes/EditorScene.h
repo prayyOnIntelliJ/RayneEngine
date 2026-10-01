@@ -283,6 +283,8 @@ private:
         RigidbodyGravity,
         RigidbodyRestitution,
         RigidbodyDrag,
+        VelocityDX,
+        VelocityDY,
         UIText,
         ScriptProperty
     };
@@ -456,6 +458,7 @@ private:
     void LoadFromJson(const std::string &path);
 
     void SyncToRegistry();
+    void CommitActiveField();
 
     void SaveSettings();
 

@@ -18,6 +18,10 @@ Transform = {}
 ---@class Velocity
 ---@field dx number
 ---@field dy number
+---@field vx number
+---@field vy number
+---@field x number
+---@field y number
 Velocity = {}
 
 ---@class MathR
@@ -527,6 +531,10 @@ function SetVelocity(e, dx, dy) end
 ---@param e Entity
 ---@return boolean
 function HasVelocity(e) end
+
+---Removes the Velocity Component from an Entity
+---@param e Entity
+function RemoveVelocity(e) end
 
 ---Adds a Sprite Component to an Entity
 ---@param e Entity

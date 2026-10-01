@@ -215,6 +215,13 @@ void PhysicsSystem::Step(Registry& registry, float dt)
 
 void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
 {
+    registry.ForEach<TransformComponent, Rigidbody2DComponent>(
+        [&registry](Entity e, TransformComponent&, Rigidbody2DComponent&) {
+            if (!registry.HasComponent<VelocityComponent>(e)) {
+                registry.AddComponent(e, VelocityComponent{0.f, 0.f});
+            }
+        });
+
     registry.ForEach<TransformComponent, VelocityComponent>(
         [&registry, fixedDt](Entity e, TransformComponent& t, VelocityComponent& v) {
             if (registry.HasComponent<Rigidbody2DComponent>(e))
@@ -422,7 +429,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
                             tangent.x /= tangentLen;
                             tangent.y /= tangentLen;
                             float jt = -(relVel.x * tangent.x + relVel.y * tangent.y) / invMassSum;
-                            float frictionMu = 0.2f;
+                            float frictionMu = (rbA || rbB) ? 0.2f : 0.0f;
                             float maxFriction = j * frictionMu;
                             jt = std::clamp(jt, -maxFriction, maxFriction);
                             sf::Vector2f frictionImpulse = tangent * jt;
@@ -443,6 +450,7 @@ void PhysicsSystem::FixedUpdate(Registry& registry, float fixedDt)
     }
 
     s_ActiveCollisions = std::move(currentCollisions);
+    HierarchySystem::UpdateWorldTransforms(registry);
 }
 
 void PhysicsSystem::ApplyForce(Registry& registry, Entity entity, float fx, float fy)
