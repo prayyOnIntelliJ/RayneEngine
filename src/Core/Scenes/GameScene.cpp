@@ -600,6 +600,9 @@ void GameScene::Render(sf::RenderWindow &window)
         const auto &t = entry.t;
         const auto &r = entry.r;
 
+        if (!r.visibleInGame)
+            continue;
+
         if (m_Registry.HasComponent<SpriteComponent>(e))
         {
             auto &sc = m_Registry.GetComponent<SpriteComponent>(e);

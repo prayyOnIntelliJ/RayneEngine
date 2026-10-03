@@ -57,7 +57,9 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
         else if (typeStr == "hexagon") shapeType = ShapeType::Hexagon;
 
         int zIndex = j.value("zIndex", 0);
-        registry.AddComponent(entity, RenderComponent{color, size, shapeType, zIndex});
+        bool defVisible = !(typeStr == "spawn_point" || typeStr == "audio_source" || typeStr == "particle_emitter" || typeStr == "camera" || typeStr == "empty" || typeStr == "trigger_zone");
+        bool visibleInGame = j.value("visibleInGame", defVisible);
+        registry.AddComponent(entity, RenderComponent{color, size, shapeType, zIndex, visibleInGame});
 
         if (j.contains("sprite"))
         {
@@ -326,7 +328,9 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
         else if (typeStr == "hexagon") shapeType = ShapeType::Hexagon;
 
         int zIndex = j.value("zIndex", 0);
-        registry.AddComponent(entity, RenderComponent{color, size, shapeType, zIndex});
+        bool defVisible = !(typeStr == "spawn_point" || typeStr == "audio_source" || typeStr == "particle_emitter" || typeStr == "camera" || typeStr == "empty" || typeStr == "trigger_zone");
+        bool visibleInGame = j.value("visibleInGame", defVisible);
+        registry.AddComponent(entity, RenderComponent{color, size, shapeType, zIndex, visibleInGame});
 
         if (j.contains("sprite"))
         {

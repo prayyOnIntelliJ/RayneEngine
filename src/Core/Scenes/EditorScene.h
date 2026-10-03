@@ -57,6 +57,7 @@ struct EditorObject
     std::shared_ptr<sf::Texture> previewTexture;
     sf::Sprite previewSprite;
     int zIndex = 0;
+    bool visibleInGame = true;
     std::string templatePath = "";
     std::map<std::string, ScriptComponent::Property> scriptProperties;
 

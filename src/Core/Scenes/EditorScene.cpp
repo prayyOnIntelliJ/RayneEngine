@@ -4572,6 +4572,22 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 24.f;
     }
 
+    bool isNeverVisibleType = (target->objectType == ObjectType::SpawnPoint ||
+                               target->objectType == ObjectType::AudioSource ||
+                               target->objectType == ObjectType::ParticleEmitter ||
+                               target->objectType == ObjectType::Camera ||
+                               target->objectType == ObjectType::Empty ||
+                               target->objectType == ObjectType::TriggerZone);
+
+    if (isNeverVisibleType)
+    {
+        y = DrawRow(window, "Visible in Game", "Hidden (Helper)", panelX, y);
+    }
+    else
+    {
+        y = DrawCheckboxRow(window, "Visible in Game", target->visibleInGame, "toggle_visible_in_game", panelX, y);
+    }
+
     y += 8.f;
 
 
@@ -6593,6 +6609,20 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             target->zIndex--;
             SyncToRegistry();
+        } else if (btn.action == "toggle_visible_in_game" && target)
+        {
+            bool isNeverVisibleType = (target->objectType == ObjectType::SpawnPoint ||
+                                       target->objectType == ObjectType::AudioSource ||
+                                       target->objectType == ObjectType::ParticleEmitter ||
+                                       target->objectType == ObjectType::Camera ||
+                                       target->objectType == ObjectType::Empty ||
+                                       target->objectType == ObjectType::TriggerZone);
+            if (!isNeverVisibleType)
+            {
+                target->visibleInGame = !target->visibleInGame;
+                SyncToRegistry();
+                SetDirty(true);
+            }
         } else if (btn.action == "open_script" && target && !target->scriptPath.empty())
         {
             OpenScriptInIDE(target->scriptPath);
@@ -6826,6 +6856,8 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
     j["rotation"] = 0.f;
     j["scaleX"] = 1.f;
     j["scaleY"] = 1.f;
+    bool defVisible = !(type == ObjectType::SpawnPoint || type == ObjectType::AudioSource || type == ObjectType::ParticleEmitter || type == ObjectType::Camera || type == ObjectType::Empty || type == ObjectType::TriggerZone);
+    j["visibleInGame"] = defVisible;
 
     auto cmd = std::make_shared<ObjectStateCommand>(id, json(), j);
     ExecuteCommand(cmd);
@@ -7192,7 +7224,19 @@ void EditorScene::LoadFromJson(const std::string &path)
         else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
         else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
         else if (typeStr == "camera") obj.objectType = ObjectType::Camera;
+        else if (typeStr == "empty") obj.objectType = ObjectType::Empty;
+        else if (typeStr == "spawn_point") obj.objectType = ObjectType::SpawnPoint;
+        else if (typeStr == "trigger_zone") obj.objectType = ObjectType::TriggerZone;
+        else if (typeStr == "physics_box") obj.objectType = ObjectType::PhysicsBox;
+        else if (typeStr == "physics_ball") obj.objectType = ObjectType::PhysicsBall;
+        else if (typeStr == "static_platform") obj.objectType = ObjectType::StaticPlatform;
+        else if (typeStr == "world_text") obj.objectType = ObjectType::WorldText;
+        else if (typeStr == "audio_source") obj.objectType = ObjectType::AudioSource;
+        else if (typeStr == "particle_emitter") obj.objectType = ObjectType::ParticleEmitter;
         else obj.objectType = ObjectType::Rectangle;
+
+        bool defVisible = !(obj.objectType == ObjectType::SpawnPoint || obj.objectType == ObjectType::AudioSource || obj.objectType == ObjectType::ParticleEmitter || obj.objectType == ObjectType::Camera || obj.objectType == ObjectType::Empty || obj.objectType == ObjectType::TriggerZone);
+        obj.visibleInGame = j.value("visibleInGame", defVisible);
 
         if (IsPolygonType(obj.objectType))
         {
@@ -7218,7 +7262,7 @@ void EditorScene::LoadFromJson(const std::string &path)
         t.scaleX = obj.scaleX;
         t.scaleY = obj.scaleY;
         m_Registry.AddComponent(obj.entity, t);
-        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType)});
+        m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex, obj.visibleInGame});
         if (!obj.tag.empty()) {
             m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
         }
@@ -7782,6 +7826,7 @@ void EditorScene::SyncToRegistry()
             rc.color = obj.color;
             rc.shapeType = MapToShapeType(obj.objectType);
             rc.zIndex = obj.zIndex;
+            rc.visibleInGame = obj.visibleInGame;
         }
 
         if (obj.previewTexture && !obj.spritePath.empty())
@@ -9269,6 +9314,7 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     j["scaleX"] = obj.scaleX;
     j["scaleY"] = obj.scaleY;
     j["zIndex"] = obj.zIndex;
+    j["visibleInGame"] = obj.visibleInGame;
     j["width"] = obj.shape.getSize().x;
     j["height"] = obj.shape.getSize().y;
 
@@ -9484,6 +9530,9 @@ void EditorScene::DeserializeObject(const json& j) {
     else if (typeStr == "particle_emitter") obj.objectType = ObjectType::ParticleEmitter;
     else obj.objectType = ObjectType::Rectangle;
 
+    bool defVisible = !(obj.objectType == ObjectType::SpawnPoint || obj.objectType == ObjectType::AudioSource || obj.objectType == ObjectType::ParticleEmitter || obj.objectType == ObjectType::Camera || obj.objectType == ObjectType::Empty || obj.objectType == ObjectType::TriggerZone);
+    obj.visibleInGame = j.value("visibleInGame", defVisible);
+
     if (IsPolygonType(obj.objectType)) {
         obj.circleShape.setPointCount(GetPolygonPointCount(obj.objectType));
         float rx = obj.shape.getSize().x * 0.5f;
@@ -9507,7 +9556,7 @@ void EditorScene::DeserializeObject(const json& j) {
     t.scaleX = obj.scaleX;
     t.scaleY = obj.scaleY;
     m_Registry.AddComponent(obj.entity, t);
-    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex});
+    m_Registry.AddComponent(obj.entity, RenderComponent{obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex, obj.visibleInGame});
     if (!obj.tag.empty()) {
         m_Registry.AddComponent(obj.entity, TagComponent{obj.tag});
     }

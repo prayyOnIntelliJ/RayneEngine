@@ -44,6 +44,7 @@ struct RenderComponent
     sf::Vector2f size;
     ShapeType shapeType = ShapeType::Rectangle;
     int zIndex = 0;
+    bool visibleInGame = true;
 };
 
 struct SpriteComponent
