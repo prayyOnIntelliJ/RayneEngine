@@ -477,11 +477,7 @@ void EditorScene::HandleMenuAction(const std::string &action)
         UpdateStatusText();
     } else if (action == "center_camera") { m_camera.setCenter(0.f, 0.f); } else if (action == "run")
     {
-        SyncToRegistry();
-        SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
-        std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
-        SnapshotState();
-        m_manager.SwitchSceneTo("game");
+        TryLaunchPlayMode();
     } else if (action == "reset_scene")
     {
         for (auto &obj: m_Objects)
@@ -571,6 +567,39 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             return;
         }
+    }
+
+    if (m_ShowScriptErrorModal)
+    {
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            if (m_ScriptErrorOkBtn.contains(m_MouseScreenPos))
+            {
+                m_ShowScriptErrorModal = false;
+                m_ScriptErrorDetails.clear();
+                m_ScriptErrorPath.clear();
+                return;
+            }
+            if (!m_ScriptErrorPath.empty() && m_ScriptErrorOpenIDEBtn.contains(m_MouseScreenPos))
+            {
+                OpenScriptInIDE(m_ScriptErrorPath);
+                m_ShowScriptErrorModal = false;
+                m_ScriptErrorDetails.clear();
+                m_ScriptErrorPath.clear();
+                return;
+            }
+        }
+        else if (event.type == sf::Event::KeyPressed)
+        {
+            if (event.key.code == sf::Keyboard::Escape || event.key.code == sf::Keyboard::Return || event.key.code == sf::Keyboard::Enter)
+            {
+                m_ShowScriptErrorModal = false;
+                m_ScriptErrorDetails.clear();
+                m_ScriptErrorPath.clear();
+                return;
+            }
+        }
+        return;
     }
 
     if (m_ShowDeleteModal)
@@ -2272,11 +2301,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (event.key.code == sf::Keyboard::F5)
         {
-            SyncToRegistry();
-            SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
-            std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
-            SnapshotState();
-            m_manager.SwitchSceneTo("game");
+            TryLaunchPlayMode();
         }
     }
 }
@@ -3087,6 +3112,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     m_ContentBrowser->RenderDragGhost(window);
     DrawTooltip(window);
     DrawDeleteModal(window);
+    if (m_ShowScriptErrorModal) DrawScriptErrorModal(window);
 }
 
 static void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Color outline)
@@ -11053,4 +11079,209 @@ void EditorScene::DrawSaveTemplateModal(sf::RenderWindow &window)
     cancelText.setPosition(btnCancelX + (btnW - ctBounds.width) / 2.f, btnY + (btnH - ctBounds.height) / 2.f - 2.f);
     cancelText.setFillColor(C_TEXT_SECONDARY);
     window.draw(cancelText);
+}
+
+bool EditorScene::ValidateAllScripts(std::string &outError, std::string &outPath)
+{
+    std::set<std::string> checkedScripts;
+    for (const auto &obj : m_Objects)
+    {
+        if (obj.scriptPath.empty()) continue;
+        if (checkedScripts.count(obj.scriptPath)) continue;
+        checkedScripts.insert(obj.scriptPath);
+
+        std::string resolvedPath = ResourceManager::ResolveAssetPath(obj.scriptPath);
+        std::error_code ec;
+        if (!std::filesystem::exists(resolvedPath, ec))
+        {
+            outPath = obj.scriptPath;
+            outError = "Script file not found: " + obj.scriptPath;
+            return false;
+        }
+
+        sol::state &lua = LuaState::GetLua();
+        sol::load_result lr = lua.load_file(resolvedPath);
+        if (!lr.valid())
+        {
+            sol::error err = lr;
+            outPath = resolvedPath;
+            outError = err.what();
+            return false;
+        }
+
+        // Test execution in isolated test environment to catch runtime load-time syntax & global errors
+        sol::environment testEnv(lua, sol::create, lua.globals());
+        testEnv["self"] = obj.entity != 0 ? obj.entity : 1;
+        sol::protected_function pf = lr;
+        sol::set_environment(testEnv, pf);
+        sol::protected_function_result pr = pf();
+        if (!pr.valid())
+        {
+            sol::error err = pr;
+            outPath = resolvedPath;
+            outError = err.what();
+            return false;
+        }
+    }
+    return true;
+}
+
+void EditorScene::TryLaunchPlayMode()
+{
+    std::string scriptError;
+    std::string scriptErrPath;
+    if (!ValidateAllScripts(scriptError, scriptErrPath))
+    {
+        std::cerr << "[ERROR] [EditorScene] Script error prevented game launch: " << scriptError << " in (" << scriptErrPath << ")\n";
+        ConsolePanel::AddLogGlobal("[ERROR] [Script Check] Game launch canceled! " + scriptError, true);
+        m_ShowScriptErrorModal = true;
+        m_ScriptErrorDetails = scriptError;
+        m_ScriptErrorPath = scriptErrPath;
+        return;
+    }
+
+    SyncToRegistry();
+    SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
+    std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
+    SnapshotState();
+    m_manager.SwitchSceneTo("game");
+}
+
+void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
+{
+    if (!m_ShowScriptErrorModal) return;
+
+    const float winW = static_cast<float>(window.getSize().x);
+    const float winH = static_cast<float>(window.getSize().y);
+
+    // Dim background overlay
+    sf::RectangleShape dim({winW, winH});
+    dim.setFillColor(sf::Color(0, 0, 0, 180));
+    window.draw(dim);
+
+    const float modalW = 580.f;
+    const float modalH = 260.f;
+    const float mx = (winW - modalW) * 0.5f;
+    const float my = (winH - modalH) * 0.5f;
+
+    // Modal background box
+    sf::RectangleShape box({modalW, modalH});
+    box.setPosition(mx, my);
+    box.setFillColor(C_BG_PANEL);
+    box.setOutlineColor(C_DANGER);
+    box.setOutlineThickness(1.5f);
+    window.draw(box);
+
+    // Header bar
+    sf::RectangleShape headerBg({modalW, 38.f});
+    headerBg.setPosition(mx, my);
+    headerBg.setFillColor(sf::Color(45, 20, 20));
+    window.draw(headerBg);
+
+    // Title text
+    sf::Text title;
+    title.setFont(*m_Font);
+    title.setCharacterSize(14);
+    title.setStyle(sf::Text::Bold);
+    title.setFillColor(C_DANGER);
+    title.setString("SCRIPT FEHLER  |  START VERHINDERT (F5)");
+    title.setPosition(mx + 16.f, my + 10.f);
+    window.draw(title);
+
+    // File name / path badge
+    std::string filenameOnly = m_ScriptErrorPath;
+    if (!filenameOnly.empty())
+    {
+        std::error_code ec;
+        filenameOnly = std::filesystem::path(m_ScriptErrorPath).filename().string();
+    }
+    sf::Text fileTxt;
+    fileTxt.setFont(*m_Font);
+    fileTxt.setCharacterSize(11);
+    fileTxt.setFillColor(sf::Color(255, 200, 100));
+    fileTxt.setString("Datei: " + (filenameOnly.empty() ? std::string("Unbekannt") : filenameOnly));
+    fileTxt.setPosition(mx + 16.f, my + 48.f);
+    window.draw(fileTxt);
+
+    // Error details container box
+    const float errBoxX = mx + 16.f;
+    const float errBoxY = my + 70.f;
+    const float errBoxW = modalW - 32.f;
+    const float errBoxH = 120.f;
+    sf::RectangleShape errBox({errBoxW, errBoxH});
+    errBox.setPosition(errBoxX, errBoxY);
+    errBox.setFillColor(C_BG_INPUT);
+    errBox.setOutlineColor(C_BORDER);
+    errBox.setOutlineThickness(1.f);
+    window.draw(errBox);
+
+    // Format error string for visual display (wrap/truncate if too huge)
+    std::string displayErr = m_ScriptErrorDetails;
+    if (displayErr.length() > 280)
+    {
+        displayErr = displayErr.substr(0, 277) + "...";
+    }
+
+    sf::Text errText;
+    errText.setFont(*m_Font);
+    errText.setCharacterSize(11);
+    errText.setFillColor(sf::Color(255, 120, 120));
+    errText.setString(displayErr);
+    errText.setPosition(errBoxX + 10.f, errBoxY + 8.f);
+    window.draw(errText);
+
+    // Buttons at bottom
+    const float btnH = 30.f;
+    const float btnY = my + modalH - btnH - 14.f;
+
+    // OK / Schließen Button
+    const float okBtnW = 110.f;
+    const float okBtnX = mx + modalW - okBtnW - 16.f;
+    m_ScriptErrorOkBtn = sf::FloatRect(okBtnX, btnY, okBtnW, btnH);
+    bool okHov = m_ScriptErrorOkBtn.contains(m_MouseScreenPos);
+
+    sf::RectangleShape okBtn({okBtnW, btnH});
+    okBtn.setPosition(okBtnX, btnY);
+    okBtn.setFillColor(okHov ? C_BG_ELEVATED : C_BG_PANEL);
+    okBtn.setOutlineColor(C_BORDER_LIGHT);
+    okBtn.setOutlineThickness(1.f);
+    window.draw(okBtn);
+
+    sf::Text okTxt;
+    okTxt.setFont(*m_Font);
+    okTxt.setCharacterSize(11);
+    okTxt.setFillColor(okHov ? sf::Color::White : C_TEXT_PRIMARY);
+    okTxt.setString("OK / Schliessen");
+    float okw = okTxt.getLocalBounds().width;
+    okTxt.setPosition(okBtnX + (okBtnW - okw) * 0.5f, btnY + 7.f);
+    window.draw(okTxt);
+
+    // "In IDE oeffnen" Button
+    if (!m_ScriptErrorPath.empty())
+    {
+        const float ideBtnW = 140.f;
+        const float ideBtnX = okBtnX - ideBtnW - 10.f;
+        m_ScriptErrorOpenIDEBtn = sf::FloatRect(ideBtnX, btnY, ideBtnW, btnH);
+        bool ideHov = m_ScriptErrorOpenIDEBtn.contains(m_MouseScreenPos);
+
+        sf::RectangleShape ideBtn({ideBtnW, btnH});
+        ideBtn.setPosition(ideBtnX, btnY);
+        ideBtn.setFillColor(ideHov ? C_ACCENT_HOV : C_ACCENT);
+        ideBtn.setOutlineColor(C_BORDER_LIGHT);
+        ideBtn.setOutlineThickness(1.f);
+        window.draw(ideBtn);
+
+        sf::Text ideTxt;
+        ideTxt.setFont(*m_Font);
+        ideTxt.setCharacterSize(11);
+        ideTxt.setFillColor(sf::Color::White);
+        ideTxt.setString("In IDE oeffnen");
+        float idew = ideTxt.getLocalBounds().width;
+        ideTxt.setPosition(ideBtnX + (ideBtnW - idew) * 0.5f, btnY + 7.f);
+        window.draw(ideTxt);
+    }
+    else
+    {
+        m_ScriptErrorOpenIDEBtn = sf::FloatRect();
+    }
 }

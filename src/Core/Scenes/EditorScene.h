@@ -261,6 +261,15 @@ private:
     std::string m_SaveTemplateTargetId;
     void DrawSaveTemplateModal(sf::RenderWindow &window);
 
+    bool m_ShowScriptErrorModal = false;
+    std::string m_ScriptErrorDetails;
+    std::string m_ScriptErrorPath;
+    sf::FloatRect m_ScriptErrorOkBtn;
+    sf::FloatRect m_ScriptErrorOpenIDEBtn;
+    void DrawScriptErrorModal(sf::RenderWindow &window);
+    bool ValidateAllScripts(std::string &outError, std::string &outPath);
+    void TryLaunchPlayMode();
+
     bool m_HasUnsavedChanges = false;
     void SetDirty(bool dirty = true);
     bool IsDirty() const { return m_HasUnsavedChanges; }
