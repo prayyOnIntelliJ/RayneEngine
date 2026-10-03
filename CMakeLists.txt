@@ -79,10 +79,16 @@ add_executable(RayneEngine
         src/Core/ECS/Registry.h
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
-        src/Core/Scenes/EditorScene.cpp
+        src/Core/Scenes/EditorScene/EditorScene.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Hierarchy.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Inspector.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Menu.cpp
+        src/Core/Scenes/EditorScene/EditorScene_SaveLoad.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Settings.cpp
+        src/Core/Scenes/EditorScene/EditorScene_UI.cpp
         src/Core/Scenes/UIEditorScene.cpp
         src/Core/Scenes/ProjectHubScene.cpp
-        src/Core/Scenes/EditorScene.h
+        src/Core/Scenes/EditorScene/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
         src/Core/Scenes/CameraManager.cpp
@@ -192,10 +198,16 @@ add_executable(RayneGame
         src/Core/ECS/Registry.h
         src/Core/ECS/Components.h
         src/Core/ECS/View.h
-        src/Core/Scenes/EditorScene.cpp
+        src/Core/Scenes/EditorScene/EditorScene.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Hierarchy.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Inspector.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Menu.cpp
+        src/Core/Scenes/EditorScene/EditorScene_SaveLoad.cpp
+        src/Core/Scenes/EditorScene/EditorScene_Settings.cpp
+        src/Core/Scenes/EditorScene/EditorScene_UI.cpp
         src/Core/Scenes/UIEditorScene.cpp
         src/Core/Scenes/ProjectHubScene.cpp
-        src/Core/Scenes/EditorScene.h
+        src/Core/Scenes/EditorScene/EditorScene.h
         src/Core/Scenes/GameScene.cpp
         src/Core/Scenes/GameScene.h
         src/Core/Scenes/CameraManager.cpp

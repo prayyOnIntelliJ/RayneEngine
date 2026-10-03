@@ -14,7 +14,7 @@
 #include "../ECS/Components.h"
 #include "../Input/InputManager.h"
 
-#include "../Scenes/EditorScene.h"
+#include "../Scenes/EditorScene/EditorScene.h"
 #include "../Scenes/UIEditorScene.h"
 #include "../Scenes/ProjectHubScene.h"
 

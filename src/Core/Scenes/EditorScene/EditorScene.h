@@ -9,18 +9,18 @@
 #include <set>
 #include <nlohmann/json.hpp>
 
-#include "ContentBrowser.h"
-#include "ConsolePanel.h"
-#include "../UI/UIManager.h"
+#include "../ContentBrowser.h"
+#include "../ConsolePanel.h"
+#include "../../UI/UIManager.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
 #include "SFML/Graphics/Text.hpp"
 #include "SFML/Graphics/Font.hpp"
 
-#include "../Scenes/Scene.h"
-#include "../ECS/Registry.h"
-#include "../ECS/Components.h"
-#include "../Scripting/ScriptComponent.h"
+#include "../Scene.h"
+#include "../../ECS/Registry.h"
+#include "../../ECS/Components.h"
+#include "../../Scripting/ScriptComponent.h"
 
 using json = nlohmann::json;
 
