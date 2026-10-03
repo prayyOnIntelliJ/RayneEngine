@@ -60,22 +60,16 @@ struct EditorObject
     bool visibleInGame = true;
     std::string templatePath = "";
     std::map<std::string, ScriptComponent::Property> scriptProperties;
-
-    // World Text fields
     std::string textString = "World Text";
     unsigned int textFontSize = 28;
     sf::Color textColor = sf::Color::White;
     int textAlignment = 0;
-
-    // Audio Source fields
     std::string audioClipPath = "";
     float audioVolume = 100.0f;
     float audioPitch = 1.0f;
     bool audioLoop = false;
     bool audioPlayOnStart = true;
     bool audioIsSpatial = false;
-
-    // Particle Emitter fields
     bool particleEmitting = true;
     int particleMaxParticles = 120;
     float particleRate = 25.0f;
@@ -312,7 +306,7 @@ private:
 
     bool m_SpotlightOpen = false;
     std::string m_SpotlightQuery = "";
-    int m_SpotlightCategory = 0; // 0=All, 1=Primitives, 2=Gameplay, 3=Physics, 4=Media & FX
+    int m_SpotlightCategory = 0;
     int m_SpotlightSelectedIndex = 0;
     float m_SpotlightScrollY = 0.0f;
     std::vector<SpotlightItem> m_AllSpotlightItems;

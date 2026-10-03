@@ -940,7 +940,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
         else if (event.type == sf::Event::TextEntered)
         {
-            if (event.text.unicode == 8 || event.text.unicode == 127) // Backspace
+            if (event.text.unicode == 8 || event.text.unicode == 127)
             {
                 if (!m_SpotlightQuery.empty())
                 {
@@ -2766,8 +2766,6 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(vLabel);
         }
     }
-
-    // Multi-camera visualization
     int activeCams = 0;
     std::vector<sf::Vector2f> camPositions;
     CameraMultiFollowMode sharedMode = CameraMultiFollowMode::Average;
@@ -3429,25 +3427,18 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
 void EditorScene::InitSpotlightItems()
 {
     m_AllSpotlightItems = {
-        // Primitives
         {"add_rect", "Rectangle", "Primitives", "2D rectangular shape primitive", ObjectType::Rectangle},
         {"add_circle", "Circle", "Primitives", "2D circular shape primitive", ObjectType::Circle},
         {"add_triangle", "Triangle", "Primitives", "3-sided polygon primitive", ObjectType::Triangle},
         {"add_pentagon", "Pentagon", "Primitives", "5-sided polygon primitive", ObjectType::Pentagon},
         {"add_hexagon", "Hexagon", "Primitives", "6-sided polygon primitive", ObjectType::Hexagon},
-
-        // Gameplay
         {"add_empty", "Empty Entity", "Gameplay", "Empty transform node for organization & parenting", ObjectType::Empty},
         {"add_spawn", "Spawn Point", "Gameplay", "Level player/actor spawn point with beacon gizmo", ObjectType::SpawnPoint},
         {"add_trigger", "Trigger Zone", "Gameplay", "Sensor area with isTrigger=true collision callbacks", ObjectType::TriggerZone},
         {"add_cam_obj", "Camera", "Gameplay", "In-game camera with live viewport frustum frame", ObjectType::Camera},
-
-        // Physics
         {"add_phys_box", "Physics Box", "Physics", "Dynamic box with Rigidbody2D and collider", ObjectType::PhysicsBox},
         {"add_phys_ball", "Physics Ball", "Physics", "Dynamic bouncy ball with Rigidbody2D and collider", ObjectType::PhysicsBall},
         {"add_static_platform", "Static Platform", "Physics", "Solid static barrier/platform with collision", ObjectType::StaticPlatform},
-
-        // Media & FX
         {"add_sprite", "Sprite", "Media & FX", "Sprite entity ready for texture drag-and-drop", ObjectType::Sprite},
         {"add_world_text", "World Text", "Media & FX", "Formatted text rendered directly in the game world", ObjectType::WorldText},
         {"add_audio_source", "Audio Source", "Media & FX", "Positional or ambient sound emitter component", ObjectType::AudioSource},
@@ -3705,8 +3696,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
 
     const float winW = static_cast<float>(window.getSize().x);
     const float winH = static_cast<float>(window.getSize().y);
-
-    // Dimmed background
     sf::RectangleShape overlay({winW, winH});
     overlay.setFillColor(sf::Color(0, 0, 0, 175));
     window.draw(overlay);
@@ -3716,16 +3705,12 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     const float modalX = (winW - modalW) * 0.5f;
     const float modalY = std::max(20.f, (winH - modalH) * 0.45f);
     m_SpotlightModalBounds = sf::FloatRect(modalX, modalY, modalW, modalH);
-
-    // Modal background
     sf::RectangleShape modalBg({modalW, modalH});
     modalBg.setPosition(modalX, modalY);
     modalBg.setFillColor(C_BG_ELEVATED);
     modalBg.setOutlineColor(C_BORDER_LIGHT);
     modalBg.setOutlineThickness(1.5f);
     window.draw(modalBg);
-
-    // Header bar
     sf::RectangleShape headerBg({modalW, 40.f});
     headerBg.setPosition(modalX, modalY);
     headerBg.setFillColor(C_BG_PANEL);
@@ -3739,8 +3724,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     titleText.setString("ADD OBJECT  |  SPOTLIGHT PALETTE");
     titleText.setPosition(modalX + 16.f, modalY + 11.f);
     window.draw(titleText);
-
-    // Close button in header top-right
     const float closeBtnSize = 24.f;
     const float closeBtnX = modalX + modalW - closeBtnSize - 12.f;
     const float closeBtnY = modalY + 8.f;
@@ -3762,8 +3745,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     closeBtnText.setString("x");
     closeBtnText.setPosition(closeBtnX + 7.f, closeBtnY + 2.f);
     window.draw(closeBtnText);
-
-    // Shortcut badge top-right (to left of close button)
     sf::Text scBadge;
     scBadge.setFont(*m_Font);
     scBadge.setCharacterSize(11);
@@ -3771,8 +3752,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     scBadge.setString("Shortcut: Ctrl + Space");
     scBadge.setPosition(closeBtnX - scBadge.getLocalBounds().width - 14.f, modalY + 13.f);
     window.draw(scBadge);
-
-    // Search input bar
     const float searchY = modalY + 52.f;
     const float searchH = 38.f;
     const float searchPad = 16.f;
@@ -3811,8 +3790,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     }
     queryText.setPosition(modalX + searchPad + 38.f, searchY + 9.f);
     window.draw(queryText);
-
-    // Clear search button if query not empty
     if (!m_SpotlightQuery.empty())
     {
         const float clearSize = 22.f;
@@ -3840,8 +3817,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     {
         m_SpotlightClearSearchBtnBounds = sf::FloatRect();
     }
-
-    // Category Filter Chips
     const float catY = searchY + searchH + 10.f;
     const std::vector<std::string> cats = {"All", "Primitives", "Gameplay", "Physics", "Media & FX"};
     float chipX = modalX + searchPad;
@@ -3874,8 +3849,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
 
         chipX += chipW + 8.f;
     }
-
-    // Cards Area Viewport
     const float itemsY = catY + 36.f;
     const float itemsH = modalH - (itemsY - modalY) - 36.f;
     m_SpotlightItemsViewportBounds = sf::FloatRect(modalX + searchPad, itemsY, searchW, itemsH);
@@ -3968,8 +3941,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     }
 
     window.setView(origView);
-
-    // Scrollbar (outside clipped view)
     const float trackX = modalX + searchPad + searchW - scrollbarW;
     const float trackY = itemsY;
     const float trackH = itemsH;
@@ -3997,8 +3968,6 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     {
         m_SpotlightScrollbarThumbBounds = sf::FloatRect();
     }
-
-    // Footer bar
     sf::RectangleShape footerBg({modalW, 32.f});
     footerBg.setPosition(modalX, modalY + modalH - 32.f);
     footerBg.setFillColor(C_BG_PANEL);
@@ -11108,8 +11077,6 @@ bool EditorScene::ValidateAllScripts(std::string &outError, std::string &outPath
             outError = err.what();
             return false;
         }
-
-        // Test execution in isolated test environment to catch runtime load-time syntax & global errors
         sol::environment testEnv(lua, sol::create, lua.globals());
         testEnv["self"] = obj.entity != 0 ? obj.entity : 1;
         sol::protected_function pf = lr;
@@ -11153,8 +11120,6 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
 
     const float winW = static_cast<float>(window.getSize().x);
     const float winH = static_cast<float>(window.getSize().y);
-
-    // Dim background overlay
     sf::RectangleShape dim({winW, winH});
     dim.setFillColor(sf::Color(0, 0, 0, 180));
     window.draw(dim);
@@ -11163,47 +11128,49 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
     const float modalH = 260.f;
     const float mx = (winW - modalW) * 0.5f;
     const float my = (winH - modalH) * 0.5f;
-
-    // Modal background box
     sf::RectangleShape box({modalW, modalH});
     box.setPosition(mx, my);
     box.setFillColor(C_BG_PANEL);
     box.setOutlineColor(C_DANGER);
     box.setOutlineThickness(1.5f);
     window.draw(box);
-
-    // Header bar
     sf::RectangleShape headerBg({modalW, 38.f});
     headerBg.setPosition(mx, my);
     headerBg.setFillColor(sf::Color(45, 20, 20));
     window.draw(headerBg);
-
-    // Title text
     sf::Text title;
     title.setFont(*m_Font);
     title.setCharacterSize(14);
     title.setStyle(sf::Text::Bold);
     title.setFillColor(C_DANGER);
-    title.setString("SCRIPT FEHLER  |  START VERHINDERT (F5)");
+    title.setString("SCRIPT ERROR (F5)");
     title.setPosition(mx + 16.f, my + 10.f);
     window.draw(title);
-
-    // File name / path badge
-    std::string filenameOnly = m_ScriptErrorPath;
-    if (!filenameOnly.empty())
+    // Compute relative path starting from assets/ or project root (e.g. "assets/file.lua")
+    std::string displayPath = m_ScriptErrorPath;
+    if (!displayPath.empty())
     {
         std::error_code ec;
-        filenameOnly = std::filesystem::path(m_ScriptErrorPath).filename().string();
+        std::filesystem::path fullP = std::filesystem::absolute(m_ScriptErrorPath, ec);
+        std::filesystem::path projRoot = FindProjectRoot();
+        std::filesystem::path relP = std::filesystem::relative(fullP, projRoot, ec);
+        if (!ec && !relP.empty())
+        {
+            displayPath = relP.generic_string();
+        }
+        else
+        {
+            displayPath = std::filesystem::path(m_ScriptErrorPath).generic_string();
+        }
     }
+
     sf::Text fileTxt;
     fileTxt.setFont(*m_Font);
     fileTxt.setCharacterSize(11);
     fileTxt.setFillColor(sf::Color(255, 200, 100));
-    fileTxt.setString("Datei: " + (filenameOnly.empty() ? std::string("Unbekannt") : filenameOnly));
+    fileTxt.setString("File: " + (displayPath.empty() ? std::string("Unknown") : displayPath));
     fileTxt.setPosition(mx + 16.f, my + 48.f);
     window.draw(fileTxt);
-
-    // Error details container box
     const float errBoxX = mx + 16.f;
     const float errBoxY = my + 70.f;
     const float errBoxW = modalW - 32.f;
@@ -11214,8 +11181,6 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
     errBox.setOutlineColor(C_BORDER);
     errBox.setOutlineThickness(1.f);
     window.draw(errBox);
-
-    // Format error string for visual display (wrap/truncate if too huge)
     std::string displayErr = m_ScriptErrorDetails;
     if (displayErr.length() > 280)
     {
@@ -11229,12 +11194,8 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
     errText.setString(displayErr);
     errText.setPosition(errBoxX + 10.f, errBoxY + 8.f);
     window.draw(errText);
-
-    // Buttons at bottom
     const float btnH = 30.f;
     const float btnY = my + modalH - btnH - 14.f;
-
-    // OK / Schließen Button
     const float okBtnW = 110.f;
     const float okBtnX = mx + modalW - okBtnW - 16.f;
     m_ScriptErrorOkBtn = sf::FloatRect(okBtnX, btnY, okBtnW, btnH);
@@ -11251,12 +11212,11 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
     okTxt.setFont(*m_Font);
     okTxt.setCharacterSize(11);
     okTxt.setFillColor(okHov ? sf::Color::White : C_TEXT_PRIMARY);
-    okTxt.setString("OK / Schliessen");
+    okTxt.setString("Close");
     float okw = okTxt.getLocalBounds().width;
     okTxt.setPosition(okBtnX + (okBtnW - okw) * 0.5f, btnY + 7.f);
     window.draw(okTxt);
-
-    // "In IDE oeffnen" Button
+    
     if (!m_ScriptErrorPath.empty())
     {
         const float ideBtnW = 140.f;
@@ -11275,7 +11235,7 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
         ideTxt.setFont(*m_Font);
         ideTxt.setCharacterSize(11);
         ideTxt.setFillColor(sf::Color::White);
-        ideTxt.setString("In IDE oeffnen");
+        ideTxt.setString("Open in IDE");
         float idew = ideTxt.getLocalBounds().width;
         ideTxt.setPosition(ideBtnX + (ideBtnW - idew) * 0.5f, btnY + 7.f);
         window.draw(ideTxt);
