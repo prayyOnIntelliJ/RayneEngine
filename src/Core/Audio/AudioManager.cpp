@@ -12,7 +12,7 @@ void AudioManager::Update()
     });
 }
 
-void AudioManager::PlaySound(const std::string &path, float volume, float pitch)
+void AudioManager::PlaySound(const std::string &path, float volume, float pitch, bool loop)
 {
     auto buffer = ResourceManager::Get().GetSoundBuffer(path);
     if (!buffer)
@@ -31,12 +31,13 @@ void AudioManager::PlaySound(const std::string &path, float volume, float pitch)
     }
 
     std::cout << "[INFO] [AudioManager] Playing sound: " << path << " (Vol: " << volume << ", Pitch: " << pitch <<
-            ")\n";
+            ", Loop: " << (loop ? "true" : "false") << ")\n";
 
     auto sound = std::make_unique<sf::Sound>();
     sound->setBuffer(*buffer);
     sound->setVolume(volume * (m_MasterVolume / 100.f));
     sound->setPitch(pitch);
+    sound->setLoop(loop);
     sound->play();
 
     m_ActiveSounds.push_back(std::move(sound));
@@ -72,19 +73,31 @@ void AudioManager::PlayMusic(const std::string &path, bool loop, float volume)
     m_Music.setLoop(loop);
     m_Music.setVolume(m_MusicVolume * (m_MasterVolume / 100.f));
     m_Music.play();
-    std::cout << "[AudioManager] Playing music: " << resolved << "\n";
 }
 
-void AudioManager::StopMusic() { m_Music.stop(); }
+void AudioManager::StopMusic()
+{
+    m_Music.stop();
+    std::cout << "[INFO] [AudioManager] Stopped background music.\n";
+}
 
-void AudioManager::PauseMusic() { m_Music.pause(); }
+void AudioManager::PauseMusic()
+{
+    m_Music.pause();
+    std::cout << "[INFO] [AudioManager] Paused background music.\n";
+}
 
-void AudioManager::ResumeMusic() { m_Music.play(); }
+void AudioManager::ResumeMusic()
+{
+    m_Music.play();
+    std::cout << "[INFO] [AudioManager] Resumed background music.\n";
+}
 
 void AudioManager::SetMusicVolume(float volume)
 {
     m_MusicVolume = volume;
     m_Music.setVolume(m_MusicVolume * (m_MasterVolume / 100.f));
+    std::cout << "[INFO] [AudioManager] Music volume set to " << volume << "%\n";
 }
 
 void AudioManager::SetMasterVolume(float volume)
@@ -92,6 +105,7 @@ void AudioManager::SetMasterVolume(float volume)
     m_MasterVolume = volume;
     m_Music.setVolume(m_MusicVolume * (m_MasterVolume / 100.f));
     for (auto &sound: m_ActiveSounds) { sound->setVolume(sound->getVolume() * (m_MasterVolume / 100.f)); }
+    std::cout << "[INFO] [AudioManager] Master volume set to " << volume << "%\n";
 }
 
 void AudioManager::RegisterLua(sol::state &lua)
@@ -99,10 +113,13 @@ void AudioManager::RegisterLua(sol::state &lua)
     auto audio = lua.create_named_table("Audio");
 
     audio.set_function("PlaySound", sol::overload(
-                           [](const std::string &path) { Get().PlaySound(path, 100.f, 1.0f); },
-                           [](const std::string &path, float volume) { Get().PlaySound(path, volume, 1.0f); },
+                           [](const std::string &path) { Get().PlaySound(path, 100.f, 1.0f, false); },
+                           [](const std::string &path, float volume) { Get().PlaySound(path, volume, 1.0f, false); },
                            [](const std::string &path, float volume, float pitch) {
-                               Get().PlaySound(path, volume, pitch);
+                               Get().PlaySound(path, volume, pitch, false);
+                           },
+                           [](const std::string &path, float volume, float pitch, bool loop) {
+                               Get().PlaySound(path, volume, pitch, loop);
                            }
                        ));
 

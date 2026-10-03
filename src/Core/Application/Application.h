@@ -37,10 +37,10 @@ public:
     void LoadGameScene(const std::string& sceneName);
     void LoadScene(const std::string& sceneName) { LoadGameScene(sceneName); }
 
-    void SetPaused(bool paused) { m_IsPaused = paused; }
+    void SetPaused(bool paused);
     bool IsPaused() const { return m_IsPaused; }
-    void TogglePause() { m_IsPaused = !m_IsPaused; }
-    void SetTimeScale(float scale) { m_TimeScale = (scale < 0.f ? 0.f : scale); }
+    void TogglePause();
+    void SetTimeScale(float scale);
     float GetTimeScale() const { return m_TimeScale; }
 
     void SetFullscreen(bool fullscreen);

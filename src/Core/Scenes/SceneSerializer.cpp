@@ -12,6 +12,7 @@ using json = nlohmann::json;
 
 void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &path)
 {
+    std::cout << "[INFO] [SceneSerializer] Loading scene from " << path << "...\n";
     std::ifstream file(path);
     if (!file.is_open())
     {
@@ -156,6 +157,61 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             if (!registry.HasComponent<VelocityComponent>(entity))
                 registry.AddComponent(entity, VelocityComponent{0.f, 0.f});
         }
+
+        if (j.contains("text") && (j["text"].is_object() || j["text"].is_string()))
+        {
+            TextComponent tc;
+            if (j["text"].is_string()) {
+                tc.text = j["text"].get<std::string>();
+            } else {
+                tc.text = j["text"].value("text", "World Text");
+                tc.characterSize = j["text"].value("size", 28u);
+                tc.alignment = j["text"].value("align", 0);
+                if (j["text"].contains("color") && j["text"]["color"].is_array() && j["text"]["color"].size() >= 3) {
+                    tc.color = sf::Color(j["text"]["color"][0], j["text"]["color"][1], j["text"]["color"][2]);
+                }
+                tc.outlineThickness = j["text"].value("outlineThickness", 0.0f);
+            }
+            registry.AddComponent(entity, tc);
+        }
+
+        if (j.contains("audioSource") && j["audioSource"].is_object())
+        {
+            AudioSourceComponent ac;
+            ac.soundPath = j["audioSource"].value("soundPath", "");
+            ac.volume = j["audioSource"].value("volume", 100.0f);
+            ac.pitch = j["audioSource"].value("pitch", 1.0f);
+            ac.loop = j["audioSource"].value("loop", false);
+            ac.playOnStart = j["audioSource"].value("playOnStart", true);
+            ac.isSpatial = j["audioSource"].value("isSpatial", false);
+            ac.minDistance = j["audioSource"].value("minDistance", 150.0f);
+            ac.attenuation = j["audioSource"].value("attenuation", 1.0f);
+            registry.AddComponent(entity, ac);
+        }
+
+        if (j.contains("particleEmitter") && j["particleEmitter"].is_object())
+        {
+            ParticleEmitterComponent pec;
+            pec.emitting = j["particleEmitter"].value("emitting", true);
+            pec.maxParticles = j["particleEmitter"].value("maxParticles", 120);
+            pec.emissionRate = j["particleEmitter"].value("rate", 25.0f);
+            pec.lifetime = j["particleEmitter"].value("lifetime", 1.5f);
+            pec.speed = j["particleEmitter"].value("speed", 120.0f);
+            pec.speedVariance = j["particleEmitter"].value("speedVariance", 40.0f);
+            pec.angle = j["particleEmitter"].value("angle", -90.0f);
+            pec.spreadAngle = j["particleEmitter"].value("spread", 45.0f);
+            pec.startSize = j["particleEmitter"].value("startSize", 8.0f);
+            pec.endSize = j["particleEmitter"].value("endSize", 2.0f);
+            pec.gravityX = j["particleEmitter"].value("gravityX", 0.0f);
+            pec.gravityY = j["particleEmitter"].value("gravityY", 60.0f);
+            if (j["particleEmitter"].contains("startColor") && j["particleEmitter"]["startColor"].is_array() && j["particleEmitter"]["startColor"].size() >= 3) {
+                pec.startColor = sf::Color(j["particleEmitter"]["startColor"][0], j["particleEmitter"]["startColor"][1], j["particleEmitter"]["startColor"][2]);
+            }
+            if (j["particleEmitter"].contains("endColor") && j["particleEmitter"]["endColor"].is_array() && j["particleEmitter"]["endColor"].size() >= 3) {
+                pec.endColor = sf::Color(j["particleEmitter"]["endColor"][0], j["particleEmitter"]["endColor"][1], j["particleEmitter"]["endColor"][2]);
+            }
+            registry.AddComponent(entity, pec);
+        }
     }
 
     for (const auto& link : parentLinks) {
@@ -175,10 +231,12 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     }
 
     HierarchySystem::UpdateWorldTransforms(registry);
+    std::cout << "[INFO] [SceneSerializer] Scene '" << path << "' loaded successfully (" << data["objects"].size() << " objects).\n";
 }
 
 Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::string &templatePath, float x, float y, Entity parent)
 {
+    std::cout << "[INFO] [SceneSerializer] Instantiating template '" << templatePath << "' at (" << x << ", " << y << ")...\n";
     std::string fullPath = templatePath;
     std::filesystem::path p(templatePath);
     if (!p.is_absolute()) {
@@ -369,6 +427,61 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
                 registry.AddComponent(entity, VelocityComponent{0.f, 0.f});
         }
 
+        if (j.contains("text") && (j["text"].is_object() || j["text"].is_string()))
+        {
+            TextComponent tc;
+            if (j["text"].is_string()) {
+                tc.text = j["text"].get<std::string>();
+            } else {
+                tc.text = j["text"].value("text", "World Text");
+                tc.characterSize = j["text"].value("size", 28u);
+                tc.alignment = j["text"].value("align", 0);
+                if (j["text"].contains("color") && j["text"]["color"].is_array() && j["text"]["color"].size() >= 3) {
+                    tc.color = sf::Color(j["text"]["color"][0], j["text"]["color"][1], j["text"]["color"][2]);
+                }
+                tc.outlineThickness = j["text"].value("outlineThickness", 0.0f);
+            }
+            registry.AddComponent(entity, tc);
+        }
+
+        if (j.contains("audioSource") && j["audioSource"].is_object())
+        {
+            AudioSourceComponent ac;
+            ac.soundPath = j["audioSource"].value("soundPath", "");
+            ac.volume = j["audioSource"].value("volume", 100.0f);
+            ac.pitch = j["audioSource"].value("pitch", 1.0f);
+            ac.loop = j["audioSource"].value("loop", false);
+            ac.playOnStart = j["audioSource"].value("playOnStart", true);
+            ac.isSpatial = j["audioSource"].value("isSpatial", false);
+            ac.minDistance = j["audioSource"].value("minDistance", 150.0f);
+            ac.attenuation = j["audioSource"].value("attenuation", 1.0f);
+            registry.AddComponent(entity, ac);
+        }
+
+        if (j.contains("particleEmitter") && j["particleEmitter"].is_object())
+        {
+            ParticleEmitterComponent pec;
+            pec.emitting = j["particleEmitter"].value("emitting", true);
+            pec.maxParticles = j["particleEmitter"].value("maxParticles", 120);
+            pec.emissionRate = j["particleEmitter"].value("rate", 25.0f);
+            pec.lifetime = j["particleEmitter"].value("lifetime", 1.5f);
+            pec.speed = j["particleEmitter"].value("speed", 120.0f);
+            pec.speedVariance = j["particleEmitter"].value("speedVariance", 40.0f);
+            pec.angle = j["particleEmitter"].value("angle", -90.0f);
+            pec.spreadAngle = j["particleEmitter"].value("spread", 45.0f);
+            pec.startSize = j["particleEmitter"].value("startSize", 8.0f);
+            pec.endSize = j["particleEmitter"].value("endSize", 2.0f);
+            pec.gravityX = j["particleEmitter"].value("gravityX", 0.0f);
+            pec.gravityY = j["particleEmitter"].value("gravityY", 60.0f);
+            if (j["particleEmitter"].contains("startColor") && j["particleEmitter"]["startColor"].is_array() && j["particleEmitter"]["startColor"].size() >= 3) {
+                pec.startColor = sf::Color(j["particleEmitter"]["startColor"][0], j["particleEmitter"]["startColor"][1], j["particleEmitter"]["startColor"][2]);
+            }
+            if (j["particleEmitter"].contains("endColor") && j["particleEmitter"]["endColor"].is_array() && j["particleEmitter"]["endColor"].size() >= 3) {
+                pec.endColor = sf::Color(j["particleEmitter"]["endColor"][0], j["particleEmitter"]["endColor"][1], j["particleEmitter"]["endColor"][2]);
+            }
+            registry.AddComponent(entity, pec);
+        }
+
         registry.AddComponent(entity, HierarchyComponent{});
     }
 
@@ -392,5 +505,6 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
         }
     }
 
+    std::cout << "[INFO] [SceneSerializer] Template '" << templatePath << "' instantiated (Root Entity: " << rootEntity << ", total entities: " << createdEntities.size() << ").\n";
     return rootEntity;
 }

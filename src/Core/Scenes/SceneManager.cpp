@@ -52,6 +52,7 @@ void SceneManager::Shutdown()
     {
         scene->OnShutdown();
     }
+    std::cout << "[INFO] [SceneManager] All scenes shut down successfully.\n";
 }
 
 bool SceneManager::HasScene(const std::string &name) const { return m_scenes.contains(name); }

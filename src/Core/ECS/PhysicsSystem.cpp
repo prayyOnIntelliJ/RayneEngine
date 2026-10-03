@@ -515,6 +515,7 @@ sf::Vector2f PhysicsSystem::GetVelocity(Registry& registry, Entity entity)
 void PhysicsSystem::SetGravity(float gx, float gy)
 {
     s_Gravity = sf::Vector2f(gx, gy);
+    std::cout << "[INFO] [Physics] Gravity set to (" << gx << ", " << gy << ")\n";
 }
 
 sf::Vector2f PhysicsSystem::GetGravity()
@@ -524,7 +525,11 @@ sf::Vector2f PhysicsSystem::GetGravity()
 
 void PhysicsSystem::SetFixedTimestep(float fixedDt)
 {
-    if (fixedDt > 0.001f) s_FixedDeltaTime = fixedDt;
+    if (fixedDt > 0.001f)
+    {
+        s_FixedDeltaTime = fixedDt;
+        std::cout << "[INFO] [Physics] Fixed timestep set to " << fixedDt << "s\n";
+    }
 }
 
 float PhysicsSystem::GetFixedTimestep()

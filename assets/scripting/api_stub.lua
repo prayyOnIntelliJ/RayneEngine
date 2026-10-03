@@ -567,6 +567,106 @@ function HasSprite(e) end
 ---@param a? number
 function SetColor(e, r, g, b, a) end
 
+---Adds a Text Component to an Entity
+---@param e Entity
+---@param text string
+---@param size? number
+function AddText(e, text, size) end
+
+---Sets the text of an Entity's Text Component
+---@param e Entity
+---@param text string
+function SetText(e, text) end
+
+---Gets the text of an Entity's Text Component
+---@param e Entity
+---@return string
+function GetText(e) end
+
+---Sets the font character size of an Entity's Text Component
+---@param e Entity
+---@param size number
+function SetTextSize(e, size) end
+
+---Sets the text color of an Entity's Text Component
+---@param e Entity
+---@param r number
+---@param g number
+---@param b number
+---@param a? number
+function SetTextColor(e, r, g, b, a) end
+
+---Checks if an Entity has a Text Component
+---@param e Entity
+---@return boolean
+function HasText(e) end
+
+---Adds an Audio Source Component to an Entity
+---@param e Entity
+---@param path string
+---@param volume? number
+---@param pitch? number
+---@param loop? boolean
+function AddAudioSource(e, path, volume, pitch, loop) end
+
+---Plays the audio clip of an Entity's Audio Source Component
+---@param e Entity
+function PlayAudio(e) end
+
+---Sets the sound clip path of an Entity's Audio Source Component
+---@param e Entity
+---@param path string
+function SetAudioClip(e, path) end
+
+---Sets the volume of an Entity's Audio Source Component (0 - 100)
+---@param e Entity
+---@param volume number
+function SetAudioVolume(e, volume) end
+
+---Sets the pitch of an Entity's Audio Source Component
+---@param e Entity
+---@param pitch number
+function SetAudioPitch(e, pitch) end
+
+---Sets whether an Entity's Audio Source Component should loop
+---@param e Entity
+---@param loop boolean
+function SetAudioLoop(e, loop) end
+
+---Checks if an Entity has an Audio Source Component
+---@param e Entity
+---@return boolean
+function HasAudioSource(e) end
+
+---Adds a Particle Emitter Component to an Entity
+---@param e Entity
+function AddParticleEmitter(e) end
+
+---Sets whether a Particle Emitter is currently emitting
+---@param e Entity
+---@param emitting boolean
+function SetParticleEmitting(e, emitting) end
+
+---Checks whether a Particle Emitter is currently emitting
+---@param e Entity
+---@return boolean
+function IsParticleEmitting(e) end
+
+---Sets the emission rate (particles per second)
+---@param e Entity
+---@param rate number
+function SetParticleRate(e, rate) end
+
+---Sets the particle speed
+---@param e Entity
+---@param speed number
+function SetParticleSpeed(e, speed) end
+
+---Checks if an Entity has a Particle Emitter Component
+---@param e Entity
+---@return boolean
+function HasParticleEmitter(e) end
+
 ---@enum CameraMultiFollowMode
 CameraMultiFollowMode = {
     Priority = 0,

@@ -193,7 +193,11 @@ void UIElement::UpdateDrawables()
 }
 
 
-void UIManager::Init(std::shared_ptr<sf::Font> defaultFont) { m_DefaultFont = defaultFont; }
+void UIManager::Init(std::shared_ptr<sf::Font> defaultFont)
+{
+    m_DefaultFont = defaultFont;
+    std::cout << "[INFO] [UIManager] Subsystem initialized.\n";
+}
 
 void UIManager::ApplyLayouts()
 {
@@ -895,13 +899,21 @@ void UIManager::Save(const std::string &path)
 
     std::ofstream file(path);
     if (file.is_open())
+    {
         file << data.dump(4, ' ', false, json::error_handler_t::replace);
+        std::cout << "[INFO] [UIManager] UI layout saved to " << path << " (" << m_Elements.size() << " elements).\n";
+    }
+    else
+    {
+        std::cerr << "[ERROR] [UIManager] Failed to open UI file for writing: " << path << "\n";
+    }
 }
 
 
 void UIManager::Load(const std::string &path)
 {
     m_Elements.clear();
+    std::cout << "[INFO] [UIManager] Loading UI layout from: " << path << "...\n";
 
     std::ifstream file(path);
     if (!file.is_open())
@@ -1084,6 +1096,7 @@ void UIManager::Load(const std::string &path)
     }
     m_SortDirty = true;
     ApplyLayouts();
+    std::cout << "[INFO] [UIManager] UI layout loaded successfully from " << path << " (" << m_Elements.size() << " elements).\n";
 }
 
 
@@ -1104,6 +1117,7 @@ UIElement *UIManager::CreateElement(const std::string &id, UIElementType type)
     el.UpdateDrawables();
     m_Elements.push_back(el);
     m_SortDirty = true;
+    std::cout << "[INFO] [UIManager] Created UI element '" << id << "'\n";
     return &m_Elements.back();
 }
 
@@ -1111,6 +1125,7 @@ void UIManager::RemoveElement(const std::string &id)
 {
     std::erase_if(m_Elements, [&](const UIElement &e) { return e.id == id; });
     m_SortDirty = true;
+    std::cout << "[INFO] [UIManager] Removed UI element '" << id << "'\n";
 }
 
 UIElement *UIManager::GetElement(const std::string &id)

@@ -24,7 +24,11 @@
 
 using json = nlohmann::json;
 
-enum class ObjectType { Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite, Camera };
+enum class ObjectType {
+    Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite, Camera,
+    Empty, SpawnPoint, TriggerZone, PhysicsBox, PhysicsBall, StaticPlatform,
+    WorldText, AudioSource, ParticleEmitter
+};
 
 struct EditorObject
 {
@@ -55,6 +59,37 @@ struct EditorObject
     int zIndex = 0;
     std::string templatePath = "";
     std::map<std::string, ScriptComponent::Property> scriptProperties;
+
+    // World Text fields
+    std::string textString = "World Text";
+    unsigned int textFontSize = 28;
+    sf::Color textColor = sf::Color::White;
+    int textAlignment = 0;
+
+    // Audio Source fields
+    std::string audioClipPath = "";
+    float audioVolume = 100.0f;
+    float audioPitch = 1.0f;
+    bool audioLoop = false;
+    bool audioPlayOnStart = true;
+    bool audioIsSpatial = false;
+
+    // Particle Emitter fields
+    bool particleEmitting = true;
+    int particleMaxParticles = 120;
+    float particleRate = 25.0f;
+    float particleLifetime = 1.5f;
+    float particleSpeed = 120.0f;
+    float particleAngle = -90.0f;
+    float particleSpread = 45.0f;
+    float particleStartSize = 8.0f;
+    float particleEndSize = 2.0f;
+    sf::Color particleStartColor = sf::Color(255, 190, 50, 255);
+    sf::Color particleEndColor = sf::Color(255, 50, 20, 0);
+    float particleGravityX = 0.0f;
+    float particleGravityY = 60.0f;
+    std::vector<Particle> editorParticles;
+    float particleTimer = 0.0f;
 };
 
 struct InspectorButton
@@ -256,6 +291,35 @@ private:
     std::vector<std::pair<sf::FloatRect, std::string> > m_AddDropdownHitboxes;
     std::vector<std::pair<sf::FloatRect, std::string> > m_ToolbarHitboxes;
 
+    struct SpotlightItem
+    {
+        std::string id;
+        std::string name;
+        std::string category;
+        std::string desc;
+        ObjectType type;
+    };
+
+    bool m_SpotlightOpen = false;
+    std::string m_SpotlightQuery = "";
+    int m_SpotlightCategory = 0; // 0=All, 1=Primitives, 2=Gameplay, 3=Physics, 4=Media & FX
+    int m_SpotlightSelectedIndex = 0;
+    float m_SpotlightScrollY = 0.0f;
+    std::vector<SpotlightItem> m_AllSpotlightItems;
+    std::vector<SpotlightItem> m_FilteredSpotlightItems;
+    std::vector<std::pair<sf::FloatRect, int>> m_SpotlightItemHitboxes;
+    std::vector<std::pair<sf::FloatRect, int>> m_SpotlightCategoryHitboxes;
+    sf::FloatRect m_SpotlightSearchBoxBounds;
+    sf::FloatRect m_SpotlightModalBounds;
+
+    void InitSpotlightItems();
+    void FilterSpotlightItems();
+    void OpenSpotlight();
+    void CloseSpotlight();
+    void DrawSpotlightPalette(sf::RenderWindow &window);
+    void DrawSpotlightItemIcon(sf::RenderWindow &window, ObjectType type, sf::Vector2f center, float size);
+    void SelectSpotlightItem(const SpotlightItem &item);
+
     bool m_HierarchyContextMenuOpen = false;
     sf::Vector2f m_ContextMenuPos;
     EditorObject *m_ContextObject = nullptr;
@@ -294,7 +358,21 @@ private:
         CameraMaxZoom,
         CameraAutoFramePadding,
         UIText,
-        ScriptProperty
+        ScriptProperty,
+        TextContent,
+        TextFontSize,
+        AudioPath,
+        AudioVolume,
+        AudioPitch,
+        ParticleRate,
+        ParticleLifetime,
+        ParticleSpeed,
+        ParticleAngle,
+        ParticleSpread,
+        ParticleStartSize,
+        ParticleEndSize,
+        ParticleGravityX,
+        ParticleGravityY
     };
 
     EditField m_ActiveField = EditField::None;

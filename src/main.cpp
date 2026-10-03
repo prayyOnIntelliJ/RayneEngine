@@ -22,8 +22,11 @@ int main()
 #endif
 
     ConsolePanel::InitRedirectors();
+    std::cout << "[INFO] [Main] RayneEngine launched.\n";
     
     Application application;
     
     application.Run();
+    std::cout << "[INFO] [Main] RayneEngine process finished successfully.\n";
+    return 0;
 }

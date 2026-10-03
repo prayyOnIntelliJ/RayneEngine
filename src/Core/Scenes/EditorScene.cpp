@@ -165,7 +165,9 @@ static ShapeType MapToShapeType(ObjectType type)
 {
     switch (type)
     {
-        case ObjectType::Circle: return ShapeType::Circle;
+        case ObjectType::Circle:
+        case ObjectType::PhysicsBall:
+            return ShapeType::Circle;
         case ObjectType::Triangle: return ShapeType::Triangle;
         case ObjectType::Pentagon: return ShapeType::Pentagon;
         case ObjectType::Hexagon: return ShapeType::Hexagon;
@@ -175,8 +177,8 @@ static ShapeType MapToShapeType(ObjectType type)
 
 static bool IsPolygonType(ObjectType type)
 {
-    return type == ObjectType::Circle || type == ObjectType::Triangle ||
-           type == ObjectType::Pentagon || type == ObjectType::Hexagon;
+    return type == ObjectType::Circle || type == ObjectType::PhysicsBall ||
+           type == ObjectType::Triangle || type == ObjectType::Pentagon || type == ObjectType::Hexagon;
 }
 
 static size_t GetPolygonPointCount(ObjectType type)
@@ -186,6 +188,7 @@ static size_t GetPolygonPointCount(ObjectType type)
         case ObjectType::Triangle: return 3;
         case ObjectType::Pentagon: return 5;
         case ObjectType::Hexagon: return 6;
+        case ObjectType::PhysicsBall:
         case ObjectType::Circle: default: return 30;
     }
 }
@@ -283,6 +286,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     m_HierarchyPanel.setFillColor(C_BG_PANEL);
 
     InitMenus();
+    InitSpotlightItems();
     UpdateStatusText();
 
     LoadSettings();
@@ -388,7 +392,11 @@ void EditorScene::OnEnter()
     UpdateStatusText();
 }
 
-void EditorScene::OnExit() { SyncToRegistry(); }
+void EditorScene::OnExit()
+{
+    std::cout << "[INFO] [EditorScene] Exited Editor mode.\n";
+    SyncToRegistry();
+}
 
 void EditorScene::OnShutdown()
 {
@@ -664,6 +672,128 @@ void EditorScene::HandleEvent(const sf::Event &event)
         return;
     }
 
+    if (m_SpotlightOpen)
+    {
+        if (event.type == sf::Event::KeyPressed)
+        {
+            if (event.key.code == sf::Keyboard::Escape)
+            {
+                CloseSpotlight();
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Return || event.key.code == sf::Keyboard::Enter)
+            {
+                if (!m_FilteredSpotlightItems.empty() && m_SpotlightSelectedIndex >= 0 && m_SpotlightSelectedIndex < (int)m_FilteredSpotlightItems.size())
+                {
+                    SelectSpotlightItem(m_FilteredSpotlightItems[m_SpotlightSelectedIndex]);
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Up)
+            {
+                if (!m_FilteredSpotlightItems.empty())
+                {
+                    m_SpotlightSelectedIndex = (m_SpotlightSelectedIndex - 2 + (int)m_FilteredSpotlightItems.size()) % (int)m_FilteredSpotlightItems.size();
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Down)
+            {
+                if (!m_FilteredSpotlightItems.empty())
+                {
+                    m_SpotlightSelectedIndex = (m_SpotlightSelectedIndex + 2) % (int)m_FilteredSpotlightItems.size();
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Left)
+            {
+                if (m_SpotlightSelectedIndex % 2 == 1)
+                {
+                    m_SpotlightSelectedIndex--;
+                }
+                else
+                {
+                    m_SpotlightCategory = (m_SpotlightCategory - 1 + 5) % 5;
+                    FilterSpotlightItems();
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Right)
+            {
+                if (m_SpotlightSelectedIndex % 2 == 0 && m_SpotlightSelectedIndex + 1 < (int)m_FilteredSpotlightItems.size())
+                {
+                    m_SpotlightSelectedIndex++;
+                }
+                else
+                {
+                    m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
+                    FilterSpotlightItems();
+                }
+                return;
+            }
+            if (event.key.code == sf::Keyboard::Tab)
+            {
+                m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
+                FilterSpotlightItems();
+                return;
+            }
+        }
+        else if (event.type == sf::Event::TextEntered)
+        {
+            if (event.text.unicode == 8 || event.text.unicode == 127)
+            {
+                if (!m_SpotlightQuery.empty())
+                {
+                    m_SpotlightQuery.pop_back();
+                    FilterSpotlightItems();
+                }
+            }
+            else if (event.text.unicode >= 32 && event.text.unicode < 127)
+            {
+                m_SpotlightQuery += static_cast<char>(event.text.unicode);
+                FilterSpotlightItems();
+            }
+            return;
+        }
+        else if (event.type == sf::Event::MouseWheelScrolled)
+        {
+            if (m_SpotlightModalBounds.contains(m_MouseScreenPos))
+            {
+                m_SpotlightScrollY = std::max(0.0f, m_SpotlightScrollY - event.mouseWheelScroll.delta * 30.0f);
+            }
+            return;
+        }
+        else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            for (const auto& [rect, catIdx] : m_SpotlightCategoryHitboxes)
+            {
+                if (rect.contains(m_MouseScreenPos))
+                {
+                    m_SpotlightCategory = catIdx;
+                    FilterSpotlightItems();
+                    return;
+                }
+            }
+            for (const auto& [rect, itemIdx] : m_SpotlightItemHitboxes)
+            {
+                if (rect.contains(m_MouseScreenPos))
+                {
+                    if (itemIdx >= 0 && itemIdx < (int)m_FilteredSpotlightItems.size())
+                    {
+                        SelectSpotlightItem(m_FilteredSpotlightItems[itemIdx]);
+                    }
+                    return;
+                }
+            }
+            if (!m_SpotlightModalBounds.contains(m_MouseScreenPos))
+            {
+                CloseSpotlight();
+            }
+            return;
+        }
+        return;
+    }
+
     if (m_ShowProjectSettings)
     {
         if (event.type == sf::Event::TextEntered && m_ActiveProjectSettingsField != ProjectSettingsField::None)
@@ -887,11 +1017,59 @@ void EditorScene::HandleEvent(const sf::Event &event)
             if (IsPolygonType(m_PlacementType))
             {
                 m_CirclePreview.setPointCount(GetPolygonPointCount(m_PlacementType));
+                m_CirclePreview.setRadius(m_GridSize * 0.5f);
+                m_CirclePreview.setFillColor(sf::Color(255, 255, 255, 70));
+                m_CirclePreview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::PhysicsBall)
+            {
+                m_CirclePreview.setPointCount(30);
+                m_CirclePreview.setRadius(32.f);
+                m_CirclePreview.setFillColor(sf::Color(220, 80, 80, 90));
                 m_CirclePreview.setPosition(SnapToGrid(pos));
             } else if (m_PlacementType == ObjectType::Camera)
             {
                 m_Preview.setSize({64.f, 48.f});
                 m_Preview.setFillColor(sf::Color(64, 160, 216, 100));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::Empty)
+            {
+                m_Preview.setSize({32.f, 32.f});
+                m_Preview.setFillColor(sf::Color(180, 180, 180, 70));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::SpawnPoint)
+            {
+                m_Preview.setSize({48.f, 48.f});
+                m_Preview.setFillColor(sf::Color(255, 200, 60, 90));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::TriggerZone)
+            {
+                m_Preview.setSize({120.f, 80.f});
+                m_Preview.setFillColor(sf::Color(40, 200, 80, 70));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::PhysicsBox)
+            {
+                m_Preview.setSize({64.f, 64.f});
+                m_Preview.setFillColor(sf::Color(210, 140, 70, 90));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::StaticPlatform)
+            {
+                m_Preview.setSize({240.f, 32.f});
+                m_Preview.setFillColor(sf::Color(100, 110, 125, 110));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::WorldText)
+            {
+                m_Preview.setSize({160.f, 36.f});
+                m_Preview.setFillColor(sf::Color(100, 220, 255, 70));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::AudioSource)
+            {
+                m_Preview.setSize({48.f, 48.f});
+                m_Preview.setFillColor(sf::Color(160, 100, 240, 90));
+                m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::ParticleEmitter)
+            {
+                m_Preview.setSize({48.f, 48.f});
+                m_Preview.setFillColor(sf::Color(255, 150, 40, 90));
                 m_Preview.setPosition(SnapToGrid(pos));
             } else
             {
@@ -1242,6 +1420,61 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 sf::Vector2f dropPos = MouseWorldPos();
                 InstantiateTemplateOnCanvas(drag.path, dropPos);
+            }
+        }
+        else if (drag.type == AssetType::Audio)
+        {
+            if (inInspector)
+            {
+                EditorObject* dropTarget = GetInspectedObject();
+                if (dropTarget)
+                {
+                    dropTarget->audioClipPath = drag.path;
+                    if (dropTarget->entity != 0)
+                    {
+                        if (m_Registry.HasComponent<AudioSourceComponent>(dropTarget->entity))
+                            m_Registry.GetComponent<AudioSourceComponent>(dropTarget->entity).soundPath = drag.path;
+                        else
+                        {
+                            AudioSourceComponent ac;
+                            ac.soundPath = drag.path;
+                            m_Registry.AddComponent(dropTarget->entity, ac);
+                        }
+                    }
+                    SetDirty(true);
+                    std::cout << "[INFO] [ContentBrowser] Assigned audio " << drag.path << " to " << dropTarget->id << "\n";
+                }
+            }
+            else if (!inBrowser && !inTopBars && !inTabs)
+            {
+                EditorObject *hit = ObjectAt(MouseWorldPos());
+                if (hit)
+                {
+                    hit->audioClipPath = drag.path;
+                    if (hit->entity != 0)
+                    {
+                        if (m_Registry.HasComponent<AudioSourceComponent>(hit->entity))
+                            m_Registry.GetComponent<AudioSourceComponent>(hit->entity).soundPath = drag.path;
+                        else
+                        {
+                            AudioSourceComponent ac;
+                            ac.soundPath = drag.path;
+                            m_Registry.AddComponent(hit->entity, ac);
+                        }
+                    }
+                    SetDirty(true);
+                }
+                else
+                {
+                    m_Selected = nullptr;
+                    AddObject(MouseWorldPos(), ObjectType::AudioSource);
+                    if (!m_Objects.empty())
+                    {
+                        m_Objects.back().audioClipPath = drag.path;
+                        if (m_Objects.back().entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(m_Objects.back().entity))
+                            m_Registry.GetComponent<AudioSourceComponent>(m_Objects.back().entity).soundPath = drag.path;
+                    }
+                }
             }
         }
 
@@ -1688,8 +1921,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 {
                     if (a == "add_dropdown")
                     {
-                        m_AddDropdownOpen = !m_AddDropdownOpen;
-                        m_OpenMenuIndex = -1;
+                        OpenSpotlight();
+                        return;
                     } else
                     {
                         HandleMenuAction(a);
@@ -1856,6 +2089,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (ctrl && event.key.code == sf::Keyboard::Z) UndoCommand();
         if (ctrl && event.key.code == sf::Keyboard::Y) RedoCommand();
         if (ctrl && event.key.code == sf::Keyboard::Comma) HandleMenuAction("settings");
+        if (ctrl && event.key.code == sf::Keyboard::Space) { OpenSpotlight(); return; }
         if (event.key.code == sf::Keyboard::G) HandleMenuAction("toggle_grid");
 
         if (event.key.code == sf::Keyboard::Delete)
@@ -1991,6 +2225,65 @@ void EditorScene::Update(float deltaTime)
             }
         }
     });
+
+    for (auto &obj : m_Objects)
+    {
+        if ((obj.objectType == ObjectType::ParticleEmitter ||
+            (obj.entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(obj.entity))) &&
+            obj.particleEmitting)
+        {
+            obj.particleTimer += deltaTime;
+            float spawnInterval = 1.0f / std::max(1.0f, obj.particleRate);
+            sf::Vector2f emitterPos = obj.worldPosition + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+
+            while (obj.particleTimer >= spawnInterval)
+            {
+                obj.particleTimer -= spawnInterval;
+                if ((int)obj.editorParticles.size() < obj.particleMaxParticles)
+                {
+                    Particle p;
+                    p.position = emitterPos;
+                    float angleRad = (obj.particleAngle + (static_cast<float>(rand() % 1000) / 1000.0f - 0.5f) * obj.particleSpread) * 3.14159265f / 180.0f;
+                    float speed = obj.particleSpeed + (static_cast<float>(rand() % 1000) / 1000.0f - 0.5f) * 40.0f;
+                    p.velocity = sf::Vector2f(std::cos(angleRad) * speed, std::sin(angleRad) * speed);
+                    p.lifetime = 0.0f;
+                    p.maxLifetime = std::max(0.1f, obj.particleLifetime);
+                    p.size = obj.particleStartSize;
+                    p.color = obj.particleStartColor;
+                    obj.editorParticles.push_back(p);
+                }
+            }
+
+            for (auto it = obj.editorParticles.begin(); it != obj.editorParticles.end();)
+            {
+                it->lifetime += deltaTime;
+                if (it->lifetime >= it->maxLifetime)
+                {
+                    it = obj.editorParticles.erase(it);
+                }
+                else
+                {
+                    it->velocity.x += obj.particleGravityX * deltaTime;
+                    it->velocity.y += obj.particleGravityY * deltaTime;
+                    it->position += it->velocity * deltaTime;
+                    float t = std::min(1.0f, it->lifetime / it->maxLifetime);
+                    it->size = obj.particleStartSize + (obj.particleEndSize - obj.particleStartSize) * t;
+                    auto lerpC = [](sf::Uint8 a, sf::Uint8 b, float factor) -> sf::Uint8 {
+                        return static_cast<sf::Uint8>(a + (b - a) * factor);
+                    };
+                    it->color.r = lerpC(obj.particleStartColor.r, obj.particleEndColor.r, t);
+                    it->color.g = lerpC(obj.particleStartColor.g, obj.particleEndColor.g, t);
+                    it->color.b = lerpC(obj.particleStartColor.b, obj.particleEndColor.b, t);
+                    it->color.a = lerpC(obj.particleStartColor.a, obj.particleEndColor.a, t);
+                    ++it;
+                }
+            }
+        }
+        else if (!obj.editorParticles.empty())
+        {
+            obj.editorParticles.clear();
+        }
+    }
 }
 
 void EditorScene::Render(sf::RenderWindow &window)
@@ -2060,6 +2353,128 @@ void EditorScene::Render(sf::RenderWindow &window)
             recDot.setPosition(obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x - 9.f, 4.f));
             recDot.setFillColor(sf::Color(255, 60, 60));
             window.draw(recDot);
+        } else if (obj.objectType == ObjectType::Empty)
+        {
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::CircleShape d(12.f, 4);
+            d.setOrigin(12.f, 12.f);
+            d.setPosition(center);
+            d.setRotation(45.f);
+            d.setFillColor(sf::Color(180, 180, 180, 40));
+            d.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(180, 180, 180, 180));
+            d.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(d);
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setOutlineColor(sf::Color::Transparent);
+            obj.shape.setOutlineThickness(0.f);
+        } else if (obj.objectType == ObjectType::SpawnPoint)
+        {
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::CircleShape beacon(22.f);
+            beacon.setOrigin(22.f, 22.f);
+            beacon.setPosition(center);
+            beacon.setFillColor(sf::Color(255, 200, 60, 35));
+            beacon.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(255, 200, 60, 200));
+            beacon.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(beacon);
+
+            sf::CircleShape core(5.f);
+            core.setOrigin(5.f, 5.f);
+            core.setPosition(center);
+            core.setFillColor(sf::Color(255, 200, 60));
+            window.draw(core);
+
+            sf::Text spLabel("SPAWN", *m_Font, 10);
+            spLabel.setFillColor(sf::Color(255, 200, 60, 220));
+            spLabel.setPosition(center.x - spLabel.getLocalBounds().width * 0.5f, center.y + 24.f);
+            window.draw(spLabel);
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+        } else if (obj.objectType == ObjectType::TriggerZone)
+        {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
+            obj.shape.setFillColor(sf::Color(40, 200, 80, 45));
+            obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(60, 240, 100, 180));
+            obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(obj.shape);
+
+            sf::Text trigText("[TRIGGER]", *m_Font, 10);
+            trigText.setFillColor(sf::Color(80, 255, 120, 200));
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f * obj.scaleX, obj.shape.getSize().y * 0.5f * obj.scaleY);
+            trigText.setPosition(center.x - trigText.getLocalBounds().width * 0.5f, center.y - 7.f);
+            window.draw(trigText);
+        } else if (obj.objectType == ObjectType::WorldText || (obj.entity != 0 && m_Registry.HasComponent<TextComponent>(obj.entity)))
+        {
+            sf::Text worldTxt(obj.textString, *m_Font, obj.textFontSize);
+            worldTxt.setFillColor(obj.textColor);
+            worldTxt.setPosition(obj.shape.getPosition());
+            worldTxt.setRotation(obj.rotation);
+            worldTxt.setScale(obj.scaleX, obj.scaleY);
+            window.draw(worldTxt);
+
+            sf::FloatRect tb = worldTxt.getGlobalBounds();
+            sf::RectangleShape tBounds({std::max(40.f, tb.width + 12.f), std::max(20.f, tb.height + 8.f)});
+            tBounds.setPosition(tb.left - 6.f, tb.top - 4.f);
+            tBounds.setFillColor(sf::Color::Transparent);
+            tBounds.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(100, 200, 255, 70));
+            tBounds.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.f);
+            window.draw(tBounds);
+            obj.shape.setSize({tBounds.getSize().x, tBounds.getSize().y});
+        } else if (obj.objectType == ObjectType::AudioSource)
+        {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
+            obj.shape.setFillColor(sf::Color(45, 30, 65, 180));
+            obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(160, 100, 240, 200));
+            obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(obj.shape);
+
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::ConvexShape cone(3);
+            cone.setPoint(0, {-6.f, -8.f});
+            cone.setPoint(1, {4.f, -12.f});
+            cone.setPoint(2, {4.f, 12.f});
+            cone.setPosition(center);
+            cone.setFillColor(sf::Color(180, 130, 250));
+            window.draw(cone);
+
+            sf::CircleShape wave(12.f);
+            wave.setOrigin(12.f, 12.f);
+            wave.setPosition(center);
+            wave.setFillColor(sf::Color::Transparent);
+            wave.setOutlineColor(sf::Color(200, 150, 255, 180));
+            wave.setOutlineThickness(1.5f);
+            window.draw(wave);
+
+            std::string aName = obj.audioClipPath.empty() ? "Audio" : std::filesystem::path(obj.audioClipPath).stem().string();
+            sf::Text aLabel(aName, *m_Font, 9);
+            aLabel.setFillColor(sf::Color(200, 160, 255, 200));
+            aLabel.setPosition(center.x - aLabel.getLocalBounds().width * 0.5f, center.y + 18.f);
+            window.draw(aLabel);
+        } else if (obj.objectType == ObjectType::ParticleEmitter)
+        {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
+            obj.shape.setFillColor(sf::Color(50, 25, 40, 160));
+            obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(255, 120, 180, 200));
+            obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.5f);
+            window.draw(obj.shape);
+
+            sf::Vector2f center = obj.shape.getPosition() + sf::Vector2f(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f);
+            sf::CircleShape emitterCore(7.f);
+            emitterCore.setOrigin(7.f, 7.f);
+            emitterCore.setPosition(center);
+            emitterCore.setFillColor(sf::Color(255, 150, 50));
+            window.draw(emitterCore);
+
+            for (const auto& p : obj.editorParticles)
+            {
+                sf::CircleShape pc(p.size * 0.5f);
+                pc.setOrigin(p.size * 0.5f, p.size * 0.5f);
+                pc.setPosition(p.position);
+                pc.setFillColor(p.color);
+                window.draw(pc);
+            }
         } else
         {
             obj.shape.setScale(obj.scaleX, obj.scaleY);
@@ -2249,8 +2664,10 @@ void EditorScene::Render(sf::RenderWindow &window)
 
     if (canPlace)
     {
-        if (IsPolygonType(m_PlacementType))
+        if (IsPolygonType(m_PlacementType) || m_PlacementType == ObjectType::PhysicsBall)
+        {
             window.draw(m_CirclePreview);
+        }
         else if (m_PlacementType == ObjectType::Camera)
         {
             sf::Vector2f pPos = SnapToGrid(MouseWorldPos());
@@ -2273,8 +2690,56 @@ void EditorScene::Render(sf::RenderWindow &window)
 
             window.draw(m_Preview);
         }
-        else
+        else if (m_PlacementType == ObjectType::WorldText)
+        {
             window.draw(m_Preview);
+            sf::Text gText("World Text", *m_Font, 24);
+            gText.setFillColor(sf::Color(255, 255, 255, 140));
+            gText.setPosition(m_Preview.getPosition() + sf::Vector2f(6.f, 2.f));
+            window.draw(gText);
+        }
+        else if (m_PlacementType == ObjectType::TriggerZone)
+        {
+            window.draw(m_Preview);
+            sf::Text gText("[TRIGGER ZONE]", *m_Font, 10);
+            gText.setFillColor(sf::Color(80, 255, 120, 180));
+            sf::Vector2f center = m_Preview.getPosition() + sf::Vector2f(m_Preview.getSize().x * 0.5f, m_Preview.getSize().y * 0.5f);
+            gText.setPosition(center.x - gText.getLocalBounds().width * 0.5f, center.y - 6.f);
+            window.draw(gText);
+        }
+        else if (m_PlacementType == ObjectType::Empty)
+        {
+            sf::Vector2f center = m_Preview.getPosition() + sf::Vector2f(m_Preview.getSize().x * 0.5f, m_Preview.getSize().y * 0.5f);
+            sf::CircleShape d(12.f, 4);
+            d.setOrigin(12.f, 12.f);
+            d.setPosition(center);
+            d.setRotation(45.f);
+            d.setFillColor(sf::Color(180, 180, 180, 50));
+            d.setOutlineColor(sf::Color(200, 200, 200, 180));
+            d.setOutlineThickness(1.5f);
+            window.draw(d);
+        }
+        else if (m_PlacementType == ObjectType::SpawnPoint)
+        {
+            sf::Vector2f center = m_Preview.getPosition() + sf::Vector2f(m_Preview.getSize().x * 0.5f, m_Preview.getSize().y * 0.5f);
+            sf::CircleShape beacon(22.f);
+            beacon.setOrigin(22.f, 22.f);
+            beacon.setPosition(center);
+            beacon.setFillColor(sf::Color(255, 200, 60, 40));
+            beacon.setOutlineColor(sf::Color(255, 200, 60, 200));
+            beacon.setOutlineThickness(1.5f);
+            window.draw(beacon);
+
+            sf::CircleShape core(5.f);
+            core.setOrigin(5.f, 5.f);
+            core.setPosition(center);
+            core.setFillColor(sf::Color(255, 200, 60));
+            window.draw(core);
+        }
+        else
+        {
+            window.draw(m_Preview);
+        }
     }
 
     if (m_BoxSelecting) {
@@ -2431,6 +2896,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     if (m_ShowProjectSettings) DrawProjectSettingsWindow(window);
     if (m_ShowBuildPopup) DrawBuildPopup(window);
     if (m_ShowSaveTemplatePrompt) DrawSaveTemplateModal(window);
+    if (m_SpotlightOpen) DrawSpotlightPalette(window);
 
     if (m_ContentBrowser->HasDraggedAsset() &&
         m_ContentBrowser->GetDraggedAsset().type == AssetType::Image)
@@ -2782,6 +3248,508 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         drawSep(runX - 8.f);
         m_ToolbarHitboxes.push_back({rr, "run"});
     }
+}
+
+void EditorScene::InitSpotlightItems()
+{
+    m_AllSpotlightItems = {
+        // Primitives
+        {"add_rect", "Rectangle", "Primitives", "2D rectangular shape primitive", ObjectType::Rectangle},
+        {"add_circle", "Circle", "Primitives", "2D circular shape primitive", ObjectType::Circle},
+        {"add_triangle", "Triangle", "Primitives", "3-sided polygon primitive", ObjectType::Triangle},
+        {"add_pentagon", "Pentagon", "Primitives", "5-sided polygon primitive", ObjectType::Pentagon},
+        {"add_hexagon", "Hexagon", "Primitives", "6-sided polygon primitive", ObjectType::Hexagon},
+
+        // Gameplay
+        {"add_empty", "Empty Entity", "Gameplay", "Empty transform node for organization & parenting", ObjectType::Empty},
+        {"add_spawn", "Spawn Point", "Gameplay", "Level player/actor spawn point with beacon gizmo", ObjectType::SpawnPoint},
+        {"add_trigger", "Trigger Zone", "Gameplay", "Sensor area with isTrigger=true collision callbacks", ObjectType::TriggerZone},
+        {"add_cam_obj", "Camera", "Gameplay", "In-game camera with live viewport frustum frame", ObjectType::Camera},
+
+        // Physics
+        {"add_phys_box", "Physics Box", "Physics", "Dynamic box with Rigidbody2D and collider", ObjectType::PhysicsBox},
+        {"add_phys_ball", "Physics Ball", "Physics", "Dynamic bouncy ball with Rigidbody2D and collider", ObjectType::PhysicsBall},
+        {"add_static_platform", "Static Platform", "Physics", "Solid static barrier/platform with collision", ObjectType::StaticPlatform},
+
+        // Media & FX
+        {"add_sprite", "Sprite", "Media & FX", "Sprite entity ready for texture drag-and-drop", ObjectType::Sprite},
+        {"add_world_text", "World Text", "Media & FX", "Formatted text rendered directly in the game world", ObjectType::WorldText},
+        {"add_audio_source", "Audio Source", "Media & FX", "Positional or ambient sound emitter component", ObjectType::AudioSource},
+        {"add_particle_emitter", "Particle Emitter", "Media & FX", "Real-time 2D particle simulation effect", ObjectType::ParticleEmitter}
+    };
+    FilterSpotlightItems();
+}
+
+void EditorScene::FilterSpotlightItems()
+{
+    m_FilteredSpotlightItems.clear();
+    std::string q = m_SpotlightQuery;
+    std::transform(q.begin(), q.end(), q.begin(), ::tolower);
+
+    const std::vector<std::string> cats = {"All", "Primitives", "Gameplay", "Physics", "Media & FX"};
+    std::string activeCat = (m_SpotlightCategory >= 0 && m_SpotlightCategory < (int)cats.size()) ? cats[m_SpotlightCategory] : "All";
+
+    for (const auto &item : m_AllSpotlightItems)
+    {
+        if (activeCat != "All" && item.category != activeCat)
+            continue;
+
+        if (!q.empty())
+        {
+            std::string n = item.name;
+            std::string d = item.desc;
+            std::string c = item.category;
+            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+            std::transform(d.begin(), d.end(), d.begin(), ::tolower);
+            std::transform(c.begin(), c.end(), c.begin(), ::tolower);
+
+            if (n.find(q) == std::string::npos && d.find(q) == std::string::npos && c.find(q) == std::string::npos)
+                continue;
+        }
+
+        m_FilteredSpotlightItems.push_back(item);
+    }
+
+    if (m_SpotlightSelectedIndex >= (int)m_FilteredSpotlightItems.size())
+        m_SpotlightSelectedIndex = std::max(0, (int)m_FilteredSpotlightItems.size() - 1);
+}
+
+void EditorScene::OpenSpotlight()
+{
+    m_SpotlightOpen = true;
+    m_SpotlightQuery.clear();
+    m_SpotlightSelectedIndex = 0;
+    m_SpotlightScrollY = 0.0f;
+    m_AddDropdownOpen = false;
+    m_OpenMenuIndex = -1;
+    FilterSpotlightItems();
+}
+
+void EditorScene::CloseSpotlight()
+{
+    m_SpotlightOpen = false;
+    m_SpotlightQuery.clear();
+}
+
+void EditorScene::SelectSpotlightItem(const SpotlightItem &item)
+{
+    m_PlacementType = item.type;
+    CloseSpotlight();
+    std::cout << "[INFO] [EditorScene] Placement mode activated for: " << item.name << "\n";
+}
+
+void EditorScene::DrawSpotlightItemIcon(sf::RenderWindow &window, ObjectType type, sf::Vector2f center, float size)
+{
+    float half = size * 0.5f;
+    switch (type)
+    {
+        case ObjectType::Rectangle:
+        {
+            sf::RectangleShape r({size, size * 0.75f});
+            r.setOrigin(half, half * 0.75f);
+            r.setPosition(center);
+            r.setFillColor(sf::Color(100, 149, 237));
+            window.draw(r);
+            break;
+        }
+        case ObjectType::Circle:
+        {
+            sf::CircleShape c(half);
+            c.setOrigin(half, half);
+            c.setPosition(center);
+            c.setFillColor(sf::Color(237, 149, 100));
+            window.draw(c);
+            break;
+        }
+        case ObjectType::Triangle:
+        {
+            sf::CircleShape t(half, 3);
+            t.setOrigin(half, half);
+            t.setPosition(center);
+            t.setFillColor(sf::Color(149, 237, 100));
+            window.draw(t);
+            break;
+        }
+        case ObjectType::Pentagon:
+        {
+            sf::CircleShape p(half, 5);
+            p.setOrigin(half, half);
+            p.setPosition(center);
+            p.setFillColor(sf::Color(237, 100, 237));
+            window.draw(p);
+            break;
+        }
+        case ObjectType::Hexagon:
+        {
+            sf::CircleShape h(half, 6);
+            h.setOrigin(half, half);
+            h.setPosition(center);
+            h.setFillColor(sf::Color(237, 237, 100));
+            window.draw(h);
+            break;
+        }
+        case ObjectType::Empty:
+        {
+            sf::CircleShape d(half * 0.8f, 4);
+            d.setOrigin(half * 0.8f, half * 0.8f);
+            d.setPosition(center);
+            d.setRotation(45.f);
+            d.setFillColor(sf::Color::Transparent);
+            d.setOutlineColor(sf::Color(180, 180, 180));
+            d.setOutlineThickness(1.5f);
+            window.draw(d);
+            break;
+        }
+        case ObjectType::SpawnPoint:
+        {
+            sf::CircleShape ring(half * 0.85f);
+            ring.setOrigin(half * 0.85f, half * 0.85f);
+            ring.setPosition(center);
+            ring.setFillColor(sf::Color::Transparent);
+            ring.setOutlineColor(sf::Color(255, 200, 60));
+            ring.setOutlineThickness(1.5f);
+            window.draw(ring);
+            sf::CircleShape dot(3.f);
+            dot.setOrigin(3.f, 3.f);
+            dot.setPosition(center);
+            dot.setFillColor(sf::Color(255, 200, 60));
+            window.draw(dot);
+            break;
+        }
+        case ObjectType::TriggerZone:
+        {
+            sf::RectangleShape r({size, size * 0.65f});
+            r.setOrigin(half, half * 0.65f);
+            r.setPosition(center);
+            r.setFillColor(sf::Color(40, 200, 80, 120));
+            r.setOutlineColor(sf::Color(60, 240, 100));
+            r.setOutlineThickness(1.f);
+            window.draw(r);
+            break;
+        }
+        case ObjectType::Camera:
+        {
+            sf::RectangleShape b({size, size * 0.7f});
+            b.setOrigin(half, half * 0.7f);
+            b.setPosition(center);
+            b.setFillColor(sf::Color(50, 70, 95));
+            b.setOutlineColor(sf::Color(64, 180, 240));
+            b.setOutlineThickness(1.f);
+            window.draw(b);
+            sf::CircleShape lens(4.f);
+            lens.setOrigin(4.f, 4.f);
+            lens.setPosition(center);
+            lens.setFillColor(sf::Color(64, 180, 240));
+            window.draw(lens);
+            break;
+        }
+        case ObjectType::PhysicsBox:
+        {
+            sf::RectangleShape b({size * 0.85f, size * 0.85f});
+            b.setOrigin(half * 0.85f, half * 0.85f);
+            b.setPosition(center);
+            b.setFillColor(sf::Color(210, 140, 70));
+            window.draw(b);
+            break;
+        }
+        case ObjectType::PhysicsBall:
+        {
+            sf::CircleShape b(half * 0.85f);
+            b.setOrigin(half * 0.85f, half * 0.85f);
+            b.setPosition(center);
+            b.setFillColor(sf::Color(220, 80, 80));
+            window.draw(b);
+            break;
+        }
+        case ObjectType::StaticPlatform:
+        {
+            sf::RectangleShape p({size, size * 0.35f});
+            p.setOrigin(half, half * 0.35f);
+            p.setPosition(center);
+            p.setFillColor(sf::Color(100, 110, 125));
+            p.setOutlineColor(sf::Color(140, 150, 165));
+            p.setOutlineThickness(1.f);
+            window.draw(p);
+            break;
+        }
+        case ObjectType::Sprite:
+        {
+            sf::RectangleShape sp({size * 0.85f, size * 0.85f});
+            sp.setOrigin(half * 0.85f, half * 0.85f);
+            sp.setPosition(center);
+            sp.setFillColor(sf::Color(60, 120, 180));
+            window.draw(sp);
+            break;
+        }
+        case ObjectType::WorldText:
+        {
+            sf::Text t;
+            t.setFont(*m_Font);
+            t.setCharacterSize(16);
+            t.setStyle(sf::Text::Bold);
+            t.setFillColor(sf::Color::White);
+            t.setString("T");
+            t.setOrigin(t.getLocalBounds().width * 0.5f, t.getLocalBounds().height * 0.5f);
+            t.setPosition(center - sf::Vector2f(0.f, 3.f));
+            window.draw(t);
+            break;
+        }
+        case ObjectType::AudioSource:
+        {
+            sf::CircleShape s(half * 0.85f);
+            s.setOrigin(half * 0.85f, half * 0.85f);
+            s.setPosition(center);
+            s.setFillColor(sf::Color(160, 100, 240));
+            window.draw(s);
+            break;
+        }
+        case ObjectType::ParticleEmitter:
+        {
+            sf::CircleShape p(half * 0.85f, 4);
+            p.setOrigin(half * 0.85f, half * 0.85f);
+            p.setPosition(center);
+            p.setRotation(45.f);
+            p.setFillColor(sf::Color(255, 160, 40));
+            window.draw(p);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
+{
+    m_SpotlightItemHitboxes.clear();
+    m_SpotlightCategoryHitboxes.clear();
+
+    const float winW = static_cast<float>(window.getSize().x);
+    const float winH = static_cast<float>(window.getSize().y);
+
+    // Dimmed background
+    sf::RectangleShape overlay({winW, winH});
+    overlay.setFillColor(sf::Color(0, 0, 0, 175));
+    window.draw(overlay);
+
+    const float modalW = 680.f;
+    const float modalH = 520.f;
+    const float modalX = (winW - modalW) * 0.5f;
+    const float modalY = std::max(20.f, (winH - modalH) * 0.45f);
+    m_SpotlightModalBounds = sf::FloatRect(modalX, modalY, modalW, modalH);
+
+    // Modal background
+    sf::RectangleShape modalBg({modalW, modalH});
+    modalBg.setPosition(modalX, modalY);
+    modalBg.setFillColor(C_BG_ELEVATED);
+    modalBg.setOutlineColor(C_BORDER_LIGHT);
+    modalBg.setOutlineThickness(1.5f);
+    window.draw(modalBg);
+
+    // Header bar
+    sf::RectangleShape headerBg({modalW, 40.f});
+    headerBg.setPosition(modalX, modalY);
+    headerBg.setFillColor(C_BG_PANEL);
+    window.draw(headerBg);
+
+    sf::Text titleText;
+    titleText.setFont(*m_Font);
+    titleText.setCharacterSize(13);
+    titleText.setStyle(sf::Text::Bold);
+    titleText.setFillColor(C_TEXT_PRIMARY);
+    titleText.setString("ADD OBJECT  |  SPOTLIGHT PALETTE");
+    titleText.setPosition(modalX + 16.f, modalY + 11.f);
+    window.draw(titleText);
+
+    // Shortcut badge top-right
+    sf::Text scBadge;
+    scBadge.setFont(*m_Font);
+    scBadge.setCharacterSize(11);
+    scBadge.setFillColor(C_TEXT_MUTED);
+    scBadge.setString("Shortcut: Ctrl + Space");
+    scBadge.setPosition(modalX + modalW - scBadge.getLocalBounds().width - 16.f, modalY + 13.f);
+    window.draw(scBadge);
+
+    // Search input bar
+    const float searchY = modalY + 52.f;
+    const float searchH = 38.f;
+    const float searchPad = 16.f;
+    const float searchW = modalW - searchPad * 2.f;
+    m_SpotlightSearchBoxBounds = sf::FloatRect(modalX + searchPad, searchY, searchW, searchH);
+
+    sf::RectangleShape searchBg({searchW, searchH});
+    searchBg.setPosition(modalX + searchPad, searchY);
+    searchBg.setFillColor(C_BG_INPUT);
+    searchBg.setOutlineColor(C_ACCENT);
+    searchBg.setOutlineThickness(1.f);
+    window.draw(searchBg);
+
+    sf::Text searchIcon;
+    searchIcon.setFont(*m_Font);
+    searchIcon.setCharacterSize(13);
+    searchIcon.setFillColor(C_ACCENT);
+    searchIcon.setString("[>]");
+    searchIcon.setPosition(modalX + searchPad + 10.f, searchY + 9.f);
+    window.draw(searchIcon);
+
+    sf::Text queryText;
+    queryText.setFont(*m_Font);
+    queryText.setCharacterSize(13);
+    if (m_SpotlightQuery.empty())
+    {
+        queryText.setFillColor(C_TEXT_MUTED);
+        queryText.setString("Type to search objects... (e.g. Physics, Trigger, Camera, Particles)");
+    }
+    else
+    {
+        static sf::Clock cursorClock;
+        bool cursorBlink = static_cast<int>(cursorClock.getElapsedTime().asSeconds() * 2.f) % 2 == 0;
+        queryText.setFillColor(C_TEXT_PRIMARY);
+        queryText.setString(m_SpotlightQuery + (cursorBlink ? "|" : ""));
+    }
+    queryText.setPosition(modalX + searchPad + 38.f, searchY + 9.f);
+    window.draw(queryText);
+
+    // Category Filter Chips
+    const float catY = searchY + searchH + 10.f;
+    const std::vector<std::string> cats = {"All", "Primitives", "Gameplay", "Physics", "Media & FX"};
+    float chipX = modalX + searchPad;
+    for (int i = 0; i < (int)cats.size(); ++i)
+    {
+        sf::Text ct;
+        ct.setFont(*m_Font);
+        ct.setCharacterSize(11);
+        ct.setString(cats[i]);
+        float ctw = ct.getLocalBounds().width;
+        float chipW = ctw + 20.f;
+        float chipH = 24.f;
+
+        const sf::FloatRect chipRect(chipX, catY, chipW, chipH);
+        m_SpotlightCategoryHitboxes.push_back({chipRect, i});
+
+        bool isAct = (m_SpotlightCategory == i);
+        bool isHov = chipRect.contains(m_MouseScreenPos);
+
+        sf::RectangleShape chipBg({chipW, chipH});
+        chipBg.setPosition(chipX, catY);
+        chipBg.setFillColor(isAct ? C_ACCENT : (isHov ? C_BG_ELEVATED : C_BG_PANEL));
+        chipBg.setOutlineColor(isAct ? C_ACCENT_HOV : C_BORDER_LIGHT);
+        chipBg.setOutlineThickness(1.f);
+        window.draw(chipBg);
+
+        ct.setFillColor(isAct ? sf::Color::White : (isHov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY));
+        ct.setPosition(chipX + 10.f, catY + 4.f);
+        window.draw(ct);
+
+        chipX += chipW + 8.f;
+    }
+
+    // Cards Area
+    const float itemsY = catY + 36.f;
+    const float itemsH = modalH - (itemsY - modalY) - 36.f;
+    const float cardGap = 8.f;
+    const float cardW = (searchW - cardGap) / 2.f;
+    const float cardH = 58.f;
+
+    sf::View origView = window.getView();
+    sf::View clipView;
+    clipView.setSize(modalW, itemsH);
+    clipView.setCenter(modalX + modalW * 0.5f, itemsY + itemsH * 0.5f);
+    clipView.setViewport({
+        modalX / winW,
+        itemsY / winH,
+        modalW / winW,
+        itemsH / winH
+    });
+    window.setView(clipView);
+
+    for (int i = 0; i < (int)m_FilteredSpotlightItems.size(); ++i)
+    {
+        const auto &item = m_FilteredSpotlightItems[i];
+        int col = i % 2;
+        int row = i / 2;
+
+        float cx = modalX + searchPad + col * (cardW + cardGap);
+        float cy = itemsY + row * (cardH + cardGap) - m_SpotlightScrollY;
+
+        const sf::FloatRect cardRect(cx, cy, cardW, cardH);
+        m_SpotlightItemHitboxes.push_back({cardRect, i});
+
+        bool isSel = (m_SpotlightSelectedIndex == i);
+        bool isHov = cardRect.contains(m_MouseScreenPos);
+
+        sf::RectangleShape cardBg({cardW, cardH});
+        cardBg.setPosition(cx, cy);
+        cardBg.setFillColor(isSel ? sf::Color(45, 60, 85) : (isHov ? sf::Color(38, 43, 52) : C_BG_PANEL));
+        cardBg.setOutlineColor(isSel ? C_ACCENT : (isHov ? C_BORDER_LIGHT : C_BORDER));
+        cardBg.setOutlineThickness(isSel ? 1.5f : 1.f);
+        window.draw(cardBg);
+
+        sf::RectangleShape iconBox({42.f, 42.f});
+        iconBox.setPosition(cx + 8.f, cy + 8.f);
+        iconBox.setFillColor(C_BG_INPUT);
+        iconBox.setOutlineColor(isSel ? C_ACCENT : C_BORDER);
+        iconBox.setOutlineThickness(1.f);
+        window.draw(iconBox);
+
+        DrawSpotlightItemIcon(window, item.type, sf::Vector2f(cx + 29.f, cy + 29.f), 24.f);
+
+        sf::Text title;
+        title.setFont(*m_Font);
+        title.setCharacterSize(13);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(isSel ? sf::Color::White : (isHov ? C_TEXT_PRIMARY : sf::Color(220, 225, 235)));
+        title.setString(item.name);
+        title.setPosition(cx + 58.f, cy + 8.f);
+        window.draw(title);
+
+        sf::Text catBadge;
+        catBadge.setFont(*m_Font);
+        catBadge.setCharacterSize(10);
+        catBadge.setString(item.category);
+        float bw = catBadge.getLocalBounds().width + 10.f;
+        sf::RectangleShape badgeBg({bw, 16.f});
+        badgeBg.setPosition(cx + cardW - bw - 8.f, cy + 8.f);
+        badgeBg.setFillColor(sf::Color(25, 30, 38));
+        badgeBg.setOutlineColor(C_BORDER);
+        badgeBg.setOutlineThickness(1.f);
+        window.draw(badgeBg);
+        catBadge.setFillColor(C_TEXT_MUTED);
+        catBadge.setPosition(cx + cardW - bw + 5.f, cy + 8.f);
+        window.draw(catBadge);
+
+        sf::Text desc;
+        desc.setFont(*m_Font);
+        desc.setCharacterSize(10);
+        desc.setFillColor(C_TEXT_MUTED);
+        desc.setString(item.desc);
+        desc.setPosition(cx + 58.f, cy + 28.f);
+        window.draw(desc);
+    }
+
+    window.setView(origView);
+
+    // Footer bar
+    sf::RectangleShape footerBg({modalW, 32.f});
+    footerBg.setPosition(modalX, modalY + modalH - 32.f);
+    footerBg.setFillColor(C_BG_PANEL);
+    window.draw(footerBg);
+
+    sf::Text footerText;
+    footerText.setFont(*m_Font);
+    footerText.setCharacterSize(10);
+    footerText.setFillColor(C_TEXT_MUTED);
+    footerText.setString("Navigate: [Up/Down/Left/Right]  |  Place: [Enter/Click]  |  Filter: [Tab]  |  Cancel: [Esc]");
+    footerText.setPosition(modalX + 16.f, modalY + modalH - 22.f);
+    window.draw(footerText);
+
+    std::string countStr = std::to_string(m_FilteredSpotlightItems.size()) + " objects";
+    sf::Text countText;
+    countText.setFont(*m_Font);
+    countText.setCharacterSize(10);
+    countText.setFillColor(C_TEXT_MUTED);
+    countText.setString(countStr);
+    countText.setPosition(modalX + modalW - countText.getLocalBounds().width - 16.f, modalY + modalH - 22.f);
+    window.draw(countText);
 }
 
 void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
@@ -3603,6 +4571,150 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     } else if (target->entity != 0)
     {
         y = DrawActionButton(window, "+ Rigidbody 2D", "add_rigidbody", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
+    if (target->entity != 0 && (m_Registry.HasComponent<TextComponent>(target->entity) || target->objectType == ObjectType::WorldText))
+    {
+        y = DrawSectionHeader(window, "TEXT COMPONENT", sf::Color(100, 220, 255), panelX, y);
+        std::string txtDisplay = (m_ActiveField == EditField::TextContent && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TextContent ? "|" : target->textString);
+        y = DrawEditableRow(window, "Text", txtDisplay, "edit_text_content", panelX, y);
+
+        std::string sizeDisplay = (m_ActiveField == EditField::TextFontSize && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::TextFontSize ? "|" : std::to_string(target->textFontSize));
+        y = DrawEditableRow(window, "Font Size", sizeDisplay, "edit_text_fontsize", panelX, y);
+
+        std::string alignStr = (target->textAlignment == 1) ? "Center" : ((target->textAlignment == 2) ? "Right" : "Left");
+        y = DrawActionButton(window, "Alignment: " + alignStr, "cycle_text_align", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+        float rowY = y;
+        sf::Text lbl;
+        lbl.setFont(*m_Font);
+        lbl.setCharacterSize(11);
+        lbl.setFillColor(C_TEXT_MUTED);
+        lbl.setString("Text Color");
+        lbl.setPosition(panelX + InspectorPad, rowY + 4.f);
+        window.draw(lbl);
+        sf::RectangleShape swatch({InspectorWidth - InspectorPad * 2.f, 18.f});
+        swatch.setFillColor(target->textColor);
+        swatch.setPosition(panelX + InspectorPad, rowY + 20.f);
+        window.draw(swatch);
+        y = DrawActionButton(window, "Pick Text Color", "pick_text_color", panelX, rowY + 40.f, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+        y += 4.f;
+        y = DrawActionButton(window, "Remove Text", "remove_text", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    } else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Text Component", "add_text", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
+    if (target->entity != 0 && (m_Registry.HasComponent<AudioSourceComponent>(target->entity) || target->objectType == ObjectType::AudioSource))
+    {
+        y = DrawSectionHeader(window, "AUDIO SOURCE", sf::Color(255, 180, 80), panelX, y);
+        std::string pathDisplay = (m_ActiveField == EditField::AudioPath && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::AudioPath ? "|" : (target->audioClipPath.empty() ? "(drag .wav/.ogg or click)" : std::filesystem::path(target->audioClipPath).filename().string()));
+        y = DrawEditableRow(window, "Sound Clip", pathDisplay, "edit_audio_path", panelX, y);
+
+        std::string volDisplay = (m_ActiveField == EditField::AudioVolume && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::AudioVolume ? "|" : FormatFloat(target->audioVolume, 1));
+        y = DrawEditableRow(window, "Volume (0-100)", volDisplay, "edit_audio_volume", panelX, y);
+
+        std::string pitchDisplay = (m_ActiveField == EditField::AudioPitch && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::AudioPitch ? "|" : FormatFloat(target->audioPitch, 2));
+        y = DrawEditableRow(window, "Pitch", pitchDisplay, "edit_audio_pitch", panelX, y);
+
+        y = DrawCheckboxRow(window, "Loop", target->audioLoop, "toggle_audio_loop", panelX, y);
+        y = DrawCheckboxRow(window, "Play On Start", target->audioPlayOnStart, "toggle_audio_playonstart", panelX, y);
+        y = DrawCheckboxRow(window, "Spatial Audio", target->audioIsSpatial, "toggle_audio_spatial", panelX, y);
+
+        y += 4.f;
+        y = DrawActionButton(window, "Test Play Sound", "play_audio_test", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "Remove Audio Source", "remove_audio", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    } else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Audio Source", "add_audio", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
+    if (target->entity != 0 && (m_Registry.HasComponent<ParticleEmitterComponent>(target->entity) || target->objectType == ObjectType::ParticleEmitter))
+    {
+        y = DrawSectionHeader(window, "PARTICLE EMITTER", sf::Color(255, 120, 190), panelX, y);
+        y = DrawCheckboxRow(window, "Emitting", target->particleEmitting, "toggle_particle_emitting", panelX, y);
+
+        std::string rateDisplay = (m_ActiveField == EditField::ParticleRate && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::ParticleRate ? "|" : FormatFloat(target->particleRate, 1));
+        y = DrawEditableRow(window, "Emission Rate", rateDisplay, "edit_particle_rate", panelX, y);
+
+        std::string lifeDisplay = (m_ActiveField == EditField::ParticleLifetime && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::ParticleLifetime ? "|" : FormatFloat(target->particleLifetime, 2));
+        y = DrawEditableRow(window, "Lifetime (s)", lifeDisplay, "edit_particle_lifetime", panelX, y);
+
+        std::string spdDisplay = (m_ActiveField == EditField::ParticleSpeed && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::ParticleSpeed ? "|" : FormatFloat(target->particleSpeed, 1));
+        y = DrawEditableRow(window, "Speed", spdDisplay, "edit_particle_speed", panelX, y);
+
+        std::string angDisplay = (m_ActiveField == EditField::ParticleAngle && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::ParticleAngle ? "|" : FormatFloat(target->particleAngle, 1));
+        y = DrawEditableRow(window, "Angle (deg)", angDisplay, "edit_particle_angle", panelX, y);
+
+        std::string sprdDisplay = (m_ActiveField == EditField::ParticleSpread && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::ParticleSpread ? "|" : FormatFloat(target->particleSpread, 1));
+        y = DrawEditableRow(window, "Spread (deg)", sprdDisplay, "edit_particle_spread", panelX, y);
+
+        std::string sz1Display = (m_ActiveField == EditField::ParticleStartSize && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::ParticleStartSize ? "|" : FormatFloat(target->particleStartSize, 1));
+        y = DrawEditableRow(window, "Start Size", sz1Display, "edit_particle_startsize", panelX, y);
+
+        std::string sz2Display = (m_ActiveField == EditField::ParticleEndSize && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::ParticleEndSize ? "|" : FormatFloat(target->particleEndSize, 1));
+        y = DrawEditableRow(window, "End Size", sz2Display, "edit_particle_endsize", panelX, y);
+
+        std::string gxDisplay = (m_ActiveField == EditField::ParticleGravityX && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::ParticleGravityX ? "|" : FormatFloat(target->particleGravityX, 1));
+        y = DrawEditableRow(window, "Gravity X", gxDisplay, "edit_particle_gravx", panelX, y);
+
+        std::string gyDisplay = (m_ActiveField == EditField::ParticleGravityY && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::ParticleGravityY ? "|" : FormatFloat(target->particleGravityY, 1));
+        y = DrawEditableRow(window, "Gravity Y", gyDisplay, "edit_particle_gravy", panelX, y);
+
+        float rowY1 = y;
+        sf::Text lbl1; lbl1.setFont(*m_Font); lbl1.setCharacterSize(11); lbl1.setFillColor(C_TEXT_MUTED);
+        lbl1.setString("Start Color"); lbl1.setPosition(panelX + InspectorPad, rowY1 + 4.f); window.draw(lbl1);
+        sf::RectangleShape swatch1({InspectorWidth - InspectorPad * 2.f, 18.f});
+        swatch1.setFillColor(target->particleStartColor); swatch1.setPosition(panelX + InspectorPad, rowY1 + 20.f); window.draw(swatch1);
+        y = DrawActionButton(window, "Pick Start Color", "pick_part_start_color", panelX, rowY1 + 40.f, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+        float rowY2 = y;
+        sf::Text lbl2; lbl2.setFont(*m_Font); lbl2.setCharacterSize(11); lbl2.setFillColor(C_TEXT_MUTED);
+        lbl2.setString("End Color"); lbl2.setPosition(panelX + InspectorPad, rowY2 + 4.f); window.draw(lbl2);
+        sf::RectangleShape swatch2({InspectorWidth - InspectorPad * 2.f, 18.f});
+        swatch2.setFillColor(target->particleEndColor); swatch2.setPosition(panelX + InspectorPad, rowY2 + 20.f); window.draw(swatch2);
+        y = DrawActionButton(window, "Pick End Color", "pick_part_end_color", panelX, rowY2 + 40.f, C_BG_ELEVATED, C_BORDER_LIGHT);
+
+        y += 4.f;
+        y = DrawActionButton(window, "Remove Emitter", "remove_particle", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    } else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Particle Emitter", "add_particle", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         y += 8.f;
     }
 
@@ -4909,6 +6021,157 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_ActiveField = EditField::RigidbodyDrag;
             if (m_Registry.HasComponent<Rigidbody2DComponent>(target->entity))
                 m_ActiveInputText = FormatFloat(m_Registry.GetComponent<Rigidbody2DComponent>(target->entity).drag, 2);
+        } else if (btn.action == "add_text" && target)
+        {
+            target->textString = "World Text";
+            target->textFontSize = 28;
+            target->textColor = sf::Color::White;
+            TextComponent tc;
+            tc.text = target->textString;
+            tc.characterSize = target->textFontSize;
+            tc.color = target->textColor;
+            m_Registry.AddComponent(target->entity, tc);
+            SetDirty(true);
+        } else if (btn.action == "remove_text" && target)
+        {
+            m_Registry.RemoveComponent<TextComponent>(target->entity);
+            SetDirty(true);
+        } else if (btn.action == "edit_text_content" && target)
+        {
+            m_ActiveField = EditField::TextContent;
+            m_ActiveInputText = target->textString;
+        } else if (btn.action == "edit_text_fontsize" && target)
+        {
+            m_ActiveField = EditField::TextFontSize;
+            m_ActiveInputText = std::to_string(target->textFontSize);
+        } else if (btn.action == "cycle_text_align" && target)
+        {
+            target->textAlignment = (target->textAlignment + 1) % 3;
+            if (target->entity != 0 && m_Registry.HasComponent<TextComponent>(target->entity))
+                m_Registry.GetComponent<TextComponent>(target->entity).alignment = target->textAlignment;
+            SetDirty(true);
+        } else if (btn.action == "pick_text_color" && target)
+        {
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(target->textColor, hwnd))
+            {
+                if (target->entity != 0 && m_Registry.HasComponent<TextComponent>(target->entity))
+                    m_Registry.GetComponent<TextComponent>(target->entity).color = target->textColor;
+                SetDirty(true);
+            }
+        } else if (btn.action == "add_audio" && target)
+        {
+            AudioSourceComponent ac;
+            m_Registry.AddComponent(target->entity, ac);
+            SetDirty(true);
+        } else if (btn.action == "remove_audio" && target)
+        {
+            m_Registry.RemoveComponent<AudioSourceComponent>(target->entity);
+            SetDirty(true);
+        } else if (btn.action == "edit_audio_path" && target)
+        {
+            m_ActiveField = EditField::AudioPath;
+            m_ActiveInputText = target->audioClipPath;
+        } else if (btn.action == "edit_audio_volume" && target)
+        {
+            m_ActiveField = EditField::AudioVolume;
+            m_ActiveInputText = FormatFloat(target->audioVolume, 1);
+        } else if (btn.action == "edit_audio_pitch" && target)
+        {
+            m_ActiveField = EditField::AudioPitch;
+            m_ActiveInputText = FormatFloat(target->audioPitch, 2);
+        } else if (btn.action == "toggle_audio_loop" && target)
+        {
+            target->audioLoop = !target->audioLoop;
+            if (target->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(target->entity))
+                m_Registry.GetComponent<AudioSourceComponent>(target->entity).loop = target->audioLoop;
+            SetDirty(true);
+        } else if (btn.action == "toggle_audio_playonstart" && target)
+        {
+            target->audioPlayOnStart = !target->audioPlayOnStart;
+            if (target->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(target->entity))
+                m_Registry.GetComponent<AudioSourceComponent>(target->entity).playOnStart = target->audioPlayOnStart;
+            SetDirty(true);
+        } else if (btn.action == "toggle_audio_spatial" && target)
+        {
+            target->audioIsSpatial = !target->audioIsSpatial;
+            if (target->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(target->entity))
+                m_Registry.GetComponent<AudioSourceComponent>(target->entity).isSpatial = target->audioIsSpatial;
+            SetDirty(true);
+        } else if (btn.action == "play_audio_test" && target)
+        {
+            if (!target->audioClipPath.empty())
+                AudioManager::Get().PlaySound(target->audioClipPath, target->audioVolume, target->audioPitch, target->audioLoop);
+        } else if (btn.action == "add_particle" && target)
+        {
+            ParticleEmitterComponent pec;
+            m_Registry.AddComponent(target->entity, pec);
+            SetDirty(true);
+        } else if (btn.action == "remove_particle" && target)
+        {
+            m_Registry.RemoveComponent<ParticleEmitterComponent>(target->entity);
+            target->editorParticles.clear();
+            SetDirty(true);
+        } else if (btn.action == "toggle_particle_emitting" && target)
+        {
+            target->particleEmitting = !target->particleEmitting;
+            if (target->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(target->entity))
+                m_Registry.GetComponent<ParticleEmitterComponent>(target->entity).emitting = target->particleEmitting;
+            SetDirty(true);
+        } else if (btn.action == "edit_particle_rate" && target)
+        {
+            m_ActiveField = EditField::ParticleRate;
+            m_ActiveInputText = FormatFloat(target->particleRate, 1);
+        } else if (btn.action == "edit_particle_lifetime" && target)
+        {
+            m_ActiveField = EditField::ParticleLifetime;
+            m_ActiveInputText = FormatFloat(target->particleLifetime, 2);
+        } else if (btn.action == "edit_particle_speed" && target)
+        {
+            m_ActiveField = EditField::ParticleSpeed;
+            m_ActiveInputText = FormatFloat(target->particleSpeed, 1);
+        } else if (btn.action == "edit_particle_angle" && target)
+        {
+            m_ActiveField = EditField::ParticleAngle;
+            m_ActiveInputText = FormatFloat(target->particleAngle, 1);
+        } else if (btn.action == "edit_particle_spread" && target)
+        {
+            m_ActiveField = EditField::ParticleSpread;
+            m_ActiveInputText = FormatFloat(target->particleSpread, 1);
+        } else if (btn.action == "edit_particle_startsize" && target)
+        {
+            m_ActiveField = EditField::ParticleStartSize;
+            m_ActiveInputText = FormatFloat(target->particleStartSize, 1);
+        } else if (btn.action == "edit_particle_endsize" && target)
+        {
+            m_ActiveField = EditField::ParticleEndSize;
+            m_ActiveInputText = FormatFloat(target->particleEndSize, 1);
+        } else if (btn.action == "edit_particle_gravx" && target)
+        {
+            m_ActiveField = EditField::ParticleGravityX;
+            m_ActiveInputText = FormatFloat(target->particleGravityX, 1);
+        } else if (btn.action == "edit_particle_gravy" && target)
+        {
+            m_ActiveField = EditField::ParticleGravityY;
+            m_ActiveInputText = FormatFloat(target->particleGravityY, 1);
+        } else if (btn.action == "pick_part_start_color" && target)
+        {
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(target->particleStartColor, hwnd))
+            {
+                if (target->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(target->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(target->entity).startColor = target->particleStartColor;
+                SetDirty(true);
+            }
+        } else if (btn.action == "pick_part_end_color" && target)
+        {
+            HWND hwnd = reinterpret_cast<HWND>(m_Window.getSystemHandle());
+            if (OpenColorPickerDialog(target->particleEndColor, hwnd))
+            {
+                if (target->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(target->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(target->entity).endColor = target->particleEndColor;
+                SetDirty(true);
+            }
         } else if (btn.action == "add_script")
         {
             m_ActiveField = EditField::Script;
@@ -5164,6 +6427,16 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
     else if (type == ObjectType::Pentagon) { c = sf::Color(237, 100, 237); ts = "pentagon"; }
     else if (type == ObjectType::Hexagon) { c = sf::Color(237, 237, 100); ts = "hexagon"; }
     else if (type == ObjectType::Camera) { c = sf::Color(64, 160, 216); ts = "camera"; }
+    else if (type == ObjectType::Empty) { c = sf::Color(180, 180, 180); ts = "empty"; }
+    else if (type == ObjectType::SpawnPoint) { c = sf::Color(255, 200, 60); ts = "spawn_point"; }
+    else if (type == ObjectType::TriggerZone) { c = sf::Color(40, 200, 80); ts = "trigger_zone"; }
+    else if (type == ObjectType::PhysicsBox) { c = sf::Color(210, 140, 70); ts = "physics_box"; }
+    else if (type == ObjectType::PhysicsBall) { c = sf::Color(220, 80, 80); ts = "physics_ball"; }
+    else if (type == ObjectType::StaticPlatform) { c = sf::Color(100, 110, 125); ts = "static_platform"; }
+    else if (type == ObjectType::Sprite) { c = sf::Color(255, 255, 255); ts = "sprite"; }
+    else if (type == ObjectType::WorldText) { c = sf::Color(255, 255, 255); ts = "world_text"; }
+    else if (type == ObjectType::AudioSource) { c = sf::Color(160, 100, 240); ts = "audio_source"; }
+    else if (type == ObjectType::ParticleEmitter) { c = sf::Color(255, 150, 40); ts = "particle_emitter"; }
 
     sf::Vector2f p = SnapToGrid(pos);
     json j;
@@ -5185,6 +6458,121 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
             {"maxZoom", 3.0f},
             {"autoFramePadding", 200.0f}
         };
+    } else if (type == ObjectType::Empty) {
+        j["tag"] = "Empty Entity";
+        j["width"] = 32.f;
+        j["height"] = 32.f;
+    } else if (type == ObjectType::SpawnPoint) {
+        j["tag"] = "SpawnPoint";
+        j["width"] = 48.f;
+        j["height"] = 48.f;
+    } else if (type == ObjectType::TriggerZone) {
+        j["tag"] = "TriggerZone";
+        j["width"] = 120.f;
+        j["height"] = 80.f;
+        j["collision"] = {
+            {"channel", 0},
+            {"type", "solid"},
+            {"isTrigger", true},
+            {"shape", "box"}
+        };
+    } else if (type == ObjectType::PhysicsBox) {
+        j["tag"] = "PhysicsBox";
+        j["width"] = 64.f;
+        j["height"] = 64.f;
+        j["collision"] = {
+            {"channel", 0},
+            {"type", "solid"},
+            {"isTrigger", false},
+            {"shape", "box"}
+        };
+        j["rigidbody"] = {
+            {"bodyType", "dynamic"},
+            {"mass", 1.0f},
+            {"gravityScale", 1.0f},
+            {"restitution", 0.1f},
+            {"drag", 0.05f},
+            {"freezeRotation", false}
+        };
+        j["velocity"] = {{"dx", 0.f}, {"dy", 0.f}};
+    } else if (type == ObjectType::PhysicsBall) {
+        j["tag"] = "PhysicsBall";
+        j["width"] = 64.f;
+        j["height"] = 64.f;
+        j["collision"] = {
+            {"channel", 0},
+            {"type", "solid"},
+            {"isTrigger", false},
+            {"shape", "circle"}
+        };
+        j["rigidbody"] = {
+            {"bodyType", "dynamic"},
+            {"mass", 1.0f},
+            {"gravityScale", 1.0f},
+            {"restitution", 0.7f},
+            {"drag", 0.02f},
+            {"freezeRotation", false}
+        };
+        j["velocity"] = {{"dx", 0.f}, {"dy", 0.f}};
+    } else if (type == ObjectType::StaticPlatform) {
+        j["tag"] = "Platform";
+        j["width"] = 240.f;
+        j["height"] = 32.f;
+        j["collision"] = {
+            {"channel", 0},
+            {"type", "static"},
+            {"isTrigger", false},
+            {"shape", "box"}
+        };
+    } else if (type == ObjectType::Sprite) {
+        j["tag"] = "Sprite";
+        j["width"] = 96.f;
+        j["height"] = 96.f;
+    } else if (type == ObjectType::WorldText) {
+        j["tag"] = "WorldText";
+        j["width"] = 160.f;
+        j["height"] = 36.f;
+        j["text"] = {
+            {"text", "World Text"},
+            {"size", 28},
+            {"color", {255, 255, 255}},
+            {"align", 0},
+            {"outlineThickness", 0.0f}
+        };
+    } else if (type == ObjectType::AudioSource) {
+        j["tag"] = "AudioSource";
+        j["width"] = 48.f;
+        j["height"] = 48.f;
+        j["audioSource"] = {
+            {"soundPath", ""},
+            {"volume", 100.0f},
+            {"pitch", 1.0f},
+            {"loop", false},
+            {"playOnStart", true},
+            {"isSpatial", false},
+            {"minDistance", 150.0f},
+            {"attenuation", 1.0f}
+        };
+    } else if (type == ObjectType::ParticleEmitter) {
+        j["tag"] = "ParticleEmitter";
+        j["width"] = 48.f;
+        j["height"] = 48.f;
+        j["particleEmitter"] = {
+            {"emitting", true},
+            {"maxParticles", 120},
+            {"rate", 25.0f},
+            {"lifetime", 1.5f},
+            {"speed", 120.0f},
+            {"speedVariance", 40.0f},
+            {"angle", -90.0f},
+            {"spread", 45.0f},
+            {"startSize", 8.0f},
+            {"endSize", 2.0f},
+            {"startColor", {255, 190, 50}},
+            {"endColor", {255, 50, 20}},
+            {"gravityX", 0.0f},
+            {"gravityY", 60.0f}
+        };
     } else {
         j["width"] = m_GridSize;
         j["height"] = m_GridSize;
@@ -5197,6 +6585,14 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
 
     auto cmd = std::make_shared<ObjectStateCommand>(id, json(), j);
     ExecuteCommand(cmd);
+
+    for (auto &obj : m_Objects) {
+        if (obj.id == id) {
+            SelectObject(&obj, false);
+            break;
+        }
+    }
+    std::cout << "[INFO] [EditorScene] Added object '" << id << "' (type: " << ts << ") at (" << p.x << ", " << p.y << ").\n";
 }
 
 void EditorScene::AddObjectWithSprite(sf::Vector2f pos, const std::string &spritePath)
@@ -5221,6 +6617,7 @@ void EditorScene::AddObjectWithSprite(sf::Vector2f pos, const std::string &sprit
 
     auto cmd = std::make_shared<ObjectStateCommand>(id, json(), j);
     ExecuteCommand(cmd);
+    std::cout << "[INFO] [EditorScene] Added sprite object '" << id << "' with texture: " << spritePath << "\n";
 }
 
 void EditorScene::ApplySpriteToObject(EditorObject &obj, const std::string &spritePath)
@@ -5261,6 +6658,7 @@ void EditorScene::DeleteSelected()
         }
     }
 
+    size_t count = m_SelectedObjects.size();
     auto macroCmd = std::make_shared<MacroCommand>();
     for (auto* obj : m_SelectedObjects) {
         json before = SerializeObject(*obj);
@@ -5268,6 +6666,7 @@ void EditorScene::DeleteSelected()
     }
     ExecuteCommand(macroCmd);
     ClearSelection();
+    std::cout << "[INFO] [EditorScene] Deleted " << count << " object(s).\n";
 }
 
 void EditorScene::DeleteObjectWithPrompt(EditorObject* obj)
@@ -5436,6 +6835,7 @@ void EditorScene::DrawDeleteModal(sf::RenderWindow &window)
 
 void EditorScene::SaveToJson(const std::string &path)
 {
+    std::cout << "[INFO] [EditorScene] Saving scene to " << path << " (" << m_Objects.size() << " objects)...\n";
     CommitActiveField();
     SyncToRegistry();
 
@@ -5472,10 +6872,12 @@ void EditorScene::SaveToJson(const std::string &path)
     file << data.dump(4);
     SetDirty(false);
     UpdateStatusText();
+    std::cout << "[INFO] [EditorScene] Scene saved successfully to " << path << ".\n";
 }
 
 void EditorScene::LoadFromJson(const std::string &path)
 {
+    std::cout << "[INFO] [EditorScene] Loading scene from " << path << "...\n";
     std::string uiPath = path.substr(0, path.find_last_of('.')) + "_ui.json";
     UIManager::Get().SetCurrentUIPath(uiPath);
     if (!std::filesystem::exists(uiPath))
@@ -5707,6 +7109,7 @@ void EditorScene::LoadFromJson(const std::string &path)
     UpdateWorldTransforms();
     SetDirty(false);
     UpdateStatusText();
+    std::cout << "[INFO] [EditorScene] Scene loaded successfully from " << path << " (" << m_Objects.size() << " objects).\n";
 }
 
 void EditorScene::CommitActiveField()
@@ -5990,6 +7393,100 @@ void EditorScene::CommitActiveField()
             {
                 if (inputTarget->entity != 0 && m_Registry.HasComponent<CameraComponent>(inputTarget->entity))
                     m_Registry.GetComponent<CameraComponent>(inputTarget->entity).maxZoom = std::max(0.01f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::TextContent)
+        {
+            inputTarget->textString = m_ActiveInputText;
+            if (inputTarget->entity != 0 && m_Registry.HasComponent<TextComponent>(inputTarget->entity))
+                m_Registry.GetComponent<TextComponent>(inputTarget->entity).text = m_ActiveInputText;
+        } else if (m_ActiveField == EditField::TextFontSize)
+        {
+            try {
+                inputTarget->textFontSize = static_cast<unsigned int>(std::max(1, std::stoi(m_ActiveInputText)));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TextComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<TextComponent>(inputTarget->entity).characterSize = inputTarget->textFontSize;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AudioPath)
+        {
+            inputTarget->audioClipPath = m_ActiveInputText;
+            if (inputTarget->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(inputTarget->entity))
+                m_Registry.GetComponent<AudioSourceComponent>(inputTarget->entity).soundPath = m_ActiveInputText;
+        } else if (m_ActiveField == EditField::AudioVolume)
+        {
+            try {
+                inputTarget->audioVolume = std::clamp(std::stof(m_ActiveInputText), 0.0f, 100.0f);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<AudioSourceComponent>(inputTarget->entity).volume = inputTarget->audioVolume;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AudioPitch)
+        {
+            try {
+                inputTarget->audioPitch = std::max(0.05f, std::stof(m_ActiveInputText));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<AudioSourceComponent>(inputTarget->entity).pitch = inputTarget->audioPitch;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleRate)
+        {
+            try {
+                inputTarget->particleRate = std::max(0.1f, std::stof(m_ActiveInputText));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).emissionRate = inputTarget->particleRate;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleLifetime)
+        {
+            try {
+                inputTarget->particleLifetime = std::max(0.05f, std::stof(m_ActiveInputText));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).lifetime = inputTarget->particleLifetime;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleSpeed)
+        {
+            try {
+                inputTarget->particleSpeed = std::stof(m_ActiveInputText);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).speed = inputTarget->particleSpeed;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleAngle)
+        {
+            try {
+                inputTarget->particleAngle = std::stof(m_ActiveInputText);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).angle = inputTarget->particleAngle;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleSpread)
+        {
+            try {
+                inputTarget->particleSpread = std::clamp(std::stof(m_ActiveInputText), 0.0f, 360.0f);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).spreadAngle = inputTarget->particleSpread;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleStartSize)
+        {
+            try {
+                inputTarget->particleStartSize = std::max(0.1f, std::stof(m_ActiveInputText));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).startSize = inputTarget->particleStartSize;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleEndSize)
+        {
+            try {
+                inputTarget->particleEndSize = std::max(0.0f, std::stof(m_ActiveInputText));
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).endSize = inputTarget->particleEndSize;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleGravityX)
+        {
+            try {
+                inputTarget->particleGravityX = std::stof(m_ActiveInputText);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).gravityX = inputTarget->particleGravityX;
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::ParticleGravityY)
+        {
+            try {
+                inputTarget->particleGravityY = std::stof(m_ActiveInputText);
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).gravityY = inputTarget->particleGravityY;
             } catch (...) {}
         }
         SetDirty(true);
@@ -7512,6 +9009,15 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
     else if (obj.objectType == ObjectType::Hexagon) typeStr = "hexagon";
     else if (obj.objectType == ObjectType::Sprite) typeStr = "sprite";
     else if (obj.objectType == ObjectType::Camera) typeStr = "camera";
+    else if (obj.objectType == ObjectType::Empty) typeStr = "empty";
+    else if (obj.objectType == ObjectType::SpawnPoint) typeStr = "spawn_point";
+    else if (obj.objectType == ObjectType::TriggerZone) typeStr = "trigger_zone";
+    else if (obj.objectType == ObjectType::PhysicsBox) typeStr = "physics_box";
+    else if (obj.objectType == ObjectType::PhysicsBall) typeStr = "physics_ball";
+    else if (obj.objectType == ObjectType::StaticPlatform) typeStr = "static_platform";
+    else if (obj.objectType == ObjectType::WorldText) typeStr = "world_text";
+    else if (obj.objectType == ObjectType::AudioSource) typeStr = "audio_source";
+    else if (obj.objectType == ObjectType::ParticleEmitter) typeStr = "particle_emitter";
     j["type"] = typeStr;
     j["x"] = obj.localPosition.x;
     j["y"] = obj.localPosition.y;
@@ -7615,6 +9121,87 @@ json EditorScene::SerializeObject(const EditorObject& obj) const {
             {"freezeRotation", rb.freezeRotation}
         };
     }
+
+    if (obj.entity != 0 && m_Registry.HasComponent<TextComponent>(obj.entity)) {
+        auto &tc = m_Registry.GetComponent<TextComponent>(obj.entity);
+        j["text"] = {
+            {"text", tc.text},
+            {"size", tc.characterSize},
+            {"align", tc.alignment},
+            {"color", {tc.color.r, tc.color.g, tc.color.b}},
+            {"outlineThickness", tc.outlineThickness}
+        };
+    } else if (obj.objectType == ObjectType::WorldText) {
+        j["text"] = {
+            {"text", obj.textString},
+            {"size", obj.textFontSize},
+            {"align", obj.textAlignment},
+            {"color", {obj.textColor.r, obj.textColor.g, obj.textColor.b}},
+            {"outlineThickness", 0.0f}
+        };
+    }
+
+    if (obj.entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(obj.entity)) {
+        auto &ac = m_Registry.GetComponent<AudioSourceComponent>(obj.entity);
+        j["audioSource"] = {
+            {"soundPath", ac.soundPath},
+            {"volume", ac.volume},
+            {"pitch", ac.pitch},
+            {"loop", ac.loop},
+            {"playOnStart", ac.playOnStart},
+            {"isSpatial", ac.isSpatial},
+            {"minDistance", ac.minDistance},
+            {"attenuation", ac.attenuation}
+        };
+    } else if (obj.objectType == ObjectType::AudioSource) {
+        j["audioSource"] = {
+            {"soundPath", obj.audioClipPath},
+            {"volume", obj.audioVolume},
+            {"pitch", obj.audioPitch},
+            {"loop", obj.audioLoop},
+            {"playOnStart", obj.audioPlayOnStart},
+            {"isSpatial", obj.audioIsSpatial},
+            {"minDistance", 150.0f},
+            {"attenuation", 1.0f}
+        };
+    }
+
+    if (obj.entity != 0 && m_Registry.HasComponent<ParticleEmitterComponent>(obj.entity)) {
+        auto &pec = m_Registry.GetComponent<ParticleEmitterComponent>(obj.entity);
+        j["particleEmitter"] = {
+            {"emitting", pec.emitting},
+            {"maxParticles", pec.maxParticles},
+            {"rate", pec.emissionRate},
+            {"lifetime", pec.lifetime},
+            {"speed", pec.speed},
+            {"speedVariance", pec.speedVariance},
+            {"angle", pec.angle},
+            {"spread", pec.spreadAngle},
+            {"startSize", pec.startSize},
+            {"endSize", pec.endSize},
+            {"gravityX", pec.gravityX},
+            {"gravityY", pec.gravityY},
+            {"startColor", {pec.startColor.r, pec.startColor.g, pec.startColor.b}},
+            {"endColor", {pec.endColor.r, pec.endColor.g, pec.endColor.b}}
+        };
+    } else if (obj.objectType == ObjectType::ParticleEmitter) {
+        j["particleEmitter"] = {
+            {"emitting", obj.particleEmitting},
+            {"maxParticles", obj.particleMaxParticles},
+            {"rate", obj.particleRate},
+            {"lifetime", obj.particleLifetime},
+            {"speed", obj.particleSpeed},
+            {"speedVariance", 40.0f},
+            {"angle", obj.particleAngle},
+            {"spread", obj.particleSpread},
+            {"startSize", obj.particleStartSize},
+            {"endSize", obj.particleEndSize},
+            {"gravityX", obj.particleGravityX},
+            {"gravityY", obj.particleGravityY},
+            {"startColor", {obj.particleStartColor.r, obj.particleStartColor.g, obj.particleStartColor.b}},
+            {"endColor", {obj.particleEndColor.r, obj.particleEndColor.g, obj.particleEndColor.b}}
+        };
+    }
     return j;
 }
 
@@ -7642,6 +9229,15 @@ void EditorScene::DeserializeObject(const json& j) {
     else if (typeStr == "hexagon") obj.objectType = ObjectType::Hexagon;
     else if (typeStr == "sprite") obj.objectType = ObjectType::Sprite;
     else if (typeStr == "camera") obj.objectType = ObjectType::Camera;
+    else if (typeStr == "empty") obj.objectType = ObjectType::Empty;
+    else if (typeStr == "spawn_point") obj.objectType = ObjectType::SpawnPoint;
+    else if (typeStr == "trigger_zone") obj.objectType = ObjectType::TriggerZone;
+    else if (typeStr == "physics_box") obj.objectType = ObjectType::PhysicsBox;
+    else if (typeStr == "physics_ball") obj.objectType = ObjectType::PhysicsBall;
+    else if (typeStr == "static_platform") obj.objectType = ObjectType::StaticPlatform;
+    else if (typeStr == "world_text") obj.objectType = ObjectType::WorldText;
+    else if (typeStr == "audio_source") obj.objectType = ObjectType::AudioSource;
+    else if (typeStr == "particle_emitter") obj.objectType = ObjectType::ParticleEmitter;
     else obj.objectType = ObjectType::Rectangle;
 
     if (IsPolygonType(obj.objectType)) {
@@ -7788,6 +9384,81 @@ void EditorScene::DeserializeObject(const json& j) {
         m_Registry.AddComponent(obj.entity, rb);
         if (!m_Registry.HasComponent<VelocityComponent>(obj.entity))
             m_Registry.AddComponent(obj.entity, VelocityComponent{0.f, 0.f});
+    }
+
+    if (j.contains("text") && (j["text"].is_object() || j["text"].is_string())) {
+        TextComponent tc;
+        if (j["text"].is_string()) {
+            tc.text = j["text"].get<std::string>();
+        } else {
+            tc.text = j["text"].value("text", "World Text");
+            tc.characterSize = j["text"].value("size", 28u);
+            tc.alignment = j["text"].value("align", 0);
+            if (j["text"].contains("color") && j["text"]["color"].is_array() && j["text"]["color"].size() >= 3) {
+                tc.color = sf::Color(j["text"]["color"][0], j["text"]["color"][1], j["text"]["color"][2]);
+            }
+            tc.outlineThickness = j["text"].value("outlineThickness", 0.0f);
+        }
+        obj.textString = tc.text;
+        obj.textFontSize = tc.characterSize;
+        obj.textColor = tc.color;
+        obj.textAlignment = tc.alignment;
+        m_Registry.AddComponent(obj.entity, tc);
+    }
+
+    if (j.contains("audioSource") && j["audioSource"].is_object()) {
+        AudioSourceComponent ac;
+        ac.soundPath = j["audioSource"].value("soundPath", "");
+        ac.volume = j["audioSource"].value("volume", 100.0f);
+        ac.pitch = j["audioSource"].value("pitch", 1.0f);
+        ac.loop = j["audioSource"].value("loop", false);
+        ac.playOnStart = j["audioSource"].value("playOnStart", true);
+        ac.isSpatial = j["audioSource"].value("isSpatial", false);
+        ac.minDistance = j["audioSource"].value("minDistance", 150.0f);
+        ac.attenuation = j["audioSource"].value("attenuation", 1.0f);
+        obj.audioClipPath = ac.soundPath;
+        obj.audioVolume = ac.volume;
+        obj.audioPitch = ac.pitch;
+        obj.audioLoop = ac.loop;
+        obj.audioPlayOnStart = ac.playOnStart;
+        obj.audioIsSpatial = ac.isSpatial;
+        m_Registry.AddComponent(obj.entity, ac);
+    }
+
+    if (j.contains("particleEmitter") && j["particleEmitter"].is_object()) {
+        ParticleEmitterComponent pec;
+        pec.emitting = j["particleEmitter"].value("emitting", true);
+        pec.maxParticles = j["particleEmitter"].value("maxParticles", 120);
+        pec.emissionRate = j["particleEmitter"].value("rate", 25.0f);
+        pec.lifetime = j["particleEmitter"].value("lifetime", 1.5f);
+        pec.speed = j["particleEmitter"].value("speed", 120.0f);
+        pec.speedVariance = j["particleEmitter"].value("speedVariance", 40.0f);
+        pec.angle = j["particleEmitter"].value("angle", -90.0f);
+        pec.spreadAngle = j["particleEmitter"].value("spread", 45.0f);
+        pec.startSize = j["particleEmitter"].value("startSize", 8.0f);
+        pec.endSize = j["particleEmitter"].value("endSize", 2.0f);
+        pec.gravityX = j["particleEmitter"].value("gravityX", 0.0f);
+        pec.gravityY = j["particleEmitter"].value("gravityY", 60.0f);
+        if (j["particleEmitter"].contains("startColor") && j["particleEmitter"]["startColor"].is_array() && j["particleEmitter"]["startColor"].size() >= 3) {
+            pec.startColor = sf::Color(j["particleEmitter"]["startColor"][0], j["particleEmitter"]["startColor"][1], j["particleEmitter"]["startColor"][2]);
+        }
+        if (j["particleEmitter"].contains("endColor") && j["particleEmitter"]["endColor"].is_array() && j["particleEmitter"]["endColor"].size() >= 3) {
+            pec.endColor = sf::Color(j["particleEmitter"]["endColor"][0], j["particleEmitter"]["endColor"][1], j["particleEmitter"]["endColor"][2]);
+        }
+        obj.particleEmitting = pec.emitting;
+        obj.particleMaxParticles = pec.maxParticles;
+        obj.particleRate = pec.emissionRate;
+        obj.particleLifetime = pec.lifetime;
+        obj.particleSpeed = pec.speed;
+        obj.particleAngle = pec.angle;
+        obj.particleSpread = pec.spreadAngle;
+        obj.particleStartSize = pec.startSize;
+        obj.particleEndSize = pec.endSize;
+        obj.particleGravityX = pec.gravityX;
+        obj.particleGravityY = pec.gravityY;
+        obj.particleStartColor = pec.startColor;
+        obj.particleEndColor = pec.endColor;
+        m_Registry.AddComponent(obj.entity, pec);
     }
 
     m_Registry.AddComponent(obj.entity, HierarchyComponent{});

@@ -101,6 +101,12 @@ Application::Application()
         } catch(...) {}
     }
 
+    if (!firstRun) {
+        std::cout << "[INFO] [Application] Loaded project settings from " << path << " ('" << projName << "' v" << projVersion << ", " << winW << "x" << winH << ", VSync: " << (vsync ? "enabled" : "disabled") << ", Target FPS: " << targetFPS << ").\n";
+    } else {
+        std::cout << "[INFO] [Application] No project settings found at " << path << ", initialized with defaults.\n";
+    }
+
     m_StartScene = initialScene;
     m_CurrentSceneName = initialScene;
     m_ProjectName = projName;
@@ -120,6 +126,8 @@ Application::Application()
     AudioManager::Get().SetMusicVolume(musicVol);
     
     SetProcessDPIAware();
+
+    std::cout << "[INFO] [Application] Creating " << (fullscreen ? "fullscreen" : "windowed") << " render window (" << winW << "x" << winH << ")...\n";
 
 #ifdef RAYNE_STANDALONE
     if (fullscreen) {
@@ -421,6 +429,7 @@ void Application::SetMasterVolume(float vol)
 {
     m_MasterVolume = vol;
     AudioManager::Get().SetMasterVolume(vol);
+    std::cout << "[INFO] [Application] Master volume set to " << vol << "%\n";
 }
 
 void Application::SetWindowSize(int w, int h)
@@ -430,12 +439,31 @@ void Application::SetWindowSize(int w, int h)
     m_RenderWindow.setSize(sf::Vector2u(w, h));
     sf::FloatRect visibleArea(0.f, 0.f, static_cast<float>(w), static_cast<float>(h));
     m_RenderWindow.setView(sf::View(visibleArea));
+    std::cout << "[INFO] [Application] Window resized to " << w << "x" << h << "\n";
 }
 
 void Application::SetMusicVolume(float vol)
 {
     m_MusicVolume = vol;
     AudioManager::Get().SetMusicVolume(vol);
+    std::cout << "[INFO] [Application] Music volume set to " << vol << "%\n";
+}
+
+void Application::SetPaused(bool paused)
+{
+    m_IsPaused = paused;
+    std::cout << "[INFO] [Application] Simulation " << (paused ? "paused." : "resumed.") << "\n";
+}
+
+void Application::TogglePause()
+{
+    SetPaused(!m_IsPaused);
+}
+
+void Application::SetTimeScale(float scale)
+{
+    m_TimeScale = (scale < 0.f ? 0.f : scale);
+    std::cout << "[INFO] [Application] Time scale set to " << m_TimeScale << "x\n";
 }
 
 void Application::Quit()
@@ -478,6 +506,8 @@ void Application::LoadGameScene(const std::string& sceneName)
     m_IsPaused = false;
     m_TimeScale = 1.0f;
 
+    std::cout << "[INFO] [Application] Loading game scene: '" << cleanName << "'...\n";
+
     m_Registry.Clear();
     TimerManager::Get().Clear();
     TweenManager::Get().Clear();
@@ -513,12 +543,15 @@ void Application::LoadGameScene(const std::string& sceneName)
     }
 
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+    std::cout << "[INFO] [Application] Game scene '" << cleanName << "' loaded and initialized successfully.\n";
 }
 
 void Application::SetFullscreen(bool fullscreen)
 {
     if (m_ProjectFullscreen == fullscreen) return;
     m_ProjectFullscreen = fullscreen;
+
+    std::cout << "[INFO] [Application] Fullscreen mode " << (fullscreen ? "enabled" : "disabled") << ".\n";
 
     if (m_ProjectFullscreen)
     {
@@ -540,6 +573,7 @@ void Application::SetFullscreen(bool fullscreen)
 void Application::SetCursorVisible(bool visible)
 {
     m_RenderWindow.setMouseCursorVisible(visible);
+    std::cout << "[INFO] [Application] Mouse cursor visibility set to " << (visible ? "visible" : "hidden") << ".\n";
 }
 
 std::string Application::TakeScreenshot(const std::string& customFilename)

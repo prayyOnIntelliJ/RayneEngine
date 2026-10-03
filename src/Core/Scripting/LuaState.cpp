@@ -338,6 +338,114 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         }
     });
 
+    s_Lua.set_function("AddText", [&](const Entity e, const std::string& text, sol::optional<unsigned int> size) {
+        TextComponent tc;
+        tc.text = text;
+        tc.characterSize = size.value_or(28);
+        registry.AddComponent(e, tc);
+    });
+
+    s_Lua.set_function("SetText", [&](const Entity e, const std::string& text) {
+        if (registry.HasComponent<TextComponent>(e)) {
+            registry.GetComponent<TextComponent>(e).text = text;
+        } else {
+            TextComponent tc;
+            tc.text = text;
+            registry.AddComponent(e, tc);
+        }
+    });
+
+    s_Lua.set_function("GetText", [&](const Entity e) -> std::string {
+        if (registry.HasComponent<TextComponent>(e))
+            return registry.GetComponent<TextComponent>(e).text;
+        return "";
+    });
+
+    s_Lua.set_function("SetTextSize", [&](const Entity e, unsigned int size) {
+        if (registry.HasComponent<TextComponent>(e))
+            registry.GetComponent<TextComponent>(e).characterSize = size;
+    });
+
+    s_Lua.set_function("SetTextColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
+        if (registry.HasComponent<TextComponent>(e))
+            registry.GetComponent<TextComponent>(e).color = sf::Color(r, g, b, a.value_or(255));
+    });
+
+    s_Lua.set_function("HasText", [&](const Entity e) -> bool {
+        return registry.HasComponent<TextComponent>(e);
+    });
+
+    s_Lua.set_function("AddAudioSource", [&](const Entity e, const std::string& path, sol::optional<float> volume, sol::optional<float> pitch, sol::optional<bool> loop) {
+        AudioSourceComponent ac;
+        ac.soundPath = path;
+        ac.volume = volume.value_or(100.0f);
+        ac.pitch = pitch.value_or(1.0f);
+        ac.loop = loop.value_or(false);
+        registry.AddComponent(e, ac);
+    });
+
+    s_Lua.set_function("PlayAudio", [&](const Entity e) {
+        if (registry.HasComponent<AudioSourceComponent>(e)) {
+            const auto& ac = registry.GetComponent<AudioSourceComponent>(e);
+            if (!ac.soundPath.empty()) {
+                AudioManager::Get().PlaySound(ac.soundPath, ac.volume, ac.pitch, ac.loop);
+            }
+        }
+    });
+
+    s_Lua.set_function("SetAudioClip", [&](const Entity e, const std::string& path) {
+        if (registry.HasComponent<AudioSourceComponent>(e))
+            registry.GetComponent<AudioSourceComponent>(e).soundPath = path;
+    });
+
+    s_Lua.set_function("SetAudioVolume", [&](const Entity e, float volume) {
+        if (registry.HasComponent<AudioSourceComponent>(e))
+            registry.GetComponent<AudioSourceComponent>(e).volume = volume;
+    });
+
+    s_Lua.set_function("SetAudioPitch", [&](const Entity e, float pitch) {
+        if (registry.HasComponent<AudioSourceComponent>(e))
+            registry.GetComponent<AudioSourceComponent>(e).pitch = pitch;
+    });
+
+    s_Lua.set_function("SetAudioLoop", [&](const Entity e, bool loop) {
+        if (registry.HasComponent<AudioSourceComponent>(e))
+            registry.GetComponent<AudioSourceComponent>(e).loop = loop;
+    });
+
+    s_Lua.set_function("HasAudioSource", [&](const Entity e) -> bool {
+        return registry.HasComponent<AudioSourceComponent>(e);
+    });
+
+    s_Lua.set_function("AddParticleEmitter", [&](const Entity e) {
+        registry.AddComponent(e, ParticleEmitterComponent{});
+    });
+
+    s_Lua.set_function("SetParticleEmitting", [&](const Entity e, bool emitting) {
+        if (registry.HasComponent<ParticleEmitterComponent>(e))
+            registry.GetComponent<ParticleEmitterComponent>(e).emitting = emitting;
+    });
+
+    s_Lua.set_function("IsParticleEmitting", [&](const Entity e) -> bool {
+        if (registry.HasComponent<ParticleEmitterComponent>(e))
+            return registry.GetComponent<ParticleEmitterComponent>(e).emitting;
+        return false;
+    });
+
+    s_Lua.set_function("SetParticleRate", [&](const Entity e, float rate) {
+        if (registry.HasComponent<ParticleEmitterComponent>(e))
+            registry.GetComponent<ParticleEmitterComponent>(e).emissionRate = rate;
+    });
+
+    s_Lua.set_function("SetParticleSpeed", [&](const Entity e, float speed) {
+        if (registry.HasComponent<ParticleEmitterComponent>(e))
+            registry.GetComponent<ParticleEmitterComponent>(e).speed = speed;
+    });
+
+    s_Lua.set_function("HasParticleEmitter", [&](const Entity e) -> bool {
+        return registry.HasComponent<ParticleEmitterComponent>(e);
+    });
+
     sol::table timerTable = s_Lua.create_named_table("Timer");
     timerTable.set_function("After", [](float seconds, sol::function cb) {
         TimerManager::Get().After(seconds, cb);
@@ -698,7 +806,7 @@ void LuaState::Init(Registry &registry, std::function<void(const std::string &)>
         return el ? el->disabled : false;
     });
 
-    std::cout << "[LuaState] Initialized Lua with Engine Functions\n";
+    std::cout << "[INFO] [Lua] Lua engine initialized with API bindings successfully.\n";
 
     PhysicsSystem::RegisterLua(s_Lua, registry);
     CameraManager::RegisterLua(s_Lua, registry);

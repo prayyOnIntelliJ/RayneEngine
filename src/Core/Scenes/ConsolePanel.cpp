@@ -101,7 +101,7 @@ void ConsolePanel::InitRedirectors()
     s_CerrRedirector = std::make_unique<ConsoleRedirector>(std::cerr, callback, true);
     
     s_Initialized = true;
-    AddLogGlobal("Console initialized.", false);
+    AddLogGlobal("[INFO] [Console] Subsystem initialized.", false);
 }
 
 void ConsolePanel::AddLogGlobal(const std::string& message, bool isError)

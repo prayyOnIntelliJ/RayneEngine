@@ -17,7 +17,7 @@ public:
         return instance;
     }
 
-    void PlaySound(const std::string &path, float volume = 100.f, float pitch = 1.0f);
+    void PlaySound(const std::string &path, float volume = 100.f, float pitch = 1.0f, bool loop = false);
 
     void StopAllSounds();
 

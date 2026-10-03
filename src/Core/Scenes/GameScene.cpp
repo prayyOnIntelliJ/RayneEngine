@@ -253,6 +253,12 @@ void GameScene::OnEnter()
         });
     });
 
+    m_Registry.ForEach<TransformComponent, AudioSourceComponent>([](Entity, TransformComponent &, AudioSourceComponent &ac) {
+        if (ac.playOnStart && !ac.soundPath.empty()) {
+            AudioManager::Get().PlaySound(ac.soundPath, ac.volume, ac.pitch, ac.loop);
+        }
+    });
+
     EventManager::Get().SubscribeTextInputChange([this](const std::string &inputId, const std::string &text) {
         m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity, ScriptComponent &sc) {
             sc.OnTextInputChanged(inputId, text);
@@ -324,10 +330,12 @@ void GameScene::OnEnter()
 
     std::cout << "[INFO] [GameScene] Firing OnCreate() for all active scripts...\n";
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+    std::cout << "[INFO] [GameScene] Simulation initialized and running.\n";
 }
 
 void GameScene::OnExit()
 {
+    std::cout << "[INFO] [GameScene] Stopping simulation, stopping audio, clearing collision state...\n";
     m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnDestroy(); });
     m_LastCollisions.clear();
     PhysicsSystem::Reset();
@@ -347,7 +355,7 @@ void GameScene::OnExit()
     }
     UIManager::Get().ClearClickedButton();
 
-    std::cout << "[INFO] [GameScene] Stopping simulation, stopping audio, clearing collision state.\n";
+    std::cout << "[INFO] [GameScene] Simulation stopped cleanly.\n";
 }
 
 void GameScene::CheckCollisions()
@@ -513,6 +521,49 @@ void GameScene::Update(float deltaTime)
         TweenManager::Get().Update(effectiveDt);
         PhysicsSystem::Step(m_Registry, effectiveDt);
         HierarchySystem::UpdateWorldTransforms(m_Registry);
+
+        m_Registry.ForEach<TransformComponent, ParticleEmitterComponent>([effectiveDt](Entity, TransformComponent &t, ParticleEmitterComponent &pec) {
+            if (!pec.emitting) return;
+            pec.spawnAccumulator += effectiveDt;
+            float spawnInterval = (pec.emissionRate > 0.001f) ? (1.0f / pec.emissionRate) : 1.0f;
+            while (pec.spawnAccumulator >= spawnInterval && (int)pec.particles.size() < pec.maxParticles)
+            {
+                pec.spawnAccumulator -= spawnInterval;
+                Particle p;
+                p.position = sf::Vector2f(t.worldX, t.worldY);
+                p.lifetime = 0.0f;
+                p.maxLifetime = std::max(0.1f, pec.lifetime);
+                p.size = pec.startSize;
+                p.color = pec.startColor;
+
+                float randSpread = ((float)(rand() % 1000) / 1000.f - 0.5f) * pec.spreadAngle;
+                float finalAngleDeg = pec.angle + randSpread;
+                float rad = finalAngleDeg * 3.14159265f / 180.f;
+                float spd = pec.speed + ((float)(rand() % 1000) / 1000.f - 0.5f) * pec.speedVariance;
+                p.velocity = sf::Vector2f(std::cos(rad) * spd, std::sin(rad) * spd);
+
+                pec.particles.push_back(p);
+            }
+
+            for (auto &p : pec.particles)
+            {
+                p.lifetime += effectiveDt;
+                p.velocity.x += pec.gravityX * effectiveDt;
+                p.velocity.y += pec.gravityY * effectiveDt;
+                p.position += p.velocity * effectiveDt;
+
+                float ratio = std::min(1.0f, p.lifetime / p.maxLifetime);
+                p.size = pec.startSize + ratio * (pec.endSize - pec.startSize);
+                p.color.r = static_cast<sf::Uint8>(pec.startColor.r + ratio * (pec.endColor.r - pec.startColor.r));
+                p.color.g = static_cast<sf::Uint8>(pec.startColor.g + ratio * (pec.endColor.g - pec.startColor.g));
+                p.color.b = static_cast<sf::Uint8>(pec.startColor.b + ratio * (pec.endColor.b - pec.startColor.b));
+                p.color.a = static_cast<sf::Uint8>(pec.startColor.a + ratio * (pec.endColor.a - pec.startColor.a));
+            }
+
+            std::erase_if(pec.particles, [](const Particle &p) {
+                return p.lifetime >= p.maxLifetime;
+            });
+        });
     }
 
     CameraManager::Get().Update(effectiveDt, m_Registry);
@@ -609,6 +660,33 @@ void GameScene::Render(sf::RenderWindow &window)
             }
         }
     }
+
+    m_Registry.ForEach<TransformComponent, TextComponent>([&](Entity, TransformComponent &t, TextComponent &tc) {
+        sf::Text txt;
+        auto font = ResourceManager::Get().GetFont(tc.fontPath.empty() ? (ENGINE_ASSET_PATH "/fonts/Merriweather.ttf") : tc.fontPath);
+        if (font) txt.setFont(*font);
+        txt.setString(tc.text);
+        txt.setCharacterSize(tc.characterSize);
+        txt.setFillColor(tc.color);
+        txt.setPosition(t.worldX, t.worldY);
+        txt.setRotation(t.worldRotation);
+        txt.setScale(t.worldScaleX, t.worldScaleY);
+        if (tc.outlineThickness > 0.f) {
+            txt.setOutlineColor(tc.outlineColor);
+            txt.setOutlineThickness(tc.outlineThickness);
+        }
+        window.draw(txt);
+    });
+
+    m_Registry.ForEach<TransformComponent, ParticleEmitterComponent>([&](Entity, TransformComponent &, ParticleEmitterComponent &pec) {
+        for (const auto &p : pec.particles) {
+            sf::CircleShape pShape(p.size * 0.5f);
+            pShape.setOrigin(p.size * 0.5f, p.size * 0.5f);
+            pShape.setPosition(p.position);
+            pShape.setFillColor(p.color);
+            window.draw(pShape);
+        }
+    });
 
     window.setView(uiView);
     UIManager::Get().Render(window);

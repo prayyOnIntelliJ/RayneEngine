@@ -1,4 +1,5 @@
 #include "SplashScreen.h"
+#include <iostream>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -12,6 +13,7 @@ SplashScreen::SplashScreen(sf::RenderWindow& window)
 void SplashScreen::Init(const std::string& bgPath, const std::string& fontPath,
                         const std::string& projectName, const std::string& versionStr)
 {
+    std::cout << "[INFO] [SplashScreen] Initializing splash sequence for '" << projectName << "' (" << versionStr << ")...\n";
     m_ProjectName = projectName;
     m_VersionStr  = versionStr;
 
@@ -248,6 +250,7 @@ bool SplashScreen::RenderFrame()
         if (m_FadeOutAlpha >= 255.f)
         {
             m_FadeOutAlpha = 255.f;
+            std::cout << "[INFO] [SplashScreen] Splash screen finished.\n";
             return false;
         }
     }

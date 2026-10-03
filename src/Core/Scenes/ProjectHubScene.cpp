@@ -29,6 +29,7 @@ void ProjectHubScene::OnEnter()
 
 void ProjectHubScene::OnExit()
 {
+    std::cout << "[INFO] [ProjectHubScene] Exiting Hub Scene\n";
     UIManager::Get().GetElements().clear();
     m_UIsCreated = false;
 }
@@ -309,6 +310,7 @@ void ProjectHubScene::CreateProject()
     std::ofstream o(dir + "/project_settings.json");
     o << j.dump(4);
     o.close();
+    std::cout << "[INFO] [ProjectHubScene] Saved project settings to " << dir << "/project_settings.json\n";
 
     std::string assetsDir = ASSET_PATH;
     std::filesystem::create_directories(assetsDir + "/scenes");
@@ -321,6 +323,6 @@ void ProjectHubScene::CreateProject()
         g_App->SetTargetFPS(fps);
     }
 
-    std::cout << "[INFO] [ProjectHubScene] Project created, switching to editor...\n";
+    std::cout << "[INFO] [ProjectHubScene] Project '" << pName << "' created successfully, switching to editor...\n";
     m_manager.SwitchSceneTo("editor");
 }

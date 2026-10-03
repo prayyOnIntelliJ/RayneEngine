@@ -1,4 +1,5 @@
 #include "CameraManager.h"
+#include <iostream>
 
 CameraManager::CameraManager()
     : m_Rng(std::random_device{}())
@@ -9,6 +10,7 @@ void CameraManager::Init(const sf::View &defaultView, sf::RenderWindow *window)
 {
     m_Window = window;
     m_BaseSize = defaultView.getSize();
+    std::cout << "[INFO] [Camera] CameraManager initialized (" << m_BaseSize.x << "x" << m_BaseSize.y << ").\n";
     m_DefaultCenter = defaultView.getCenter();
     m_Position = m_DefaultCenter;
     m_Zoom = 1.0f;
@@ -95,6 +97,7 @@ void CameraManager::Follow(Entity entity, float smoothSpeed, float offsetX, floa
     m_FollowSpeed = std::max(0.0f, smoothSpeed);
     m_FollowOffset = {offsetX, offsetY};
     m_ManualFollowDisabled = false;
+    std::cout << "[INFO] [Camera] Camera started following entity " << entity << ".\n";
 }
 
 void CameraManager::StopFollow()
@@ -102,11 +105,13 @@ void CameraManager::StopFollow()
     m_FollowTarget = 0;
     m_FollowTargets.clear();
     m_ManualFollowDisabled = true;
+    std::cout << "[INFO] [Camera] Camera stopped following target.\n";
 }
 
 void CameraManager::ResumeFollow()
 {
     m_ManualFollowDisabled = false;
+    std::cout << "[INFO] [Camera] Camera resumed follow behavior.\n";
 }
 
 bool CameraManager::IsFollowing() const
@@ -119,6 +124,7 @@ void CameraManager::AddFollowTarget(Entity entity)
     if (entity != 0 && std::find(m_FollowTargets.begin(), m_FollowTargets.end(), entity) == m_FollowTargets.end())
     {
         m_FollowTargets.push_back(entity);
+        std::cout << "[INFO] [Camera] Added follow target entity " << entity << ".\n";
     }
     m_ManualFollowDisabled = false;
 }
@@ -126,11 +132,13 @@ void CameraManager::AddFollowTarget(Entity entity)
 void CameraManager::RemoveFollowTarget(Entity entity)
 {
     m_FollowTargets.erase(std::remove(m_FollowTargets.begin(), m_FollowTargets.end(), entity), m_FollowTargets.end());
+    std::cout << "[INFO] [Camera] Removed follow target entity " << entity << ".\n";
 }
 
 void CameraManager::ClearFollowTargets()
 {
     m_FollowTargets.clear();
+    std::cout << "[INFO] [Camera] Cleared all follow targets.\n";
 }
 
 void CameraManager::SetBounds(float minX, float minY, float maxX, float maxY, bool clampEdges)
@@ -143,6 +151,7 @@ void CameraManager::SetBounds(float minX, float minY, float maxX, float maxY, bo
     m_ClampEdges = clampEdges;
     m_HasBounds = true;
     ClampToBounds();
+    std::cout << "[INFO] [Camera] Set camera bounds to (" << left << ", " << top << ", " << width << ", " << height << ").\n";
 }
 
 void CameraManager::Shake(float intensity, float duration, bool decay)
@@ -151,6 +160,7 @@ void CameraManager::Shake(float intensity, float duration, bool decay)
     m_ShakeDuration = std::max(0.001f, duration);
     m_ShakeTimeRemaining = m_ShakeDuration;
     m_ShakeDecay = decay;
+    std::cout << "[INFO] [Camera] Camera shake triggered (intensity: " << intensity << ", duration: " << duration << "s).\n";
 }
 
 void CameraManager::StopShake()

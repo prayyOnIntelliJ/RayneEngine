@@ -42,6 +42,29 @@
 ## Recent Changelog
 
 ### Added
+- **Add Object Spotlight Palette & Interactive Placement System (`Ctrl + Space`):**
+  - Replaced the simple Add dropdown with an intelligent, keyboard-navigable **Spotlight Palette modal**:
+    - **Global Shortcut:** Press `Ctrl + Space` or click `+ Add` in the top toolbar to open the palette instantly.
+    - **Live Real-time Search:** Filter across object names, descriptions, and categories dynamically with instant keystroke matching.
+    - **Category Filters:** Quick category chips (`All`, `Primitives`, `Gameplay`, `Physics`, `Media & FX`) with keyboard navigation (`Left`, `Right`, `Tab`, `Up`, `Down`, `Enter`, `Esc`).
+    - **Interactive Placement Mode:** Selecting any preset puts the editor into placement mode with a cursor-following ghost preview showing exact dimensions, shape, colors, and contextual labels (`[TRIGGER]`, `World Text`, `SPAWN`, camera frustum). Left-click to place anywhere on the canvas with grid snapping.
+  - **15 Built-in Object Presets Across 4 Categories:**
+    - **Primitives:** `Rectangle`, `Circle`, `Triangle`, `Pentagon`, `Hexagon`.
+    - **Gameplay:** `Empty Entity` (transform node for parenting & hierarchy pivots), `Spawn Point` (actor spawn point with animated beacon gizmo), `Trigger Zone` (sensor collider with `isTrigger=true`), `Camera` (in-game camera with live viewfinder frustum).
+    - **Physics:** `Physics Box` (dynamic Box2D entity with collider and Rigidbody2D), `Physics Ball` (dynamic bouncy ball with Rigidbody2D), `Static Platform` (solid static ground/barrier).
+    - **Media & FX:** `Sprite` (entity ready for texture drag-and-drop), `World Text` (formatted 2D world text with custom font/size/color), `Audio Source` (spatial/ambient sound emitter), `Particle Emitter` (live real-time 2D particle simulation).
+  - **New Core ECS Components:**
+    - `TextComponent`: Render formatted text in 2D world space with customizable string, character size, color, alignment, and outlines.
+    - `AudioSourceComponent`: Play sound clips with volume (0-100), pitch, looping, play-on-start, and spatial attenuation settings. Drag-and-drop `.wav` / `.ogg` files directly from the Content Browser onto objects or the canvas.
+    - `ParticleEmitterComponent`: Full real-time 2D particle simulation engine running both in play mode and live in the editor. Configurable emission rate, particle lifetime, speed, variance, cone spread angle, start/end size interpolation, start/end RGBA color interpolation, and gravity vectors.
+  - **Inspector UI & Serialization:**
+    - Dedicated Inspector controls for `TextComponent`, `AudioSourceComponent`, and `ParticleEmitterComponent` including interactive color pickers via native dialog, numeric steppers, toggles, and test playback button.
+    - Full JSON serialization and deserialization in scene files and template prefabs.
+  - **Lua Scripting Bindings:**
+    - `AddText`, `SetText`, `GetText`, `SetTextSize`, `SetTextColor`, `HasText`.
+    - `AddAudioSource`, `PlayAudio`, `SetAudioClip`, `SetAudioVolume`, `SetAudioPitch`, `SetAudioLoop`, `HasAudioSource`.
+    - `AddParticleEmitter`, `SetParticleEmitting`, `IsParticleEmitting`, `SetParticleRate`, `SetParticleSpeed`, `HasParticleEmitter`.
+
 - **In-Game Camera System & Scripting Library (`Camera`):**
   - Added full-featured `CameraManager` handling dynamic viewport transforms, zoom, rotation, screen shake, multi-entity following, dynamic bounding framing, and boundary constraints during play mode.
   - Added `Camera` entity to the editor **Add** dropdown menu (`ObjectType::Camera`):

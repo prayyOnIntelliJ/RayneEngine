@@ -124,4 +124,60 @@ struct TagComponent
     std::string tag;
 };
 
+struct AudioSourceComponent
+{
+    std::string soundPath = "";
+    float volume = 100.0f;
+    float pitch = 1.0f;
+    bool loop = false;
+    bool playOnStart = true;
+    bool isSpatial = false;
+    float minDistance = 150.0f;
+    float attenuation = 1.0f;
+    bool isPlaying = false;
+    int channelIndex = -1;
+};
+
+struct TextComponent
+{
+    std::string text = "World Text";
+    std::string fontPath = "";
+    unsigned int characterSize = 28;
+    sf::Color color = sf::Color::White;
+    int alignment = 0; // 0 = Left, 1 = Center, 2 = Right
+    sf::Color outlineColor = sf::Color::Black;
+    float outlineThickness = 0.0f;
+};
+
+struct Particle
+{
+    sf::Vector2f position;
+    sf::Vector2f velocity;
+    float lifetime = 0.f;
+    float maxLifetime = 1.f;
+    float size = 8.f;
+    sf::Color color = sf::Color::White;
+};
+
+struct ParticleEmitterComponent
+{
+    bool emitting = true;
+    int maxParticles = 120;
+    float emissionRate = 25.0f; // particles per second
+    float lifetime = 1.5f;      // seconds
+    float speed = 120.0f;
+    float speedVariance = 40.0f;
+    float angle = -90.0f;       // degrees, -90 is upwards
+    float spreadAngle = 45.0f;  // degrees cone spread
+    float startSize = 8.0f;
+    float endSize = 2.0f;
+    sf::Color startColor = sf::Color(255, 190, 50, 255);
+    sf::Color endColor = sf::Color(255, 50, 20, 0);
+    float gravityX = 0.0f;
+    float gravityY = 60.0f;
+
+    std::vector<Particle> particles;
+    float spawnAccumulator = 0.0f;
+};
+
 #endif

@@ -93,7 +93,18 @@ bool ScriptComponent::ReloadIfNeeded()
     return false;
 }
 
-void ScriptComponent::OnCreate() const { if (m_OnCreate.valid()) m_OnCreate(m_Env["self"].get_or(0)); }
+void ScriptComponent::OnCreate() const
+{
+    if (m_OnCreate.valid())
+    {
+        auto res = m_OnCreate(m_Env["self"].get_or(0));
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnCreate execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+}
 
 void ScriptComponent::OnUpdate(float dt) const { if (m_OnUpdate.valid()) m_OnUpdate(m_Env["self"].get_or(0), dt); }
 
@@ -116,7 +127,15 @@ void ScriptComponent::OnTriggerEnter(Entity other) const
 
 void ScriptComponent::OnDestroy() const
 {
-    if (m_OnDestroy.valid()) m_OnDestroy(m_Env["self"].get_or(0));
+    if (m_OnDestroy.valid())
+    {
+        auto res = m_OnDestroy(m_Env["self"].get_or(0));
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnDestroy execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
 }
 
 void ScriptComponent::OnButtonClicked(const std::string &buttonId) const

@@ -321,19 +321,19 @@ std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::stri
 
 void ResourceManager::ClearTextures()
 {
-    std::cout << "[ResourceManager] Cleared " << m_Textures.size() << " texture(s).\n";
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Textures.size() << " texture(s).\n";
     m_Textures.clear();
 }
 
 void ResourceManager::ClearFonts()
 {
-    std::cout << "[ResourceManager] Cleared " << m_Fonts.size() << " font(s).\n";
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Fonts.size() << " font(s).\n";
     m_Fonts.clear();
 }
 
 void ResourceManager::ClearSounds()
 {
-    std::cout << "[ResourceManager] Cleared " << m_Sounds.size() << " sound buffer(s).\n";
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Sounds.size() << " sound buffer(s).\n";
     m_Sounds.clear();
 }
 
@@ -346,7 +346,7 @@ void ResourceManager::ClearAll()
 
 void ResourceManager::PrintStats() const
 {
-    std::cout << "[ResourceManager] Cache stats: "
+    std::cout << "[INFO] [ResourceManager] Cache stats: "
             << m_Textures.size() << " texture(s), "
             << m_Fonts.size() << " font(s), "
             << m_Sounds.size() << " sound buffer(s).\n";
