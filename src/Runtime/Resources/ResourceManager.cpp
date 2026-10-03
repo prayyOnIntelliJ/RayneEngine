@@ -1,0 +1,373 @@
+#include "ResourceManager.h"
+#include <fstream>
+#include <vector>
+#include <filesystem>
+#include <SFML/Graphics/Image.hpp>
+
+static int ReadJpegExifOrientation(const std::string &path)
+{
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return 0;
+
+    uint8_t soi[2];
+    f.read(reinterpret_cast<char *>(soi), 2);
+    if (soi[0] != 0xFF || soi[1] != 0xD8) return 0;
+
+    while (f)
+    {
+        uint8_t marker[2];
+        f.read(reinterpret_cast<char *>(marker), 2);
+        if (!f || marker[0] != 0xFF) break;
+
+        uint8_t segLen[2];
+        f.read(reinterpret_cast<char *>(segLen), 2);
+        if (!f) break;
+
+        int len = (segLen[0] << 8) | segLen[1];
+
+        if (marker[1] == 0xE1 && len > 6)
+        {
+            std::vector<uint8_t> seg(len - 2);
+            f.read(reinterpret_cast<char *>(seg.data()), len - 2);
+            if (!f) break;
+
+            if (seg.size() >= 6 && seg[0] == 'E' && seg[1] == 'x' && seg[2] == 'i' && seg[3] == 'f' && seg[4] == 0 &&
+                seg[5] == 0)
+            {
+                const uint8_t *tiff = seg.data() + 6;
+                size_t tiffSize = seg.size() - 6;
+                if (tiffSize < 8) break;
+
+                bool littleEndian = (tiff[0] == 'I' && tiff[1] == 'I');
+                auto read16 = [&](const uint8_t *p) -> uint16_t {
+                    return littleEndian ? (uint16_t)(p[0] | (p[1] << 8)) : (uint16_t)((p[0] << 8) | p[1]);
+                };
+                auto read32 = [&](const uint8_t *p) -> uint32_t {
+                    return littleEndian
+                               ? (uint32_t)(p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24))
+                               : (uint32_t)((p[0] << 24) | (p[1] << 16) | (p[2] << 8) | p[3]);
+                };
+
+                uint32_t ifdOffset = read32(tiff + 4);
+                if (ifdOffset + 2 > tiffSize) break;
+
+                uint16_t numEntries = read16(tiff + ifdOffset);
+                for (uint16_t i = 0; i < numEntries; ++i)
+                {
+                    size_t entryOff = ifdOffset + 2 + i * 12;
+                    if (entryOff + 12 > tiffSize) break;
+                    uint16_t tag = read16(tiff + entryOff);
+                    if (tag == 0x0112) { return read16(tiff + entryOff + 8); }
+                }
+            }
+            continue;
+        }
+
+        f.seekg(len - 2, std::ios::cur);
+    }
+    return 0;
+}
+
+static void ApplyExifOrientation(sf::Image &img, int orientation)
+{
+    if (orientation <= 1 || orientation > 8) return;
+
+    unsigned int w = img.getSize().x;
+    unsigned int h = img.getSize().y;
+
+    bool transpose = (orientation >= 5);
+    unsigned int dstW = transpose ? h : w;
+    unsigned int dstH = transpose ? w : h;
+
+    std::vector<sf::Uint8> dst(dstW * dstH * 4);
+    const sf::Uint8 *src = img.getPixelsPtr();
+
+    for (unsigned int y = 0; y < h; ++y)
+    {
+        for (unsigned int x = 0; x < w; ++x)
+        {
+            unsigned int dstX, dstY;
+            switch (orientation)
+            {
+                case 2: dstX = w - 1 - x;
+                    dstY = y;
+                    break;
+                case 3: dstX = w - 1 - x;
+                    dstY = h - 1 - y;
+                    break;
+                case 4: dstX = x;
+                    dstY = h - 1 - y;
+                    break;
+                case 5: dstX = y;
+                    dstY = x;
+                    break;
+                case 6: dstX = h - 1 - y;
+                    dstY = x;
+                    break;
+                case 7: dstX = h - 1 - y;
+                    dstY = w - 1 - x;
+                    break;
+                case 8: dstX = y;
+                    dstY = w - 1 - x;
+                    break;
+                default: dstX = x;
+                    dstY = y;
+                    break;
+            }
+            size_t srcIdx = (y * w + x) * 4;
+            size_t dstIdx = (dstY * dstW + dstX) * 4;
+            dst[dstIdx + 0] = src[srcIdx + 0];
+            dst[dstIdx + 1] = src[srcIdx + 1];
+            dst[dstIdx + 2] = src[srcIdx + 2];
+            dst[dstIdx + 3] = src[srcIdx + 3];
+        }
+    }
+
+    img.create(dstW, dstH, dst.data());
+}
+
+std::string ResourceManager::ResolveAssetPath(const std::string &path)
+{
+    if (path.empty()) return "";
+
+    std::string normalized = path;
+    for (char &c: normalized) { if (c == '\\') c = '/'; }
+
+    if (std::filesystem::exists(normalized)) { return normalized; }
+
+    std::string inAssets = "assets/" + normalized;
+    if (std::filesystem::exists(inAssets)) { return inAssets; }
+
+#ifdef ASSET_PATH
+    std::string inAssetPath = std::string(ASSET_PATH) + "/" + normalized;
+    if (inAssetPath != inAssets && std::filesystem::exists(inAssetPath)) { return inAssetPath; }
+#endif
+
+    std::string inEngine = "engine_content/" + normalized;
+    if (std::filesystem::exists(inEngine)) { return inEngine; }
+
+#ifdef ENGINE_ASSET_PATH
+    std::string inEnginePath = std::string(ENGINE_ASSET_PATH) + "/" + normalized;
+    if (inEnginePath != inEngine && std::filesystem::exists(inEnginePath)) { return inEnginePath; }
+#endif
+
+    if (normalized.rfind("assets/", 0) == 0)
+    {
+        std::string stripped = normalized.substr(7);
+        if (std::filesystem::exists(stripped)) { return stripped; }
+    }
+
+    if (normalized.rfind("assets/", 0) != 0 && normalized.rfind("engine_content/", 0) != 0)
+    {
+        return "assets/" + normalized;
+    }
+
+    return normalized;
+}
+
+std::shared_ptr<sf::Texture> ResourceManager::GetTexture(const std::string &path)
+{
+    auto it = m_Textures.find(path);
+    if (it != m_Textures.end())
+        return it->second;
+
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Textures.find(resolved);
+        if (itRes != m_Textures.end())
+        {
+            m_Textures[path] = itRes->second;
+            return itRes->second;
+        }
+    }
+
+    std::cout << "[INFO] [ResourceManager] Loading texture from disk: " << resolved << "...\n";
+
+    std::string lower = resolved;
+    for (char &c: lower) c = (char) std::tolower((unsigned char) c);
+    bool isJpeg = (lower.size() >= 4 && lower.substr(lower.size() - 4) == ".jpg") ||
+                  (lower.size() >= 5 && lower.substr(lower.size() - 5) == ".jpeg") ||
+                  (lower.size() >= 5 && lower.substr(lower.size() - 5) == ".jfif");
+
+    int exifOrientation = isJpeg ? ReadJpegExifOrientation(resolved) : 0;
+
+    sf::Image img;
+    bool loaded = img.loadFromFile(resolved);
+    if (!loaded && resolved != path) { loaded = img.loadFromFile(path); }
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = img.loadFromFile(fallback);
+    }
+    if (!loaded)
+    {
+        std::cerr << "[ERROR] [ResourceManager] Failed to load texture: " << path << " (resolved: " << resolved <<
+                ")\n";
+        return nullptr;
+    }
+
+    if (exifOrientation > 1)
+    {
+        std::cout << "[INFO] [ResourceManager] Applying EXIF orientation " << exifOrientation << " to: " << resolved <<
+                "\n";
+        ApplyExifOrientation(img, exifOrientation);
+    }
+
+    auto texture = std::make_shared<sf::Texture>();
+    if (!texture->loadFromImage(img))
+    {
+        std::cerr << "[ERROR] [ResourceManager] Failed to create texture from image: " << resolved << "\n";
+        return nullptr;
+    }
+
+    texture->setSmooth(false);
+    m_Textures[path] = texture;
+    m_Textures[resolved] = texture;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded texture: " << resolved << " (" << texture->getSize().x <<
+            "x"
+            << texture->getSize().y << ")\n";
+    return texture;
+}
+
+std::shared_ptr<sf::Font> ResourceManager::GetFont(const std::string &path)
+{
+    auto it = m_Fonts.find(path);
+    if (it != m_Fonts.end())
+        return it->second;
+
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Fonts.find(resolved);
+        if (itRes != m_Fonts.end())
+        {
+            m_Fonts[path] = itRes->second;
+            return itRes->second;
+        }
+    }
+
+    std::cout << "[INFO] [ResourceManager] Loading font from disk: " << resolved << "...\n";
+    auto font = std::make_shared<sf::Font>();
+    bool loaded = font->loadFromFile(resolved);
+    if (!loaded && resolved != path) { loaded = font->loadFromFile(path); }
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = font->loadFromFile(fallback);
+    }
+    if (!loaded)
+    {
+        std::cerr << "[ERROR] [ResourceManager] Failed to load font: " << path << " (resolved: " << resolved << ")\n";
+        return nullptr;
+    }
+
+    m_Fonts[path] = font;
+    m_Fonts[resolved] = font;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded font: " << resolved << "\n";
+    return font;
+}
+
+std::shared_ptr<sf::SoundBuffer> ResourceManager::GetSoundBuffer(const std::string &path)
+{
+    auto it = m_Sounds.find(path);
+    if (it != m_Sounds.end())
+        return it->second;
+
+    std::string resolved = ResolveAssetPath(path);
+    if (resolved != path)
+    {
+        auto itRes = m_Sounds.find(resolved);
+        if (itRes != m_Sounds.end())
+        {
+            m_Sounds[path] = itRes->second;
+            return itRes->second;
+        }
+    }
+
+    std::cout << "[INFO] [ResourceManager] Loading sound buffer from disk: " << resolved << "...\n";
+    auto buffer = std::make_shared<sf::SoundBuffer>();
+    bool loaded = buffer->loadFromFile(resolved);
+    if (!loaded && resolved != path) { loaded = buffer->loadFromFile(path); }
+    if (!loaded)
+    {
+        std::string fallback = "assets/" + path;
+        loaded = buffer->loadFromFile(fallback);
+    }
+    if (!loaded)
+    {
+        std::cerr << "[ERROR] [ResourceManager] Failed to load sound buffer: " << path << " (resolved: " << resolved <<
+                ")\n";
+        return nullptr;
+    }
+
+    m_Sounds[path] = buffer;
+    m_Sounds[resolved] = buffer;
+    std::cout << "[INFO] [ResourceManager] Successfully loaded sound buffer: " << resolved << " (" << buffer->
+            getDuration().
+            asSeconds() << "s)\n";
+    return buffer;
+}
+
+void ResourceManager::ClearTextures()
+{
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Textures.size() << " texture(s).\n";
+    m_Textures.clear();
+}
+
+void ResourceManager::ClearFonts()
+{
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Fonts.size() << " font(s).\n";
+    m_Fonts.clear();
+}
+
+void ResourceManager::ClearSounds()
+{
+    std::cout << "[INFO] [ResourceManager] Cleared " << m_Sounds.size() << " sound buffer(s).\n";
+    m_Sounds.clear();
+}
+
+void ResourceManager::ClearAll()
+{
+    ClearTextures();
+    ClearFonts();
+    ClearSounds();
+}
+
+void ResourceManager::PrintStats() const
+{
+    std::cout << "[INFO] [ResourceManager] Cache stats: "
+            << m_Textures.size() << " texture(s), "
+            << m_Fonts.size() << " font(s), "
+            << m_Sounds.size() << " sound buffer(s).\n";
+}
+
+void ResourceManager::RegisterLua(sol::state &lua)
+{
+    auto res = lua.create_named_table("Resource");
+
+    res.set_function("PreloadTexture",
+                     [](const std::string &path) -> bool { return Get().GetTexture(path) != nullptr; });
+
+    res.set_function("PreloadFont", [](const std::string &path) -> bool { return Get().GetFont(path) != nullptr; });
+
+    res.set_function("PreloadSound", [](const std::string &path) -> bool {
+        return Get().GetSoundBuffer(path) != nullptr;
+    });
+
+    res.set_function("ClearTextures", []() { Get().ClearTextures(); });
+
+    res.set_function("ClearFonts", []() { Get().ClearFonts(); });
+
+    res.set_function("ClearSounds", []() { Get().ClearSounds(); });
+
+    res.set_function("ClearAll", []() { Get().ClearAll(); });
+
+    res.set_function("TextureCount", []() -> size_t { return Get().TextureCount(); });
+
+    res.set_function("FontCount", []() -> size_t { return Get().FontCount(); });
+
+    res.set_function("SoundCount", []() -> size_t { return Get().SoundBufferCount(); });
+
+    res.set_function("PrintStats", []() { Get().PrintStats(); });
+}
