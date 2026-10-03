@@ -311,6 +311,15 @@ private:
     std::vector<std::pair<sf::FloatRect, int>> m_SpotlightCategoryHitboxes;
     sf::FloatRect m_SpotlightSearchBoxBounds;
     sf::FloatRect m_SpotlightModalBounds;
+    sf::FloatRect m_SpotlightItemsViewportBounds;
+    sf::FloatRect m_SpotlightCloseBtnBounds;
+    sf::FloatRect m_SpotlightClearSearchBtnBounds;
+    sf::FloatRect m_SpotlightScrollbarThumbBounds;
+    sf::FloatRect m_SpotlightScrollbarTrackBounds;
+    bool m_SpotlightSearchFocused = false;
+    bool m_SpotlightDraggingScrollbar = false;
+    float m_SpotlightDragScrollStartMouseY = 0.0f;
+    float m_SpotlightDragScrollStartScrollY = 0.0f;
 
     void InitSpotlightItems();
     void FilterSpotlightItems();

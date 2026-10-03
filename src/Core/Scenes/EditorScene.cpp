@@ -519,6 +519,13 @@ void EditorScene::HandleMenuAction(const std::string &action)
 
 void EditorScene::HandleEvent(const sf::Event &event)
 {
+    if (event.type == sf::Event::MouseMoved)
+        m_MouseScreenPos = {(float)event.mouseMove.x, (float)event.mouseMove.y};
+    else if (event.type == sf::Event::MouseButtonPressed || event.type == sf::Event::MouseButtonReleased)
+        m_MouseScreenPos = {(float)event.mouseButton.x, (float)event.mouseButton.y};
+    else if (event.type == sf::Event::MouseWheelScrolled)
+        m_MouseScreenPos = {(float)event.mouseWheelScroll.x, (float)event.mouseWheelScroll.y};
+
     UpdateBounds();
 
     if (m_ShowBuildPopup)
@@ -674,11 +681,143 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
     if (m_SpotlightOpen)
     {
-        if (event.type == sf::Event::KeyPressed)
+        const float cardH = 58.f;
+        const float cardGap = 8.f;
+        int totalRows = (static_cast<int>(m_FilteredSpotlightItems.size()) + 1) / 2;
+        float totalContentH = totalRows > 0 ? (totalRows * (cardH + cardGap) - cardGap) : 0.0f;
+        float maxScroll = std::max(0.0f, totalContentH - m_SpotlightItemsViewportBounds.height + 16.0f);
+
+        auto AutoScrollToSelected = [&]() {
+            if (m_SpotlightSelectedIndex < 0 || m_SpotlightSelectedIndex >= static_cast<int>(m_FilteredSpotlightItems.size()))
+                return;
+            int selRow = m_SpotlightSelectedIndex / 2;
+            float topY = selRow * (cardH + cardGap);
+            float bottomY = topY + cardH;
+            if (topY < m_SpotlightScrollY)
+            {
+                m_SpotlightScrollY = topY;
+            }
+            else if (bottomY > m_SpotlightScrollY + m_SpotlightItemsViewportBounds.height)
+            {
+                m_SpotlightScrollY = bottomY - m_SpotlightItemsViewportBounds.height;
+            }
+            m_SpotlightScrollY = std::max(0.0f, std::min(m_SpotlightScrollY, maxScroll));
+        };
+
+        if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
+        {
+            if (m_SpotlightCloseBtnBounds.contains(m_MouseScreenPos))
+            {
+                CloseSpotlight();
+                return;
+            }
+
+            if (m_SpotlightClearSearchBtnBounds.contains(m_MouseScreenPos))
+            {
+                m_SpotlightQuery.clear();
+                m_SpotlightSearchFocused = true;
+                FilterSpotlightItems();
+                m_SpotlightSelectedIndex = 0;
+                m_SpotlightScrollY = 0.0f;
+                return;
+            }
+
+            if (m_SpotlightSearchBoxBounds.contains(m_MouseScreenPos))
+            {
+                m_SpotlightSearchFocused = true;
+                return;
+            }
+            else
+            {
+                m_SpotlightSearchFocused = false;
+            }
+
+            if (m_SpotlightScrollbarThumbBounds.contains(m_MouseScreenPos))
+            {
+                m_SpotlightDraggingScrollbar = true;
+                m_SpotlightDragScrollStartMouseY = m_MouseScreenPos.y;
+                m_SpotlightDragScrollStartScrollY = m_SpotlightScrollY;
+                return;
+            }
+            else if (m_SpotlightScrollbarTrackBounds.contains(m_MouseScreenPos))
+            {
+                float relY = (m_MouseScreenPos.y - m_SpotlightScrollbarTrackBounds.top) / m_SpotlightScrollbarTrackBounds.height;
+                m_SpotlightScrollY = std::max(0.0f, std::min(maxScroll, relY * maxScroll));
+                return;
+            }
+
+            for (const auto& [rect, catIdx] : m_SpotlightCategoryHitboxes)
+            {
+                if (rect.contains(m_MouseScreenPos))
+                {
+                    m_SpotlightCategory = catIdx;
+                    m_SpotlightSelectedIndex = 0;
+                    m_SpotlightScrollY = 0.0f;
+                    FilterSpotlightItems();
+                    return;
+                }
+            }
+
+            if (m_SpotlightItemsViewportBounds.contains(m_MouseScreenPos))
+            {
+                for (const auto& [rect, itemIdx] : m_SpotlightItemHitboxes)
+                {
+                    if (rect.contains(m_MouseScreenPos))
+                    {
+                        if (itemIdx >= 0 && itemIdx < (int)m_FilteredSpotlightItems.size())
+                        {
+                            SelectSpotlightItem(m_FilteredSpotlightItems[itemIdx]);
+                        }
+                        return;
+                    }
+                }
+            }
+
+            if (!m_SpotlightModalBounds.contains(m_MouseScreenPos))
+            {
+                CloseSpotlight();
+            }
+            return;
+        }
+        else if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left)
+        {
+            m_SpotlightDraggingScrollbar = false;
+            return;
+        }
+        else if (event.type == sf::Event::MouseMoved)
+        {
+            if (m_SpotlightDraggingScrollbar && maxScroll > 0.0f && m_SpotlightScrollbarTrackBounds.height > 0.0f)
+            {
+                float deltaY = m_MouseScreenPos.y - m_SpotlightDragScrollStartMouseY;
+                float usableTrackH = m_SpotlightScrollbarTrackBounds.height - m_SpotlightScrollbarThumbBounds.height;
+                if (usableTrackH > 0.0f)
+                {
+                    float scrollDelta = (deltaY / usableTrackH) * maxScroll;
+                    m_SpotlightScrollY = std::max(0.0f, std::min(maxScroll, m_SpotlightDragScrollStartScrollY + scrollDelta));
+                }
+                return;
+            }
+        }
+        else if (event.type == sf::Event::MouseWheelScrolled)
+        {
+            if (m_SpotlightModalBounds.contains(m_MouseScreenPos))
+            {
+                m_SpotlightScrollY = std::max(0.0f, std::min(maxScroll, m_SpotlightScrollY - event.mouseWheelScroll.delta * 40.0f));
+            }
+            return;
+        }
+        else if (event.type == sf::Event::KeyPressed)
         {
             if (event.key.code == sf::Keyboard::Escape)
             {
-                CloseSpotlight();
+                if (m_SpotlightSearchFocused)
+                {
+                    m_SpotlightSearchFocused = false;
+                }
+                else
+                {
+                    CloseSpotlight();
+                }
                 return;
             }
             if (event.key.code == sf::Keyboard::Return || event.key.code == sf::Keyboard::Enter)
@@ -693,7 +832,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 if (!m_FilteredSpotlightItems.empty())
                 {
-                    m_SpotlightSelectedIndex = (m_SpotlightSelectedIndex - 2 + (int)m_FilteredSpotlightItems.size()) % (int)m_FilteredSpotlightItems.size();
+                    if (m_SpotlightSelectedIndex >= 2)
+                    {
+                        m_SpotlightSelectedIndex -= 2;
+                    }
+                    else
+                    {
+                        m_SpotlightSelectedIndex = 0;
+                    }
+                    AutoScrollToSelected();
                 }
                 return;
             }
@@ -701,7 +848,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 if (!m_FilteredSpotlightItems.empty())
                 {
-                    m_SpotlightSelectedIndex = (m_SpotlightSelectedIndex + 2) % (int)m_FilteredSpotlightItems.size();
+                    if (m_SpotlightSelectedIndex + 2 < (int)m_FilteredSpotlightItems.size())
+                    {
+                        m_SpotlightSelectedIndex += 2;
+                    }
+                    else
+                    {
+                        m_SpotlightSelectedIndex = (int)m_FilteredSpotlightItems.size() - 1;
+                    }
+                    AutoScrollToSelected();
                 }
                 return;
             }
@@ -710,11 +865,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 if (m_SpotlightSelectedIndex % 2 == 1)
                 {
                     m_SpotlightSelectedIndex--;
-                }
-                else
-                {
-                    m_SpotlightCategory = (m_SpotlightCategory - 1 + 5) % 5;
-                    FilterSpotlightItems();
+                    AutoScrollToSelected();
                 }
                 return;
             }
@@ -723,71 +874,70 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 if (m_SpotlightSelectedIndex % 2 == 0 && m_SpotlightSelectedIndex + 1 < (int)m_FilteredSpotlightItems.size())
                 {
                     m_SpotlightSelectedIndex++;
-                }
-                else
-                {
-                    m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
-                    FilterSpotlightItems();
+                    AutoScrollToSelected();
                 }
                 return;
             }
+            if (!m_SpotlightSearchFocused)
+            {
+                if (event.key.code == sf::Keyboard::D)
+                {
+                    m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
+                    m_SpotlightSelectedIndex = 0;
+                    m_SpotlightScrollY = 0.0f;
+                    FilterSpotlightItems();
+                    return;
+                }
+                if (event.key.code == sf::Keyboard::A)
+                {
+                    m_SpotlightCategory = (m_SpotlightCategory - 1 + 5) % 5;
+                    m_SpotlightSelectedIndex = 0;
+                    m_SpotlightScrollY = 0.0f;
+                    FilterSpotlightItems();
+                    return;
+                }
+            }
             if (event.key.code == sf::Keyboard::Tab)
             {
-                m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
+                if (event.key.shift)
+                    m_SpotlightCategory = (m_SpotlightCategory - 1 + 5) % 5;
+                else
+                    m_SpotlightCategory = (m_SpotlightCategory + 1) % 5;
+                m_SpotlightSelectedIndex = 0;
+                m_SpotlightScrollY = 0.0f;
                 FilterSpotlightItems();
                 return;
             }
         }
         else if (event.type == sf::Event::TextEntered)
         {
-            if (event.text.unicode == 8 || event.text.unicode == 127)
+            if (event.text.unicode == 8 || event.text.unicode == 127) // Backspace
             {
                 if (!m_SpotlightQuery.empty())
                 {
                     m_SpotlightQuery.pop_back();
                     FilterSpotlightItems();
+                    m_SpotlightSelectedIndex = 0;
+                    m_SpotlightScrollY = 0.0f;
                 }
+                return;
             }
-            else if (event.text.unicode >= 32 && event.text.unicode < 127)
+            if (event.text.unicode >= 32 && event.text.unicode < 127)
             {
-                m_SpotlightQuery += static_cast<char>(event.text.unicode);
-                FilterSpotlightItems();
-            }
-            return;
-        }
-        else if (event.type == sf::Event::MouseWheelScrolled)
-        {
-            if (m_SpotlightModalBounds.contains(m_MouseScreenPos))
-            {
-                m_SpotlightScrollY = std::max(0.0f, m_SpotlightScrollY - event.mouseWheelScroll.delta * 30.0f);
-            }
-            return;
-        }
-        else if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
-        {
-            for (const auto& [rect, catIdx] : m_SpotlightCategoryHitboxes)
-            {
-                if (rect.contains(m_MouseScreenPos))
+                char c = static_cast<char>(event.text.unicode);
+                if (!m_SpotlightSearchFocused)
                 {
-                    m_SpotlightCategory = catIdx;
-                    FilterSpotlightItems();
-                    return;
-                }
-            }
-            for (const auto& [rect, itemIdx] : m_SpotlightItemHitboxes)
-            {
-                if (rect.contains(m_MouseScreenPos))
-                {
-                    if (itemIdx >= 0 && itemIdx < (int)m_FilteredSpotlightItems.size())
+                    if (c == 'a' || c == 'A' || c == 'd' || c == 'D')
                     {
-                        SelectSpotlightItem(m_FilteredSpotlightItems[itemIdx]);
+                        return;
                     }
-                    return;
+                    m_SpotlightSearchFocused = true;
                 }
-            }
-            if (!m_SpotlightModalBounds.contains(m_MouseScreenPos))
-            {
-                CloseSpotlight();
+                m_SpotlightQuery += c;
+                FilterSpotlightItems();
+                m_SpotlightSelectedIndex = 0;
+                m_SpotlightScrollY = 0.0f;
+                return;
             }
             return;
         }
@@ -3320,6 +3470,8 @@ void EditorScene::OpenSpotlight()
     m_SpotlightQuery.clear();
     m_SpotlightSelectedIndex = 0;
     m_SpotlightScrollY = 0.0f;
+    m_SpotlightSearchFocused = false;
+    m_SpotlightDraggingScrollbar = false;
     m_AddDropdownOpen = false;
     m_OpenMenuIndex = -1;
     FilterSpotlightItems();
@@ -3329,6 +3481,8 @@ void EditorScene::CloseSpotlight()
 {
     m_SpotlightOpen = false;
     m_SpotlightQuery.clear();
+    m_SpotlightSearchFocused = false;
+    m_SpotlightDraggingScrollbar = false;
 }
 
 void EditorScene::SelectSpotlightItem(const SpotlightItem &item)
@@ -3560,13 +3714,36 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     titleText.setPosition(modalX + 16.f, modalY + 11.f);
     window.draw(titleText);
 
-    // Shortcut badge top-right
+    // Close button in header top-right
+    const float closeBtnSize = 24.f;
+    const float closeBtnX = modalX + modalW - closeBtnSize - 12.f;
+    const float closeBtnY = modalY + 8.f;
+    m_SpotlightCloseBtnBounds = sf::FloatRect(closeBtnX, closeBtnY, closeBtnSize, closeBtnSize);
+    bool isCloseHov = m_SpotlightCloseBtnBounds.contains(m_MouseScreenPos);
+
+    sf::RectangleShape closeBtnBg({closeBtnSize, closeBtnSize});
+    closeBtnBg.setPosition(closeBtnX, closeBtnY);
+    closeBtnBg.setFillColor(isCloseHov ? sf::Color(180, 50, 50) : C_BG_ELEVATED);
+    closeBtnBg.setOutlineColor(isCloseHov ? sf::Color(220, 80, 80) : C_BORDER_LIGHT);
+    closeBtnBg.setOutlineThickness(1.f);
+    window.draw(closeBtnBg);
+
+    sf::Text closeBtnText;
+    closeBtnText.setFont(*m_Font);
+    closeBtnText.setCharacterSize(14);
+    closeBtnText.setStyle(sf::Text::Bold);
+    closeBtnText.setFillColor(isCloseHov ? sf::Color::White : C_TEXT_MUTED);
+    closeBtnText.setString("x");
+    closeBtnText.setPosition(closeBtnX + 7.f, closeBtnY + 2.f);
+    window.draw(closeBtnText);
+
+    // Shortcut badge top-right (to left of close button)
     sf::Text scBadge;
     scBadge.setFont(*m_Font);
     scBadge.setCharacterSize(11);
     scBadge.setFillColor(C_TEXT_MUTED);
     scBadge.setString("Shortcut: Ctrl + Space");
-    scBadge.setPosition(modalX + modalW - scBadge.getLocalBounds().width - 16.f, modalY + 13.f);
+    scBadge.setPosition(closeBtnX - scBadge.getLocalBounds().width - 14.f, modalY + 13.f);
     window.draw(scBadge);
 
     // Search input bar
@@ -3579,8 +3756,8 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     sf::RectangleShape searchBg({searchW, searchH});
     searchBg.setPosition(modalX + searchPad, searchY);
     searchBg.setFillColor(C_BG_INPUT);
-    searchBg.setOutlineColor(C_ACCENT);
-    searchBg.setOutlineThickness(1.f);
+    searchBg.setOutlineColor(m_SpotlightSearchFocused ? C_ACCENT_HOV : C_ACCENT);
+    searchBg.setOutlineThickness(m_SpotlightSearchFocused ? 1.5f : 1.f);
     window.draw(searchBg);
 
     sf::Text searchIcon;
@@ -3597,17 +3774,46 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     if (m_SpotlightQuery.empty())
     {
         queryText.setFillColor(C_TEXT_MUTED);
-        queryText.setString("Type to search objects... (e.g. Physics, Trigger, Camera, Particles)");
+        queryText.setString(m_SpotlightSearchFocused ? "Type to search objects..." : "Type or click here to search (e.g. Camera, Physics, Light)...");
     }
     else
     {
         static sf::Clock cursorClock;
         bool cursorBlink = static_cast<int>(cursorClock.getElapsedTime().asSeconds() * 2.f) % 2 == 0;
         queryText.setFillColor(C_TEXT_PRIMARY);
-        queryText.setString(m_SpotlightQuery + (cursorBlink ? "|" : ""));
+        queryText.setString(m_SpotlightQuery + ((m_SpotlightSearchFocused && cursorBlink) ? "|" : ""));
     }
     queryText.setPosition(modalX + searchPad + 38.f, searchY + 9.f);
     window.draw(queryText);
+
+    // Clear search button if query not empty
+    if (!m_SpotlightQuery.empty())
+    {
+        const float clearSize = 22.f;
+        const float clearX = modalX + searchPad + searchW - clearSize - 8.f;
+        const float clearY = searchY + (searchH - clearSize) * 0.5f;
+        m_SpotlightClearSearchBtnBounds = sf::FloatRect(clearX, clearY, clearSize, clearSize);
+        bool isClearHov = m_SpotlightClearSearchBtnBounds.contains(m_MouseScreenPos);
+
+        sf::RectangleShape clearBg({clearSize, clearSize});
+        clearBg.setPosition(clearX, clearY);
+        clearBg.setFillColor(isClearHov ? C_BG_ELEVATED : C_BG_PANEL);
+        clearBg.setOutlineColor(C_BORDER_LIGHT);
+        clearBg.setOutlineThickness(1.f);
+        window.draw(clearBg);
+
+        sf::Text clearTxt;
+        clearTxt.setFont(*m_Font);
+        clearTxt.setCharacterSize(12);
+        clearTxt.setFillColor(isClearHov ? sf::Color::White : C_TEXT_MUTED);
+        clearTxt.setString("x");
+        clearTxt.setPosition(clearX + 7.f, clearY + 2.f);
+        window.draw(clearTxt);
+    }
+    else
+    {
+        m_SpotlightClearSearchBtnBounds = sf::FloatRect();
+    }
 
     // Category Filter Chips
     const float catY = searchY + searchH + 10.f;
@@ -3643,12 +3849,21 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
         chipX += chipW + 8.f;
     }
 
-    // Cards Area
+    // Cards Area Viewport
     const float itemsY = catY + 36.f;
     const float itemsH = modalH - (itemsY - modalY) - 36.f;
+    m_SpotlightItemsViewportBounds = sf::FloatRect(modalX + searchPad, itemsY, searchW, itemsH);
+
     const float cardGap = 8.f;
-    const float cardW = (searchW - cardGap) / 2.f;
+    const float scrollbarW = 8.f;
+    const float cardContainerW = searchW - scrollbarW - 4.f;
+    const float cardW = (cardContainerW - cardGap) / 2.f;
     const float cardH = 58.f;
+
+    int totalRows = (static_cast<int>(m_FilteredSpotlightItems.size()) + 1) / 2;
+    float totalContentH = totalRows > 0 ? (totalRows * (cardH + cardGap) - cardGap) : 0.0f;
+    float maxScroll = std::max(0.0f, totalContentH - itemsH + 16.0f);
+    m_SpotlightScrollY = std::max(0.0f, std::min(m_SpotlightScrollY, maxScroll));
 
     sf::View origView = window.getView();
     sf::View clipView;
@@ -3675,7 +3890,7 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
         m_SpotlightItemHitboxes.push_back({cardRect, i});
 
         bool isSel = (m_SpotlightSelectedIndex == i);
-        bool isHov = cardRect.contains(m_MouseScreenPos);
+        bool isHov = m_SpotlightItemsViewportBounds.contains(m_MouseScreenPos) && cardRect.contains(m_MouseScreenPos);
 
         sf::RectangleShape cardBg({cardW, cardH});
         cardBg.setPosition(cx, cy);
@@ -3728,6 +3943,35 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
 
     window.setView(origView);
 
+    // Scrollbar (outside clipped view)
+    const float trackX = modalX + searchPad + searchW - scrollbarW;
+    const float trackY = itemsY;
+    const float trackH = itemsH;
+    m_SpotlightScrollbarTrackBounds = sf::FloatRect(trackX, trackY, scrollbarW, trackH);
+
+    if (maxScroll > 0.0f)
+    {
+        sf::RectangleShape trackBg({scrollbarW, trackH});
+        trackBg.setPosition(trackX, trackY);
+        trackBg.setFillColor(C_BG_INPUT);
+        window.draw(trackBg);
+
+        float thumbRatio = std::max(0.15f, std::min(1.0f, itemsH / totalContentH));
+        float thumbH = std::max(20.f, trackH * thumbRatio);
+        float thumbY = trackY + (m_SpotlightScrollY / maxScroll) * (trackH - thumbH);
+        m_SpotlightScrollbarThumbBounds = sf::FloatRect(trackX, thumbY, scrollbarW, thumbH);
+
+        bool isThumbHov = m_SpotlightScrollbarThumbBounds.contains(m_MouseScreenPos) || m_SpotlightDraggingScrollbar;
+        sf::RectangleShape thumbBg({scrollbarW, thumbH});
+        thumbBg.setPosition(trackX, thumbY);
+        thumbBg.setFillColor(isThumbHov ? C_ACCENT : C_BORDER_LIGHT);
+        window.draw(thumbBg);
+    }
+    else
+    {
+        m_SpotlightScrollbarThumbBounds = sf::FloatRect();
+    }
+
     // Footer bar
     sf::RectangleShape footerBg({modalW, 32.f});
     footerBg.setPosition(modalX, modalY + modalH - 32.f);
@@ -3738,11 +3982,11 @@ void EditorScene::DrawSpotlightPalette(sf::RenderWindow &window)
     footerText.setFont(*m_Font);
     footerText.setCharacterSize(10);
     footerText.setFillColor(C_TEXT_MUTED);
-    footerText.setString("Navigate: [Up/Down/Left/Right]  |  Place: [Enter/Click]  |  Filter: [Tab]  |  Cancel: [Esc]");
+    footerText.setString("[A / D] Kategorie    [Pfeiltasten] Navigieren    [Klick / Enter] Platzieren    [Esc] Schliessen");
     footerText.setPosition(modalX + 16.f, modalY + modalH - 22.f);
     window.draw(footerText);
 
-    std::string countStr = std::to_string(m_FilteredSpotlightItems.size()) + " objects";
+    std::string countStr = std::to_string(m_FilteredSpotlightItems.size()) + " Objekte";
     sf::Text countText;
     countText.setFont(*m_Font);
     countText.setCharacterSize(10);
