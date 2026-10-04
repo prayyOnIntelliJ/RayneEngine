@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <fstream>
 #include <map>
+#include <unordered_set>
 
 
 void EditorScene::SaveToJson(const std::string &path)
@@ -163,6 +164,7 @@ void EditorScene::LoadFromJson(const std::string &path)
                                     obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex,
                                     obj.visibleInGame
                                 });
+        if (!obj.id.empty()) { m_Registry.AddComponent(obj.entity, NameComponent{obj.id}); }
         if (!obj.tag.empty()) { m_Registry.AddComponent(obj.entity, TagComponent{obj.tag}); }
 
         if (j.contains("sprite"))
@@ -298,6 +300,21 @@ void EditorScene::LoadFromJson(const std::string &path)
     }
 
     UpdateWorldTransforms();
+
+    // Auto-sync all template instances present in this loaded scene with their template asset files on disk
+    std::unordered_set<std::string> loadedTemplates;
+    for (const auto &obj : m_Objects)
+    {
+        if (!obj.templatePath.empty())
+        {
+            loadedTemplates.insert(obj.templatePath);
+        }
+    }
+    for (const auto &tmpl : loadedTemplates)
+    {
+        SyncTemplateInstances(tmpl);
+    }
+
     SetDirty(false);
     UpdateStatusText();
     std::cout << "[INFO] [EditorScene] Scene loaded successfully from " << path << " (" << m_Objects.size() <<
@@ -652,6 +669,7 @@ void EditorScene::DeserializeObject(const json &j)
                                 obj.color, obj.shape.getSize(), MapToShapeType(obj.objectType), obj.zIndex,
                                 obj.visibleInGame
                             });
+    if (!obj.id.empty()) { m_Registry.AddComponent(obj.entity, NameComponent{obj.id}); }
     if (!obj.tag.empty()) { m_Registry.AddComponent(obj.entity, TagComponent{obj.tag}); }
 
     if (j.contains("sprite"))

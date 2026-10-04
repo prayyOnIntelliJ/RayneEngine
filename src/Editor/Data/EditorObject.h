@@ -102,4 +102,4 @@ struct MenuEntry
     sf::FloatRect bounds;
 };
 
-#endif // EDITOROBJECT_H
+#endif

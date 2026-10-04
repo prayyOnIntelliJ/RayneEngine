@@ -56,9 +56,13 @@ function OnCreate(self)
         Engine.Log(string.format("[ExportDemo] Spawn offset: X=%.2f, Y=%.2f", spawnOffset.x, spawnOffset.y))
     end
 
-    -- Using Entity:
+    -- Using Entity (cross-script access):
     if targetObject and targetObject.name ~= "" then
-        Engine.Log("[ExportDemo] Target entity name: " .. targetObject.name)
+        Engine.Log("[ExportDemo] Target entity: " .. tostring(targetObject))
+        -- Call functions directly on the target entity's script:
+        if targetObject.BlaBlaBla then
+            targetObject.BlaBlaBla()
+        end
     end
 
     -- Using Template:

@@ -30,7 +30,11 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     {
         Entity entity = registry.CreateEntity();
         std::string objId = j.value("id", "");
-        if (!objId.empty()) { idToEntity[objId] = entity; }
+        if (!objId.empty())
+        {
+            idToEntity[objId] = entity;
+            registry.AddComponent(entity, NameComponent{objId});
+        }
         if (j.contains("parent") && !j["parent"].get<std::string>().empty())
         {
             parentLinks.push_back({entity, j["parent"].get<std::string>()});
@@ -99,8 +103,26 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
                     else if (prop.type == ScriptComponent::PropertyType::Bool)
                         prop.boolVal = it.value()["value"].get<bool>();
                     else if (prop.type == ScriptComponent::PropertyType::String || prop.type ==
-                             ScriptComponent::PropertyType::Template)
-                        prop.stringVal = it.value()["value"].get<std::string>();
+                             ScriptComponent::PropertyType::Template ||
+                             prop.type == ScriptComponent::PropertyType::Image || prop.type ==
+                             ScriptComponent::PropertyType::Entity)
+                        prop.stringVal = it.value().value("value", "");
+                    else if (prop.type == ScriptComponent::PropertyType::Vec2)
+                    {
+                        if (it.value()["value"].is_object())
+                        {
+                            prop.floatVal = it.value()["value"].value("x", 0.f);
+                            prop.vec2Y = it.value()["value"].value("y", 0.f);
+                        }
+                    } else if (prop.type == ScriptComponent::PropertyType::Color)
+                    {
+                        if (it.value()["value"].is_object())
+                        {
+                            prop.colorR = it.value()["value"].value("r", 255);
+                            prop.colorG = it.value()["value"].value("g", 255);
+                            prop.colorB = it.value()["value"].value("b", 255);
+                        }
+                    }
 
                     sc.SetExportedProperty(prop);
                 }
@@ -305,7 +327,11 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
         createdEntities.push_back(entity);
 
         std::string objId = j.value("id", "");
-        if (!objId.empty()) { idToEntity[objId] = entity; }
+        if (!objId.empty())
+        {
+            idToEntity[objId] = entity;
+            registry.AddComponent(entity, NameComponent{objId});
+        }
 
         std::string parentId = j.value("parent", "");
         bool isRoot = (i == 0) || parentId.empty();
@@ -386,8 +412,26 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
                     else if (prop.type == ScriptComponent::PropertyType::Bool)
                         prop.boolVal = it.value()["value"].get<bool>();
                     else if (prop.type == ScriptComponent::PropertyType::String || prop.type ==
-                             ScriptComponent::PropertyType::Template)
-                        prop.stringVal = it.value()["value"].get<std::string>();
+                             ScriptComponent::PropertyType::Template ||
+                             prop.type == ScriptComponent::PropertyType::Image || prop.type ==
+                             ScriptComponent::PropertyType::Entity)
+                        prop.stringVal = it.value().value("value", "");
+                    else if (prop.type == ScriptComponent::PropertyType::Vec2)
+                    {
+                        if (it.value()["value"].is_object())
+                        {
+                            prop.floatVal = it.value()["value"].value("x", 0.f);
+                            prop.vec2Y = it.value()["value"].value("y", 0.f);
+                        }
+                    } else if (prop.type == ScriptComponent::PropertyType::Color)
+                    {
+                        if (it.value()["value"].is_object())
+                        {
+                            prop.colorR = it.value()["value"].value("r", 255);
+                            prop.colorG = it.value()["value"].value("g", 255);
+                            prop.colorB = it.value()["value"].value("b", 255);
+                        }
+                    }
 
                     sc.SetExportedProperty(prop);
                 }

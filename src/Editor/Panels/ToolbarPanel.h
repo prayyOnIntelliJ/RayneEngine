@@ -18,4 +18,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // TOOLBARPANEL_H
+#endif

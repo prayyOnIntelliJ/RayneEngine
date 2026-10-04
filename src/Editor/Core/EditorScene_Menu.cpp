@@ -140,7 +140,8 @@ void EditorScene::HandleMenuAction(const std::string &action)
             }
         }
     } else if (action == "copy") { CopySelection(); } else if (action == "paste") { PasteClipboard(); } else if (
-        action == "open_ui_editor") { m_manager.SwitchSceneTo("ui_editor"); }
+        action == "open_ui_editor") { m_manager.SwitchSceneTo("ui_editor"); } else if (
+        action == "exit_template_mode") { ExitTemplateEditMode(true); }
 }
 
 

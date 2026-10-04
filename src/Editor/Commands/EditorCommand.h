@@ -45,4 +45,4 @@ public:
     }
 };
 
-#endif // EDITORCOMMAND_H
+#endif

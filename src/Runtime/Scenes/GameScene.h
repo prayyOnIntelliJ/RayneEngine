@@ -3,6 +3,7 @@
 #include "Scene.h"
 #include "../ECS/Registry.h"
 #include "../Resources/ResourceManager.h"
+#include "../Graphics/SpriteBatch.h"
 #include "SFML/Graphics/Text.hpp"
 #include <unordered_set>
 
@@ -41,6 +42,7 @@ private:
 
     std::unordered_set<std::pair<Entity, Entity>, PairHash> m_LastCollisions;
     float m_HotReloadTimer = 0.f;
+    Rayne::SpriteBatch m_SpriteBatch;
 };
 
 #endif

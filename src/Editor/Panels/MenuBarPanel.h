@@ -23,4 +23,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // MENUBARPANEL_H
+#endif

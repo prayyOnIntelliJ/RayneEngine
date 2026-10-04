@@ -28,4 +28,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // EDITORMODALS_H
+#endif

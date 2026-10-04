@@ -770,6 +770,96 @@ function HasTag(e) end
 ---@return Entity
 function FindEntityWithTag(tag) end
 
+---Finds all entities in the scene matching the given Tag
+---@param tag string
+---@return Entity[]
+function FindEntitiesWithTag(tag) end
+
+---Adds or sets the Name of an Entity
+---@param e Entity
+---@param name string
+function SetName(e, name) end
+
+---Gets the Name of an Entity, or empty string if none
+---@param e Entity
+---@return string
+function GetName(e) end
+
+---Checks if an Entity has a Name component
+---@param e Entity
+---@return boolean
+function HasName(e) end
+
+---Finds the first Entity in the scene matching the given Name, or 0 if none found
+---@param name string
+---@return Entity
+function FindEntityWithName(name) end
+
+---Finds all entities in the scene matching the given Name
+---@param name string
+---@return Entity[]
+function FindEntitiesWithName(name) end
+
+---Finds the first Entity in the scene matching the given Name or Tag, or 0 if none found
+---@param identifier string
+---@return Entity
+function FindEntity(identifier) end
+
+---Checks if an Entity is valid and alive in the scene
+---@param e Entity
+---@return boolean
+function IsEntityValid(e) end
+
+---Gets the script environment table of an Entity (target can be Entity ID, string name/tag, or Entity wrapper)
+---Allows calling methods and accessing variables directly, e.g.: GetScript(other).TakeDamage(10)
+---@param target Entity|string|table
+---@return table|nil
+function GetScript(target) end
+
+---Checks if an Entity has a script component attached
+---@param target Entity|string|table
+---@return boolean
+function HasScript(target) end
+
+---Safely calls a function on another entity's script if it exists
+---@param target Entity|string|table
+---@param funcName string
+---@param ... any
+---@return any
+function CallScript(target, funcName, ...) end
+
+---@class EntityHandle
+---@field id Entity
+---@field name string
+---@field GetId fun(self: EntityHandle): Entity
+---@field GetName fun(self: EntityHandle): string
+---@field GetTag fun(self: EntityHandle): string
+---@field SetTag fun(self: EntityHandle, tag: string)
+---@field GetScript fun(self: EntityHandle): table|nil
+---@field HasScript fun(self: EntityHandle): boolean
+---@field IsValid fun(self: EntityHandle): boolean
+---@field Destroy fun(self: EntityHandle)
+---@field GetTransform fun(self: EntityHandle): Transform|nil
+---@field SetPosition fun(self: EntityHandle, x: number, y: number)
+---@field GetPosition fun(self: EntityHandle): number, number
+---@field GetRotation fun(self: EntityHandle): number
+---@field SetRotation fun(self: EntityHandle, r: number)
+---@field GetScale fun(self: EntityHandle): number, number
+---@field SetScale fun(self: EntityHandle, sx: number, sy: number)
+---@field GetVelocity fun(self: EntityHandle): number, number
+---@field SetVelocity fun(self: EntityHandle, dx: number, dy: number)
+
+---Creates an Entity wrapper table that forwards method calls and property access directly to the entity's script.
+---Allows syntax like Enemy.BlaBlaBla() or Enemy:TakeDamage(10) or Enemy.health
+---@param nameOrId? string|number|table
+---@return EntityHandle
+function Entity(nameOrId) end
+
+---Alias for Entity(nameOrId)
+---@param nameOrId? string|number|table
+---@return EntityHandle
+function GetEntity(nameOrId) end
+
 ---@type Entity
 self_entity = nil -- The ID of the current Entity
 

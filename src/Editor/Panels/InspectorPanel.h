@@ -21,4 +21,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // INSPECTORPANEL_H
+#endif

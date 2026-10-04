@@ -16,3 +16,17 @@ function OnUpdate(dt)
         -- logic
     end
 end
+
+function BlaBlaBla()
+    Engine.Log("[EnemyScript] BlaBlaBla() was called on " .. enemyName .. "!")
+    Engine.LogToScreen("Enemy BlaBlaBla() called!", 3.0, 50, 220, 100)
+end
+
+function TakeDamage(amount)
+    maxHealth = maxHealth - amount
+    Engine.Log("[EnemyScript] " .. enemyName .. " took " .. tostring(amount) .. " damage. Health: " .. tostring(maxHealth))
+    if maxHealth <= 0 then
+        isDead = true
+        Engine.Log("[EnemyScript] " .. enemyName .. " died!")
+    end
+end

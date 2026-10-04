@@ -24,4 +24,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // SPOTLIGHTPALETTE_H
+#endif

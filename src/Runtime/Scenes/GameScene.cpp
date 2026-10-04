@@ -576,6 +576,8 @@ void GameScene::Render(sf::RenderWindow &window)
         return a.r.zIndex < b.r.zIndex;
     });
 
+    m_SpriteBatch.Begin();
+
     for (const auto &entry: renderEntries)
     {
         Entity e = entry.e;
@@ -588,24 +590,19 @@ void GameScene::Render(sf::RenderWindow &window)
         if (m_Registry.HasComponent<SpriteComponent>(e))
         {
             auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
-            sc.sprite.setPosition(t.worldX, t.worldY);
-            sc.sprite.setRotation(t.worldRotation);
-
-            float baseScaleX = 1.f, baseScaleY = 1.f;
-            if (sc.texture)
-            {
-                auto texSize = sc.texture->getSize();
-                if (texSize.x > 0 && texSize.y > 0)
-                {
-                    baseScaleX = sc.size.x / static_cast<float>(texSize.x);
-                    baseScaleY = sc.size.y / static_cast<float>(texSize.y);
-                }
-            }
-            sc.sprite.setScale(baseScaleX * t.worldScaleX, baseScaleY * t.worldScaleY);
-
-            window.draw(sc.sprite);
+            m_SpriteBatch.Draw(sc.texture.get(),
+                               sf::Vector2f(t.worldX, t.worldY),
+                               sc.size,
+                               t.worldRotation,
+                               sf::Vector2f(t.worldScaleX, t.worldScaleY),
+                               sf::Vector2f(0.f, 0.f),
+                               sf::Color::White);
         } else
         {
+            // Flush any batched sprites before rendering primitive shapes to preserve zIndex ordering
+            m_SpriteBatch.End(window);
+            m_SpriteBatch.Begin();
+
             if (r.shapeType == ShapeType::Rectangle)
             {
                 sf::RectangleShape shape(r.size);
@@ -646,6 +643,7 @@ void GameScene::Render(sf::RenderWindow &window)
             }
         }
     }
+    m_SpriteBatch.End(window);
 
     m_Registry.ForEach<TransformComponent, TextComponent>([&](Entity, TransformComponent &t, TextComponent &tc) {
         sf::Text txt;

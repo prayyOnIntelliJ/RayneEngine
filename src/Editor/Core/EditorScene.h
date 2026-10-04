@@ -157,7 +157,18 @@ private:
 
     void ApplyToTemplate(EditorObject *obj);
 
+    void SyncTemplateInstances(const std::string &templatePath);
+
     EditorObject *InstantiateTemplateOnCanvas(const std::string &templatePath, sf::Vector2f pos);
+
+    void EnterTemplateEditMode(const std::string &templatePath);
+
+    void ExitTemplateEditMode(bool saveChanges = true);
+
+    bool m_EditingTemplate = false;
+    std::string m_EditingTemplatePath;
+    json m_PreTemplateEditSceneState;
+    sf::FloatRect m_ExitTemplateModeBtnBounds;
 
     bool m_ShowSaveTemplatePrompt = false;
     std::string m_SaveTemplateInputName;

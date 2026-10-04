@@ -100,23 +100,74 @@ void ScriptComponent::OnCreate() const
     }
 }
 
-void ScriptComponent::OnUpdate(float dt) const { if (m_OnUpdate.valid()) m_OnUpdate(m_Env["self"].get_or(0), dt); }
+void ScriptComponent::OnUpdate(float dt) const
+{
+    if (m_OnUpdate.valid())
+    {
+        auto res = m_OnUpdate(m_Env["self"].get_or(0), dt);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnUpdate execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+}
 
 void ScriptComponent::OnCollision(Entity other) const
 {
-    if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
+    if (m_OnCollision.valid())
+    {
+        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnCollision execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
 }
 
 void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normalY) const
 {
-    if (m_OnCollisionEnter.valid()) m_OnCollisionEnter(m_Env["self"].get_or(0), other, normalX, normalY);
-    else if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
+    if (m_OnCollisionEnter.valid())
+    {
+        auto res = m_OnCollisionEnter(m_Env["self"].get_or(0), other, normalX, normalY);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnCollisionEnter execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+    else if (m_OnCollision.valid())
+    {
+        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnCollision execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
 }
 
 void ScriptComponent::OnTriggerEnter(Entity other) const
 {
-    if (m_OnTriggerEnter.valid()) m_OnTriggerEnter(m_Env["self"].get_or(0), other);
-    else if (m_OnCollision.valid()) m_OnCollision(m_Env["self"].get_or(0), other);
+    if (m_OnTriggerEnter.valid())
+    {
+        auto res = m_OnTriggerEnter(m_Env["self"].get_or(0), other);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnTriggerEnter execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
+    else if (m_OnCollision.valid())
+    {
+        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        if (!res.valid())
+        {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] OnCollision execution error (" << m_Path << "): " << err.what() << "\n";
+        }
+    }
 }
 
 void ScriptComponent::OnDestroy() const
@@ -498,10 +549,17 @@ void ScriptComponent::SetExportedProperty(const Property &prop)
     else if (prop.type == PropertyType::String) m_Env[prop.name] = prop.stringVal;
     else if (prop.type == PropertyType::Template)
     {
-        sol::table t = m_Env.create();
-        t["__type"] = "template";
-        t["path"] = prop.stringVal;
-        m_Env[prop.name] = t;
+        sol::function tmplFn = (*m_Lua)["Template"];
+        if (tmplFn.valid())
+        {
+            m_Env[prop.name] = tmplFn(prop.stringVal);
+        } else
+        {
+            sol::table t = m_Env.create();
+            t["__type"] = "template";
+            t["path"] = prop.stringVal;
+            m_Env[prop.name] = t;
+        }
     } else if (prop.type == PropertyType::Image)
     {
         sol::table t = m_Env.create();
@@ -525,9 +583,16 @@ void ScriptComponent::SetExportedProperty(const Property &prop)
         m_Env[prop.name] = t;
     } else if (prop.type == PropertyType::Entity)
     {
-        sol::table t = m_Env.create();
-        t["__type"] = "entity";
-        t["name"] = prop.stringVal;
-        m_Env[prop.name] = t;
+        sol::function entityFn = (*m_Lua)["Entity"];
+        if (entityFn.valid())
+        {
+            m_Env[prop.name] = entityFn(prop.stringVal);
+        } else
+        {
+            sol::table t = m_Env.create();
+            t["__type"] = "entity";
+            t["name"] = prop.stringVal;
+            m_Env[prop.name] = t;
+        }
     }
 }

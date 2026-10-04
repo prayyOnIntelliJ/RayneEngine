@@ -129,6 +129,8 @@ add_executable(RayneEngine
         src/Runtime/UI/UIManager.h
         src/Runtime/ECS/PhysicsSystem.cpp
         src/Runtime/ECS/PhysicsSystem.h
+        src/Runtime/Graphics/SpriteBatch.h
+        src/Runtime/Graphics/SpriteBatch.cpp
 )
 
 target_include_directories(RayneEngine PRIVATE
@@ -272,6 +274,8 @@ add_executable(RayneGame
         src/Runtime/UI/UIManager.h
         src/Runtime/ECS/PhysicsSystem.cpp
         src/Runtime/ECS/PhysicsSystem.h
+        src/Runtime/Graphics/SpriteBatch.h
+        src/Runtime/Graphics/SpriteBatch.cpp
 )
 
 target_include_directories(RayneGame PRIVATE
@@ -295,6 +299,11 @@ set_target_properties(RayneGame PROPERTIES
 )
 
 target_compile_definitions(RayneGame PRIVATE RAYNE_STANDALONE "ASSET_PATH=\"assets\"" "ENGINE_ASSET_PATH=\"engine_content\"")
+
+if(MSVC)
+    target_compile_options(RayneEngine PRIVATE /bigobj)
+    target_compile_options(RayneGame PRIVATE /bigobj)
+endif()
 
 add_dependencies(RayneEngine RayneGame)
 

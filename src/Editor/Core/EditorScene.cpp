@@ -44,6 +44,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
         std::cout << "[INFO] [EditorScene] Loaded scene from browser. Set active path to: " << relPath << "\n";
     };
     m_ContentBrowser->onScriptOpenRequest = [this](const std::string &path) { this->OpenScriptInIDE(path); };
+    m_ContentBrowser->onTemplateOpenRequest = [this](const std::string &path) { this->EnterTemplateEditMode(path); };
 
     m_camera = window.getDefaultView();
 
@@ -4589,6 +4590,7 @@ void EditorScene::ApplyToTemplate(EditorObject *obj)
     out.close();
 
     if (m_ContentBrowser) { m_ContentBrowser->Refresh(); }
+    SyncTemplateInstances(obj->templatePath);
     std::cout << "[INFO] [EditorScene] Applied changes to template: " << targetFile << "\n";
 }
 
@@ -4744,5 +4746,268 @@ void EditorScene::TryLaunchPlayMode()
     std::cout << "[INFO] [EditorScene] Auto-saved scene before running.\n";
     SnapshotState();
     m_manager.SwitchSceneTo("game");
+}
+
+void EditorScene::SyncTemplateInstances(const std::string &templatePath)
+{
+    if (templatePath.empty()) return;
+
+    std::filesystem::path rootDir = m_ContentBrowser
+                                        ? std::filesystem::path(m_ContentBrowser->GetRootPath())
+                                        : (FindProjectRoot() / "assets");
+    std::filesystem::path tp(templatePath);
+    if (!tp.is_absolute())
+    {
+        if (templatePath.rfind("assets/", 0) == 0) { tp = rootDir.parent_path() / templatePath; }
+        else { tp = rootDir / tp; }
+    }
+
+    std::ifstream file(tp);
+    if (!file.is_open()) return;
+
+    json data;
+    try { data = json::parse(file); }
+    catch (...) { return; }
+
+    if (!data.contains("objects") || !data["objects"].is_array() || data["objects"].empty())
+        return;
+
+    const auto &tmplRoot = data["objects"][0];
+
+    int updatedCount = 0;
+    for (auto &obj : m_Objects)
+    {
+        if (obj.templatePath == templatePath)
+        {
+            if (tmplRoot.contains("tag")) obj.tag = tmplRoot["tag"];
+            if (tmplRoot.contains("color") && tmplRoot["color"].is_array() && tmplRoot["color"].size() >= 3)
+            {
+                obj.color = sf::Color(tmplRoot["color"][0], tmplRoot["color"][1], tmplRoot["color"][2]);
+                obj.shape.setFillColor(obj.color);
+            }
+            if (tmplRoot.contains("width") && tmplRoot.contains("height"))
+            {
+                obj.shape.setSize({tmplRoot["width"].get<float>(), tmplRoot["height"].get<float>()});
+            }
+            if (tmplRoot.contains("scaleX")) obj.scaleX = tmplRoot["scaleX"];
+            if (tmplRoot.contains("scaleY")) obj.scaleY = tmplRoot["scaleY"];
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+
+            if (tmplRoot.contains("visibleInGame")) obj.visibleInGame = tmplRoot["visibleInGame"];
+            if (tmplRoot.contains("script"))
+            {
+                std::string sPath = tmplRoot["script"].get<std::string>();
+                if (sPath != obj.scriptPath)
+                {
+                    obj.scriptPath = sPath;
+                    if (obj.entity != 0 && m_Registry.HasComponent<ScriptComponent>(obj.entity))
+                    {
+                        m_Registry.RemoveComponent<ScriptComponent>(obj.entity);
+                        if (!sPath.empty())
+                        {
+                            std::string resolved = ResourceManager::ResolveAssetPath(sPath);
+                            m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved));
+                        }
+                    }
+                }
+            }
+            if (tmplRoot.contains("sprite"))
+            {
+                std::string sp = tmplRoot["sprite"].get<std::string>();
+                if (sp != obj.spritePath)
+                {
+                    ApplySpriteToObject(obj, sp);
+                }
+            }
+            if (tmplRoot.contains("scriptProperties") && tmplRoot["scriptProperties"].is_object())
+            {
+                for (auto it = tmplRoot["scriptProperties"].begin(); it != tmplRoot["scriptProperties"].end(); ++it)
+                {
+                    ScriptComponent::Property prop;
+                    prop.name = it.key();
+                    prop.type = static_cast<ScriptComponent::PropertyType>(it.value().value("type", 0));
+                    if (prop.type == ScriptComponent::PropertyType::Int) prop.intVal = it.value().value("value", 0);
+                    else if (prop.type == ScriptComponent::PropertyType::Float) prop.floatVal = it.value().value("value", 0.f);
+                    else if (prop.type == ScriptComponent::PropertyType::Bool) prop.boolVal = it.value().value("value", false);
+                    else if (prop.type == ScriptComponent::PropertyType::String ||
+                             prop.type == ScriptComponent::PropertyType::Template ||
+                             prop.type == ScriptComponent::PropertyType::Image ||
+                             prop.type == ScriptComponent::PropertyType::Entity)
+                        prop.stringVal = it.value().value("value", "");
+                    else if (prop.type == ScriptComponent::PropertyType::Vec2 && it.value()["value"].is_object())
+                    {
+                        prop.floatVal = it.value()["value"].value("x", 0.f);
+                        prop.vec2Y = it.value()["value"].value("y", 0.f);
+                    }
+                    else if (prop.type == ScriptComponent::PropertyType::Color && it.value()["value"].is_object())
+                    {
+                        prop.colorR = it.value()["value"].value("r", 255);
+                        prop.colorG = it.value()["value"].value("g", 255);
+                        prop.colorB = it.value()["value"].value("b", 255);
+                    }
+                    obj.scriptProperties[prop.name] = prop;
+                    if (obj.entity != 0 && m_Registry.HasComponent<ScriptComponent>(obj.entity))
+                    {
+                        m_Registry.GetComponent<ScriptComponent>(obj.entity).SetExportedProperty(prop);
+                    }
+                }
+            }
+            updatedCount++;
+        }
+    }
+
+    UpdateWorldTransforms();
+    if (updatedCount > 0)
+    {
+        SetDirty(true);
+        std::cout << "[INFO] [EditorScene] Auto-synchronized " << updatedCount << " instances of template: " << templatePath << "\n";
+    }
+}
+
+void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
+{
+    if (m_EditingTemplate)
+    {
+        ExitTemplateEditMode(true);
+    }
+
+    std::filesystem::path rootDir = m_ContentBrowser
+                                        ? std::filesystem::path(m_ContentBrowser->GetRootPath())
+                                        : (FindProjectRoot() / "assets");
+    std::filesystem::path tp(templatePath);
+    if (!tp.is_absolute())
+    {
+        if (templatePath.rfind("assets/", 0) == 0) { tp = rootDir.parent_path() / templatePath; }
+        else { tp = rootDir / tp; }
+    }
+
+    std::ifstream file(tp);
+    if (!file.is_open())
+    {
+        std::cerr << "[ERROR] [EditorScene] Cannot open template file for editing: " << tp << "\n";
+        return;
+    }
+
+    json data;
+    try { data = json::parse(file); }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[ERROR] [EditorScene] JSON parse error: " << e.what() << "\n";
+        return;
+    }
+
+    // Snapshot existing scene
+    SyncToRegistry();
+    m_PreTemplateEditSceneState = json{};
+    m_PreTemplateEditSceneState["objects"] = json::array();
+    for (auto &obj : m_Objects)
+    {
+        m_PreTemplateEditSceneState["objects"].push_back(SerializeObject(obj));
+    }
+
+    // Clear current scene objects
+    for (auto &obj : m_Objects)
+    {
+        if (obj.entity != 0) m_Registry.DestroyEntity(obj.entity);
+    }
+    m_Registry.Clear();
+    m_Objects.clear();
+    ClearSelection();
+
+    m_EditingTemplate = true;
+    m_EditingTemplatePath = templatePath;
+
+    // Load template objects
+    if (data.contains("objects") && data["objects"].is_array())
+    {
+        for (const auto &item : data["objects"])
+        {
+            DeserializeObject(item);
+        }
+    }
+
+    UpdateWorldTransforms();
+    m_camera.setCenter(0.f, 0.f);
+    UpdateStatusText();
+    std::cout << "[INFO] [EditorScene] Entered Template Edit Mode for: " << templatePath << "\n";
+}
+
+void EditorScene::ExitTemplateEditMode(bool saveChanges)
+{
+    if (!m_EditingTemplate) return;
+
+    if (saveChanges && !m_EditingTemplatePath.empty())
+    {
+        std::filesystem::path rootDir = m_ContentBrowser
+                                            ? std::filesystem::path(m_ContentBrowser->GetRootPath())
+                                            : (FindProjectRoot() / "assets");
+        std::filesystem::path tp(m_EditingTemplatePath);
+        if (!tp.is_absolute())
+        {
+            if (m_EditingTemplatePath.rfind("assets/", 0) == 0) { tp = rootDir.parent_path() / m_EditingTemplatePath; }
+            else { tp = rootDir / tp; }
+        }
+
+        json data;
+        data["name"] = tp.stem().string();
+        data["objects"] = json::array();
+
+        size_t idx = 0;
+        for (const auto &obj : m_Objects)
+        {
+            json j = SerializeObject(obj);
+            if (idx == 0)
+            {
+                j["parent"] = "";
+                j["x"] = 0.f;
+                j["y"] = 0.f;
+            }
+            data["objects"].push_back(j);
+            idx++;
+        }
+
+        std::ofstream out(tp);
+        if (out.is_open())
+        {
+            out << data.dump(4);
+            out.close();
+            std::cout << "[INFO] [EditorScene] Saved template edits to: " << tp << "\n";
+        }
+    }
+
+    std::string savedTemplatePath = m_EditingTemplatePath;
+
+    // Clear template objects from canvas
+    for (auto &obj : m_Objects)
+    {
+        if (obj.entity != 0) m_Registry.DestroyEntity(obj.entity);
+    }
+    m_Registry.Clear();
+    m_Objects.clear();
+    ClearSelection();
+
+    // Restore previous scene
+    if (m_PreTemplateEditSceneState.contains("objects") && m_PreTemplateEditSceneState["objects"].is_array())
+    {
+        for (const auto &item : m_PreTemplateEditSceneState["objects"])
+        {
+            DeserializeObject(item);
+        }
+    }
+    m_PreTemplateEditSceneState = json{};
+    m_EditingTemplate = false;
+    m_EditingTemplatePath.clear();
+
+    UpdateWorldTransforms();
+    UpdateStatusText();
+
+    // Automatically sync instances in the restored scene with updated template!
+    if (saveChanges && !savedTemplatePath.empty())
+    {
+        SyncTemplateInstances(savedTemplatePath);
+    }
+
+    if (m_ContentBrowser) { m_ContentBrowser->Refresh(); }
+    std::cout << "[INFO] [EditorScene] Exited Template Edit Mode and synchronized instances.\n";
 }
 

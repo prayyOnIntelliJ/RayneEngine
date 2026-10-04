@@ -20,4 +20,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // EDITORSERIALIZER_H
+#endif

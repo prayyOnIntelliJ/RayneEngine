@@ -1577,6 +1577,12 @@ void ContentBrowser::OpenEntry(const ContentEntry &entry)
         return;
     }
 
+    if (entry.type == AssetType::Template && onTemplateOpenRequest)
+    {
+        onTemplateOpenRequest(entry.fullPath);
+        return;
+    }
+
 #ifdef _WIN32
     ShellExecuteA(nullptr, "open", entry.fullPath.c_str(), nullptr, nullptr, SW_SHOW);
 #elif __APPLE__

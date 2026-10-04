@@ -92,6 +92,7 @@ public:
 
     std::function<void(const std::string &)> onSceneLoadRequest;
     std::function<void(const std::string &)> onScriptOpenRequest;
+    std::function<void(const std::string &)> onTemplateOpenRequest;
 
     void RenderDragGhost(sf::RenderWindow &window);
 

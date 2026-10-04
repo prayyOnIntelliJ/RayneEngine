@@ -104,6 +104,28 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         const sf::FloatRect gr(cx, ty + 4.f, 70.f, ToolbarHeight - 8.f);
         drawBtn(gr, m_SnapToGrid ? "Grid ON" : "Grid", m_SnapToGrid);
         m_ToolbarHitboxes.push_back({gr, "toggle_grid"});
+        cx += gr.width + 8.f;
+    }
+
+    if (m_EditingTemplate)
+    {
+        drawSep(cx);
+        cx += 12.f;
+        std::string tmplName = std::filesystem::path(m_EditingTemplatePath).filename().string();
+        std::string title = "[Template Edit Mode: " + tmplName + "]";
+        sf::Text tMode;
+        tMode.setFont(*m_Font);
+        tMode.setCharacterSize(12);
+        tMode.setFillColor(sf::Color(255, 200, 80));
+        tMode.setString(title);
+        tMode.setPosition(cx, ty + (ToolbarHeight - tMode.getLocalBounds().height) / 2.f - 2.f);
+        window.draw(tMode);
+        cx += tMode.getLocalBounds().width + 12.f;
+
+        const sf::FloatRect exitBtn(cx, ty + 4.f, 130.f, ToolbarHeight - 8.f);
+        drawBtn(exitBtn, "< Save & Exit", true, sf::Color(200, 100, 40), sf::Color(255, 140, 50));
+        m_ToolbarHitboxes.push_back({exitBtn, "exit_template_mode"});
+        m_ExitTemplateModeBtnBounds = exitBtn;
     } {
         const float runW = 92.f;
         const float runX = w - InspectorWidth - runW - 10.f;
@@ -1041,7 +1063,6 @@ void EditorScene::DrawScriptErrorModal(sf::RenderWindow &window)
     title.setString("SCRIPT ERROR (F5)");
     title.setPosition(mx + 16.f, my + 10.f);
     window.draw(title);
-    // Compute relative path starting from assets/ or project root (e.g. "assets/file.lua")
     std::string displayPath = m_ScriptErrorPath;
     if (!displayPath.empty())
     {

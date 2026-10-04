@@ -128,6 +128,11 @@ struct TagComponent
     std::string tag;
 };
 
+struct NameComponent
+{
+    std::string name;
+};
+
 struct AudioSourceComponent
 {
     std::string soundPath = "";

@@ -16,6 +16,7 @@
 #include "TweenManager.h"
 #include "../Scenes/SceneSerializer.h"
 #include "../Scenes/CameraManager.h"
+#include "ScriptComponent.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -98,12 +99,7 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
             return t;
         });
 
-    s_Lua.set_function("Entity", [](sol::optional<std::string> nameOpt) -> sol::table {
-        sol::table t = LuaState::GetLua().create_table();
-        t["__type"] = "entity";
-        t["name"] = nameOpt.value_or("");
-        return t;
-    });
+
 
 
     s_Lua.set_function("Instantiate",
@@ -334,6 +330,152 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
             if (tc.tag == tag && found == 0) found = e;
         });
         return found;
+    });
+
+    s_Lua.set_function("FindEntitiesWithTag", [&](const std::string &tag) -> std::vector<Entity> {
+        std::vector<Entity> list;
+        registry.ForEach<TagComponent>([&](Entity e, TagComponent &tc) {
+            if (tc.tag == tag) list.push_back(e);
+        });
+        return list;
+    });
+
+    s_Lua.set_function("AddName", [&](const Entity e, const std::string &name) {
+        registry.AddComponent(e, NameComponent{name});
+    });
+
+    s_Lua.set_function("GetName", [&](const Entity e) -> std::string {
+        if (!registry.HasComponent<NameComponent>(e)) return "";
+        return registry.GetComponent<NameComponent>(e).name;
+    });
+
+    s_Lua.set_function("HasName", [&](const Entity e) -> bool { return registry.HasComponent<NameComponent>(e); });
+
+    s_Lua.set_function("SetName", [&](const Entity e, const std::string &name) {
+        if (registry.HasComponent<NameComponent>(e)) { registry.GetComponent<NameComponent>(e).name = name; } else
+        {
+            registry.AddComponent(e, NameComponent{name});
+        }
+    });
+
+    s_Lua.set_function("FindEntityWithName", [&](const std::string &name) -> Entity {
+        Entity found = 0;
+        registry.ForEach<NameComponent>([&](Entity e, NameComponent &nc) {
+            if (nc.name == name && found == 0) found = e;
+        });
+        return found;
+    });
+
+    s_Lua.set_function("FindEntitiesWithName", [&](const std::string &name) -> std::vector<Entity> {
+        std::vector<Entity> list;
+        registry.ForEach<NameComponent>([&](Entity e, NameComponent &nc) {
+            if (nc.name == name) list.push_back(e);
+        });
+        return list;
+    });
+
+    s_Lua.set_function("FindEntity", [&](const std::string &identifier) -> Entity {
+        if (identifier.empty()) return 0;
+        Entity found = 0;
+        registry.ForEach<NameComponent>([&](Entity e, NameComponent &nc) {
+            if (nc.name == identifier && found == 0) found = e;
+        });
+        if (found != 0) return found;
+        registry.ForEach<TagComponent>([&](Entity e, TagComponent &tc) {
+            if (tc.tag == identifier && found == 0) found = e;
+        });
+        return found;
+    });
+
+    s_Lua.set_function("IsEntityValid", [&](const Entity e) -> bool {
+        if (e == 0) return false;
+        return registry.HasComponent<TransformComponent>(e) ||
+               registry.HasComponent<RenderComponent>(e) ||
+               registry.HasComponent<TagComponent>(e) ||
+               registry.HasComponent<NameComponent>(e) ||
+               registry.HasComponent<ScriptComponent>(e);
+    });
+
+    auto resolveEntity = [&registry](sol::object obj) -> Entity {
+        if (obj.is<Entity>()) {
+            return obj.as<Entity>();
+        }
+        if (obj.is<int>()) {
+            int id = obj.as<int>();
+            return id > 0 ? static_cast<Entity>(id) : 0;
+        }
+        if (obj.is<std::string>()) {
+            std::string str = obj.as<std::string>();
+            if (str.empty()) return 0;
+            Entity found = 0;
+            registry.ForEach<NameComponent>([&](Entity e, NameComponent &nc) {
+                if (found == 0 && nc.name == str) found = e;
+            });
+            if (found != 0) return found;
+            registry.ForEach<TagComponent>([&](Entity e, TagComponent &tc) {
+                if (found == 0 && tc.tag == str) found = e;
+            });
+            return found;
+        }
+        if (obj.is<sol::table>()) {
+            sol::table t = obj.as<sol::table>();
+            sol::object idObj = t["id"];
+            if (idObj.is<int>() && idObj.as<int>() > 0) return static_cast<Entity>(idObj.as<int>());
+            if (idObj.is<Entity>() && idObj.as<Entity>() > 0) return idObj.as<Entity>();
+            sol::object nameObj = t["name"];
+            if (nameObj.is<std::string>()) {
+                std::string str = nameObj.as<std::string>();
+                if (!str.empty()) {
+                    Entity found = 0;
+                    registry.ForEach<NameComponent>([&](Entity e, NameComponent &nc) {
+                        if (found == 0 && nc.name == str) found = e;
+                    });
+                    if (found != 0) return found;
+                    registry.ForEach<TagComponent>([&](Entity e, TagComponent &tc) {
+                        if (found == 0 && tc.tag == str) found = e;
+                    });
+                    return found;
+                }
+            }
+        }
+        return 0;
+    };
+
+    s_Lua.set_function("GetScript", [&registry, resolveEntity](sol::object target) -> sol::object {
+        Entity e = resolveEntity(target);
+        if (e != 0 && registry.HasComponent<ScriptComponent>(e)) {
+            return registry.GetComponent<ScriptComponent>(e).GetEnv();
+        }
+        return sol::nil;
+    });
+
+    s_Lua.set_function("HasScript", [&registry, resolveEntity](sol::object target) -> bool {
+        Entity e = resolveEntity(target);
+        return e != 0 && registry.HasComponent<ScriptComponent>(e);
+    });
+
+    s_Lua.set_function("CallScript", [&registry, resolveEntity](sol::object target, const std::string &fnName, sol::variadic_args va) -> sol::variadic_results {
+        sol::variadic_results results;
+        Entity e = resolveEntity(target);
+        if (e == 0 || !registry.HasComponent<ScriptComponent>(e)) {
+            return results;
+        }
+        auto &env = registry.GetComponent<ScriptComponent>(e).GetEnv();
+        sol::object fnObj = env[fnName];
+        if (!fnObj.is<sol::protected_function>()) {
+            return results;
+        }
+        sol::protected_function pfn = fnObj.as<sol::protected_function>();
+        auto res = pfn(sol::as_args(va));
+        if (!res.valid()) {
+            sol::error err = res;
+            std::cerr << "[ERROR] [Script] CallScript error (" << fnName << "): " << err.what() << "\n";
+            return results;
+        }
+        for (auto v : res) {
+            results.push_back(v);
+        }
+        return results;
     });
 
     s_Lua.set_function("SetColor", [&](const Entity e, int r, int g, int b, sol::optional<int> a) {
@@ -720,6 +862,204 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
 
     PhysicsSystem::RegisterLua(s_Lua, registry);
     CameraManager::RegisterLua(s_Lua, registry);
+
+    s_Lua.script(R"lua(
+        local EntityMeta = {
+            __type = "entity_meta"
+        }
+
+        local EntityMethods = {
+            GetId = function(self)
+                return self.id or 0
+            end,
+            GetName = function(self)
+                if self.name and self.name ~= "" then return self.name end
+                if self.id and self.id ~= 0 then return GetName(self.id) end
+                return ""
+            end,
+            GetTag = function(self)
+                if self.id and self.id ~= 0 then return GetTag(self.id) end
+                return ""
+            end,
+            SetTag = function(self, tag)
+                if self.id and self.id ~= 0 then SetTag(self.id, tag) end
+            end,
+            GetScript = function(self)
+                local id = self.id
+                if (not id or id == 0 or not IsEntityValid(id)) and self.name and self.name ~= "" then
+                    id = FindEntity(self.name)
+                    if id and id ~= 0 then self.id = id end
+                end
+                if id and id ~= 0 then
+                    return GetScript(id)
+                end
+                return nil
+            end,
+            HasScript = function(self)
+                local id = self.id
+                if (not id or id == 0 or not IsEntityValid(id)) and self.name and self.name ~= "" then
+                    id = FindEntity(self.name)
+                    if id and id ~= 0 then self.id = id end
+                end
+                return id ~= nil and id ~= 0 and HasScript(id)
+            end,
+            IsValid = function(self)
+                local id = self.id
+                if (not id or id == 0 or not IsEntityValid(id)) and self.name and self.name ~= "" then
+                    id = FindEntity(self.name)
+                    if id and id ~= 0 then self.id = id end
+                end
+                return id ~= nil and id ~= 0 and IsEntityValid(id)
+            end,
+            Destroy = function(self)
+                local id = self.id
+                if id and id ~= 0 then DestroyEntity(id) end
+            end,
+            GetTransform = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetTransform(id) end
+                return nil
+            end,
+            SetPosition = function(self, x, y)
+                local id = self.id
+                if id and id ~= 0 then SetPosition(id, x, y) end
+            end,
+            GetPosition = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetWorldPosition(id) end
+                return 0, 0
+            end,
+            GetRotation = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetWorldRotation(id) end
+                return 0
+            end,
+            SetRotation = function(self, r)
+                local id = self.id
+                if id and id ~= 0 then SetRotation(id, r) end
+            end,
+            GetScale = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetWorldScale(id) end
+                return 1, 1
+            end,
+            SetScale = function(self, sx, sy)
+                local id = self.id
+                if id and id ~= 0 then SetScale(id, sx, sy) end
+            end,
+            GetVelocity = function(self)
+                local id = self.id
+                if id and id ~= 0 then
+                    local v = GetVelocity(id)
+                    if v then return v.dx, v.dy end
+                end
+                return 0, 0
+            end,
+            SetVelocity = function(self, dx, dy)
+                local id = self.id
+                if id and id ~= 0 then SetVelocity(id, dx, dy) end
+            end
+        }
+
+        EntityMeta.__index = function(t, key)
+            -- 1. Check built-in methods
+            if EntityMethods[key] then
+                return EntityMethods[key]
+            end
+
+            -- 2. Resolve entity ID if needed
+            local id = t.id
+            if (not id or id == 0 or not IsEntityValid(id)) and t.name and t.name ~= "" then
+                id = FindEntity(t.name)
+                if id and id ~= 0 then
+                    t.id = id
+                end
+            end
+
+            -- 3. Access target script environment
+            if id and id ~= 0 then
+                local scr = GetScript(id)
+                if scr then
+                    local val = scr[key]
+                    if val ~= nil then
+                        if type(val) == "function" then
+                            -- Return wrapper function supporting both Enemy.BlaBlaBla(...) and Enemy:BlaBlaBla(...)
+                            return function(...)
+                                local n = select("#", ...)
+                                if n > 0 and select(1, ...) == t then
+                                    return val(select(2, ...))
+                                else
+                                    return val(...)
+                                end
+                            end
+                        else
+                            return val
+                        end
+                    end
+                end
+            end
+
+            return nil
+        end
+
+        EntityMeta.__newindex = function(t, key, val)
+            if key == "id" or key == "name" or key == "__type" then
+                rawset(t, key, val)
+                return
+            end
+
+            local id = t.id
+            if (not id or id == 0 or not IsEntityValid(id)) and t.name and t.name ~= "" then
+                id = FindEntity(t.name)
+                if id and id ~= 0 then t.id = id end
+            end
+
+            if id and id ~= 0 then
+                local scr = GetScript(id)
+                if scr then
+                    scr[key] = val
+                    return
+                end
+            end
+
+            rawset(t, key, val)
+        end
+
+        EntityMeta.__tostring = function(t)
+            local desc = t.name
+            if not desc or desc == "" then desc = tostring(t.id or 0) end
+            return "Entity(" .. desc .. ")"
+        end
+
+        _G.Entity = function(nameOrId)
+            local t = {
+                __type = "entity",
+                name = "",
+                id = 0
+            }
+            if type(nameOrId) == "string" then
+                t.name = nameOrId
+                local found = FindEntity(nameOrId)
+                if found and found ~= 0 then t.id = found end
+            elseif type(nameOrId) == "number" then
+                t.id = nameOrId
+                local n = GetName(nameOrId)
+                if n and n ~= "" then
+                    t.name = n
+                else
+                    local tg = GetTag(nameOrId)
+                    if tg and tg ~= "" then t.name = tg end
+                end
+            elseif type(nameOrId) == "table" and nameOrId.__type == "entity" then
+                t.name = nameOrId.name or ""
+                t.id = nameOrId.id or 0
+            end
+            setmetatable(t, EntityMeta)
+            return t
+        end
+
+        _G.GetEntity = _G.Entity
+    )lua");
 }
 
 sol::state &LuaState::GetLua() { return s_Lua; }

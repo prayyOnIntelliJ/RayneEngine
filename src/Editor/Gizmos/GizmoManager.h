@@ -24,4 +24,4 @@ private:
     EditorScene *m_Scene = nullptr;
 };
 
-#endif // GIZMOMANAGER_H
+#endif
