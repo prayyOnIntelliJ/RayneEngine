@@ -921,8 +921,8 @@ void EditorScene::LoadProjectSettings()
             m_ProjectVersion = j.value("Version", "1.0.0");
             m_ProjectAuthor = j.value("Author", "");
             m_ProjectStartScene = j.value("StartScene", "scenes/game.json");
-            m_ProjectWindowWidth = j.value("WindowWidth", 1280);
-            m_ProjectWindowHeight = j.value("WindowHeight", 720);
+            m_ProjectWindowWidth = j.value("WindowWidth", 1920);
+            m_ProjectWindowHeight = j.value("WindowHeight", 1080);
             m_ProjectVSync = j.value("VSync", true);
             m_ProjectTargetFPS = j.value("TargetFPS", 60);
             m_ProjectFullscreen = j.value("Fullscreen", false);
@@ -940,6 +940,7 @@ void EditorScene::LoadProjectSettings()
         g_App->SetProjectName(m_ProjectName);
         g_App->SetProjectVersion(m_ProjectVersion);
         g_App->SetProjectAuthor(m_ProjectAuthor);
+        g_App->SetTargetResolution(m_ProjectWindowWidth, m_ProjectWindowHeight);
         g_App->SetVSync(m_ProjectVSync);
         g_App->SetTargetFPS(m_ProjectTargetFPS);
         g_App->SetClearColor(m_ProjectClearColor);
@@ -977,6 +978,7 @@ void EditorScene::SaveProjectSettings()
         g_App->SetProjectName(m_ProjectName);
         g_App->SetProjectVersion(m_ProjectVersion);
         g_App->SetProjectAuthor(m_ProjectAuthor);
+        g_App->SetTargetResolution(m_ProjectWindowWidth, m_ProjectWindowHeight);
         g_App->SetVSync(m_ProjectVSync);
         g_App->SetTargetFPS(m_ProjectTargetFPS);
         g_App->SetClearColor(m_ProjectClearColor);

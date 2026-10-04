@@ -427,8 +427,8 @@ private:
     std::string m_ProjectVersion = "1.0.0";
     std::string m_ProjectAuthor = "";
     std::string m_ProjectStartScene = "scenes/game.json";
-    int m_ProjectWindowWidth = 1280;
-    int m_ProjectWindowHeight = 720;
+    int m_ProjectWindowWidth = 1920;
+    int m_ProjectWindowHeight = 1080;
     bool m_ProjectVSync = true;
     int m_ProjectTargetFPS = 60;
     bool m_ProjectFullscreen = false;

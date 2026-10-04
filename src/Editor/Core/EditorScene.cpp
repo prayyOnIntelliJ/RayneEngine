@@ -2453,10 +2453,16 @@ void EditorScene::Render(sf::RenderWindow &window)
         {
             auto &cam = m_Registry.GetComponent<CameraComponent>(obj.entity);
             float zoom = cam.zoom > 0.001f ? cam.zoom : 1.0f;
-            float viewW = 1920.f / zoom;
-            float viewH = 1080.f / zoom;
-            sf::Vector2f objCenter = obj.worldPosition + sf::Vector2f(obj.shape.getSize().x * 0.5f,
-                                                                      obj.shape.getSize().y * 0.5f);
+            float baseW = (m_ProjectWindowWidth > 0 ? static_cast<float>(m_ProjectWindowWidth) : 1920.f);
+            float baseH = (m_ProjectWindowHeight > 0 ? static_cast<float>(m_ProjectWindowHeight) : 1080.f);
+            float viewW = baseW / zoom;
+            float viewH = baseH / zoom;
+            sf::Transform tf;
+            tf.translate(obj.worldPosition);
+            tf.rotate(obj.worldRotation);
+            tf.scale(obj.worldScaleX, obj.worldScaleY);
+            sf::Vector2f objCenter = tf.transformPoint(obj.shape.getSize().x * 0.5f,
+                                                      obj.shape.getSize().y * 0.5f);
             sf::Vector2f camCenter = objCenter + sf::Vector2f(cam.offsetX, cam.offsetY);
 
             if (std::abs(cam.offsetX) > 0.1f || std::abs(cam.offsetY) > 0.1f)
@@ -2493,7 +2499,7 @@ void EditorScene::Render(sf::RenderWindow &window)
             vLabel.setFont(*m_Font);
             vLabel.setCharacterSize(10);
             vLabel.setFillColor(sf::Color(64, 180, 240, obj.selected ? 240 : 130));
-            std::string labelStr = "CAMERA VIEW [1920x1080]";
+            std::string labelStr = "CAMERA VIEW [" + std::to_string(static_cast<int>(baseW)) + "x" + std::to_string(static_cast<int>(baseH)) + "]";
             if (std::abs(zoom - 1.0f) > 0.01f) labelStr += " Zoom: " + FormatFloat(zoom, 2) + "x";
             vLabel.setString(labelStr);
             sf::Vector2f topPos = camCenter - sf::Vector2f(vLabel.getLocalBounds().width * 0.5f, viewH * 0.5f + 16.f);
@@ -2514,8 +2520,12 @@ void EditorScene::Render(sf::RenderWindow &window)
             {
                 activeCams++;
                 sharedMode = c.multiFollowMode;
-                sf::Vector2f p = obj.worldPosition + sf::Vector2f(obj.shape.getSize().x * 0.5f + c.offsetX,
-                                                                  obj.shape.getSize().y * 0.5f + c.offsetY);
+                sf::Transform tf;
+                tf.translate(obj.worldPosition);
+                tf.rotate(obj.worldRotation);
+                tf.scale(obj.worldScaleX, obj.worldScaleY);
+                sf::Vector2f p = tf.transformPoint(obj.shape.getSize().x * 0.5f, obj.shape.getSize().y * 0.5f)
+                                 + sf::Vector2f(c.offsetX, c.offsetY);
                 camPositions.push_back(p);
             }
         }
@@ -2584,10 +2594,12 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(m_CirclePreview);
         } else if (m_PlacementType == ObjectType::Camera)
         {
+            float baseW = (m_ProjectWindowWidth > 0 ? static_cast<float>(m_ProjectWindowWidth) : 1920.f);
+            float baseH = (m_ProjectWindowHeight > 0 ? static_cast<float>(m_ProjectWindowHeight) : 1080.f);
             sf::Vector2f pPos = SnapToGrid(MouseWorldPos());
             sf::Vector2f pCenter = pPos + sf::Vector2f(32.f, 24.f);
-            sf::RectangleShape previewFrustum({1920.f, 1080.f});
-            previewFrustum.setOrigin(960.f, 540.f);
+            sf::RectangleShape previewFrustum({baseW, baseH});
+            previewFrustum.setOrigin(baseW * 0.5f, baseH * 0.5f);
             previewFrustum.setPosition(pCenter);
             previewFrustum.setFillColor(sf::Color(64, 180, 240, 12));
             previewFrustum.setOutlineColor(sf::Color(64, 180, 240, 140));
@@ -2598,8 +2610,8 @@ void EditorScene::Render(sf::RenderWindow &window)
             vLabel.setFont(*m_Font);
             vLabel.setCharacterSize(10);
             vLabel.setFillColor(sf::Color(64, 180, 240, 180));
-            vLabel.setString("CAMERA VIEW [1920x1080]");
-            vLabel.setPosition(pCenter - sf::Vector2f(vLabel.getLocalBounds().width * 0.5f, 540.f + 16.f));
+            vLabel.setString("CAMERA VIEW [" + std::to_string(static_cast<int>(baseW)) + "x" + std::to_string(static_cast<int>(baseH)) + "]");
+            vLabel.setPosition(pCenter - sf::Vector2f(vLabel.getLocalBounds().width * 0.5f, baseH * 0.5f + 16.f));
             window.draw(vLabel);
 
             window.draw(m_Preview);

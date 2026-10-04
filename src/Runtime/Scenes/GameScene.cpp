@@ -207,6 +207,7 @@ void GameScene::OnEnter()
 #endif
 
     CameraManager::Get().Init(m_Window.getDefaultView(), &m_Window);
+    CameraManager::Get().Update(0.f, m_Registry);
     m_Camera = CameraManager::Get().GetView();
     m_LastCollisions.clear();
     PhysicsSystem::Reset();

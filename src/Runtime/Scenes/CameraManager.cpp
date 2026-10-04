@@ -1,4 +1,5 @@
 #include "CameraManager.h"
+#include "../Application/Application.h"
 #include <iostream>
 
 CameraManager::CameraManager()
@@ -7,18 +8,39 @@ CameraManager::CameraManager()
 void CameraManager::Init(const sf::View &defaultView, sf::RenderWindow *window)
 {
     m_Window = window;
-    m_BaseSize = defaultView.getSize();
-    std::cout << "[INFO] [Camera] CameraManager initialized (" << m_BaseSize.x << "x" << m_BaseSize.y << ").\n";
-    m_DefaultCenter = defaultView.getCenter();
+    float baseW = 1920.f;
+    float baseH = 1080.f;
+    if (g_App && g_App->GetWindowWidth() > 0 && g_App->GetWindowHeight() > 0)
+    {
+        baseW = static_cast<float>(g_App->GetWindowWidth());
+        baseH = static_cast<float>(g_App->GetWindowHeight());
+    }
+    else if (window && window->getSize().x > 0 && window->getSize().y > 0)
+    {
+        baseW = static_cast<float>(window->getSize().x);
+        baseH = static_cast<float>(window->getSize().y);
+    }
+    else if (defaultView.getSize().x > 0 && defaultView.getSize().y > 0)
+    {
+        baseW = defaultView.getSize().x;
+        baseH = defaultView.getSize().y;
+    }
+    m_BaseSize = {baseW, baseH};
+    m_DefaultCenter = {baseW * 0.5f, baseH * 0.5f};
     m_Position = m_DefaultCenter;
     m_Zoom = 1.0f;
     m_Rotation = 0.0f;
     m_FollowTarget = 0;
+    m_FollowTargets.clear();
+    m_PrimaryCamera = 0;
+    m_MultiFollowMode = CameraMultiFollowMode::Average;
     m_FollowSpeed = 0.0f;
     m_FollowOffset = {0.f, 0.f};
     m_ManualFollowDisabled = false;
     m_HasBounds = false;
+    m_FirstUpdate = true;
     StopShake();
+    std::cout << "[INFO] [Camera] CameraManager initialized (" << m_BaseSize.x << "x" << m_BaseSize.y << ").\n";
 }
 
 void CameraManager::Reset()
@@ -34,6 +56,7 @@ void CameraManager::Reset()
     m_FollowOffset = {0.f, 0.f};
     m_ManualFollowDisabled = false;
     m_HasBounds = false;
+    m_FirstUpdate = true;
     StopShake();
 }
 
@@ -218,6 +241,20 @@ void CameraManager::Update(float dt, Registry &registry)
             });
     }
 
+    auto GetTargetCenter = [&](Entity e, const TransformComponent &t) -> sf::Vector2f {
+        sf::Vector2f center(t.worldX, t.worldY);
+        if (registry.HasComponent<RenderComponent>(e))
+        {
+            const auto &r = registry.GetComponent<RenderComponent>(e);
+            sf::Transform tf;
+            tf.translate(t.worldX, t.worldY);
+            tf.rotate(t.worldRotation);
+            tf.scale(t.worldScaleX, t.worldScaleY);
+            center = tf.transformPoint(r.size.x * 0.5f, r.size.y * 0.5f);
+        }
+        return center;
+    };
+
     if (activeTargets.size() == 1)
     {
         Entity target = activeTargets[0].first;
@@ -225,12 +262,18 @@ void CameraManager::Update(float dt, Registry &registry)
         float speed = cam ? cam->smoothSpeed : m_FollowSpeed;
         sf::Vector2f offset = cam ? sf::Vector2f(cam->offsetX, cam->offsetY) : m_FollowOffset;
 
-        if (cam && cam->zoom > 0.01f && m_Zoom == 1.0f) { m_Zoom = cam->zoom; }
+        if (cam && cam->zoom > 0.01f) { m_Zoom = cam->zoom; }
 
         auto &t = registry.GetComponent<TransformComponent>(target);
-        sf::Vector2f desiredPos(t.worldX + offset.x, t.worldY + offset.y);
+        m_Rotation = t.worldRotation;
+        sf::Vector2f desiredPos = GetTargetCenter(target, t) + offset;
 
-        if (speed > 0.0f && dt > 0.0f)
+        if (m_FirstUpdate)
+        {
+            m_Position = desiredPos;
+            m_FirstUpdate = false;
+        }
+        else if (speed > 0.0f && dt > 0.0f)
         {
             float alpha = 1.0f - std::exp(-speed * dt);
             m_Position += (desiredPos - m_Position) * alpha;
@@ -260,10 +303,17 @@ void CameraManager::Update(float dt, Registry &registry)
 
             float speed = bestCam ? bestCam->smoothSpeed : m_FollowSpeed;
             sf::Vector2f offset = bestCam ? sf::Vector2f(bestCam->offsetX, bestCam->offsetY) : m_FollowOffset;
+            if (bestCam && bestCam->zoom > 0.01f) { m_Zoom = bestCam->zoom; }
             auto &t = registry.GetComponent<TransformComponent>(bestEntity);
-            sf::Vector2f desiredPos(t.worldX + offset.x, t.worldY + offset.y);
+            m_Rotation = t.worldRotation;
+            sf::Vector2f desiredPos = GetTargetCenter(bestEntity, t) + offset;
 
-            if (speed > 0.0f && dt > 0.0f)
+            if (m_FirstUpdate)
+            {
+                m_Position = desiredPos;
+                m_FirstUpdate = false;
+            }
+            else if (speed > 0.0f && dt > 0.0f)
             {
                 float alpha = 1.0f - std::exp(-speed * dt);
                 m_Position += (desiredPos - m_Position) * alpha;
@@ -280,14 +330,19 @@ void CameraManager::Update(float dt, Registry &registry)
                 sf::Vector2f off = pair.second
                                        ? sf::Vector2f(pair.second->offsetX, pair.second->offsetY)
                                        : m_FollowOffset;
-                sumPos += sf::Vector2f(t.worldX + off.x, t.worldY + off.y);
+                sumPos += (GetTargetCenter(pair.first, t) + off);
                 sumSpeed += (pair.second ? pair.second->smoothSpeed : m_FollowSpeed);
             }
 
             sf::Vector2f desiredPos = sumPos / count;
             float speed = sumSpeed / count;
 
-            if (speed > 0.0f && dt > 0.0f)
+            if (m_FirstUpdate)
+            {
+                m_Position = desiredPos;
+                m_FirstUpdate = false;
+            }
+            else if (speed > 0.0f && dt > 0.0f)
             {
                 float alpha = 1.0f - std::exp(-speed * dt);
                 m_Position += (desiredPos - m_Position) * alpha;
@@ -307,8 +362,9 @@ void CameraManager::Update(float dt, Registry &registry)
                 sf::Vector2f off = pair.second
                                        ? sf::Vector2f(pair.second->offsetX, pair.second->offsetY)
                                        : m_FollowOffset;
-                float px = t.worldX + off.x;
-                float py = t.worldY + off.y;
+                sf::Vector2f center = GetTargetCenter(pair.first, t) + off;
+                float px = center.x;
+                float py = center.y;
                 minX = std::min(minX, px);
                 maxX = std::max(maxX, px);
                 minY = std::min(minY, py);
@@ -329,7 +385,13 @@ void CameraManager::Update(float dt, Registry &registry)
             float reqH = std::max(150.f, (maxY - minY) + padding * 2.f);
             float desiredZoom = std::clamp(std::min(m_BaseSize.x / reqW, m_BaseSize.y / reqH), minZoom, maxZoom);
 
-            if (speed > 0.0f && dt > 0.0f)
+            if (m_FirstUpdate)
+            {
+                m_Position = desiredPos;
+                m_Zoom = desiredZoom;
+                m_FirstUpdate = false;
+            }
+            else if (speed > 0.0f && dt > 0.0f)
             {
                 float alpha = 1.0f - std::exp(-speed * dt);
                 m_Position += (desiredPos - m_Position) * alpha;
@@ -340,6 +402,10 @@ void CameraManager::Update(float dt, Registry &registry)
                 m_Zoom = desiredZoom;
             }
         }
+    }
+    else
+    {
+        m_FirstUpdate = false;
     }
 
 

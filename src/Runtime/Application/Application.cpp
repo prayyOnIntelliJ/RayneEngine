@@ -57,8 +57,8 @@ Application::Application()
     std::string projName = "RayneEngine";
     std::string projVersion = "1.0.0";
     std::string projAuthor = "";
-    int winW = 1280;
-    int winH = 720;
+    int winW = 1920;
+    int winH = 1080;
     bool vsync = true;
     int targetFPS = 60;
     bool fullscreen = false;

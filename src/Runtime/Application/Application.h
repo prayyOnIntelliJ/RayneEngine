@@ -41,6 +41,9 @@ public:
     sf::Color GetClearColor() const { return m_ClearColor; }
 
     void SetWindowSize(int w, int h);
+    void SetTargetResolution(int w, int h) { m_WindowWidth = w; m_WindowHeight = h; }
+    int GetWindowWidth() const { return m_WindowWidth; }
+    int GetWindowHeight() const { return m_WindowHeight; }
 
     void SetMasterVolume(float vol);
 
@@ -109,8 +112,8 @@ private:
     std::string m_ProjectAuthor = "";
     std::string m_StartScene = "scenes/game.json";
     std::string m_CurrentSceneName = "game";
-    int m_WindowWidth = 1280;
-    int m_WindowHeight = 720;
+    int m_WindowWidth = 1920;
+    int m_WindowHeight = 1080;
     bool m_ProjectVSync = true;
     unsigned int m_ProjectTargetFPS = 60;
     bool m_ProjectFullscreen = false;

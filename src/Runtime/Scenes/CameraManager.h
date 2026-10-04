@@ -137,6 +137,7 @@ private:
     float m_Rotation = 0.0f;
 
     // Follow state
+    bool m_FirstUpdate = true;
     Entity m_FollowTarget = 0;
     float m_FollowSpeed = 0.0f;
     sf::Vector2f m_FollowOffset = {0.f, 0.f};
