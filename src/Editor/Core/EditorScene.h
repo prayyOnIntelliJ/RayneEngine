@@ -70,6 +70,8 @@ private:
     sf::View m_camera;
     bool m_panning = false;
     sf::Vector2f m_panStart;
+    sf::Vector2i m_PanMouseStartPos;
+    bool m_HasPanned = false;
 
     bool m_Dragging = false;
     sf::Vector2f m_DragOffset;

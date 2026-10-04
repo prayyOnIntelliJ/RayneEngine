@@ -800,6 +800,12 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (m_panning)
         {
+            int dx = event.mouseMove.x - m_PanMouseStartPos.x;
+            int dy = event.mouseMove.y - m_PanMouseStartPos.y;
+            if (dx * dx + dy * dy > 16)
+            {
+                m_HasPanned = true;
+            }
             sf::Vector2f current = m_Window.mapPixelToCoords(
                 {event.mouseMove.x, event.mouseMove.y}, m_camera);
             m_camera.move(m_panStart - current);
@@ -1428,17 +1434,6 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseButtonPressed &&
         (event.mouseButton.button == sf::Mouse::Middle || event.mouseButton.button == sf::Mouse::Right))
     {
-        if (event.mouseButton.button == sf::Mouse::Right)
-        {
-            if (m_PlacementActive && !inHierarchy && !inInspector && !inBrowser && !inTopBars)
-            {
-                m_PlacementActive = false;
-                UpdateStatusText();
-                std::cout << "[INFO] [EditorScene] Cancelled placement (Select Mode)\n";
-                return;
-            }
-        }
-
         if (event.mouseButton.button == sf::Mouse::Right && inHierarchy)
         {
             m_HierarchyContextMenuOpen = false;
@@ -1456,16 +1451,33 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     break;
                 }
             }
-        } else
+        } else if (!inHierarchy && !inInspector && !inBrowser && !inTopBars)
         {
             m_panning = true;
-            m_panStart = m_Window.mapPixelToCoords(sf::Mouse::getPosition(m_Window), m_camera);
+            m_HasPanned = false;
+            m_PanMouseStartPos = sf::Mouse::getPosition(m_Window);
+            m_panStart = m_Window.mapPixelToCoords(m_PanMouseStartPos, m_camera);
         }
     }
 
     if (event.type == sf::Event::MouseButtonReleased &&
         (event.mouseButton.button == sf::Mouse::Middle || event.mouseButton.button == sf::Mouse::Right))
+    {
+        if (event.mouseButton.button == sf::Mouse::Right)
+        {
+            int dx = event.mouseButton.x - m_PanMouseStartPos.x;
+            int dy = event.mouseButton.y - m_PanMouseStartPos.y;
+            bool moved = m_HasPanned || (dx * dx + dy * dy > 16);
+            if (!moved && m_PlacementActive && !inHierarchy && !inInspector && !inBrowser && !inTopBars)
+            {
+                m_PlacementActive = false;
+                UpdateStatusText();
+                std::cout << "[INFO] [EditorScene] Cancelled placement via stationary right click (Select Mode)\n";
+            }
+        }
         m_panning = false;
+        m_HasPanned = false;
+    }
 
     if (event.type == sf::Event::MouseButtonReleased &&
         event.mouseButton.button == sf::Mouse::Left)
