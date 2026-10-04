@@ -93,6 +93,13 @@ public:
     std::function<void(const std::string &)> onSceneLoadRequest;
     std::function<void(const std::string &)> onScriptOpenRequest;
     std::function<void(const std::string &)> onTemplateOpenRequest;
+    std::function<void(const std::string &oldPath, const std::string &newPath)> onAssetMoved;
+
+    static AssetType TypeFromFile(const std::string &fullPath);
+    bool MoveAsset(const std::string &oldPath, const std::string &targetDir);
+    std::string GetDropTargetFolder(sf::Vector2f pos) const;
+    void StartDrag(const std::string &path, AssetType type);
+    void OpenMovePrompt(const std::string &targetPath);
 
     void RenderDragGhost(sf::RenderWindow &window);
 
@@ -113,7 +120,7 @@ public:
     bool IsInputActive() const
     {
         return m_SearchActive || m_NewScriptPrompt || m_NewScenePrompt ||
-               m_NewFolderPrompt || m_RenamePrompt || m_DeletePrompt;
+               m_NewFolderPrompt || m_RenamePrompt || m_DeletePrompt || m_MovePrompt;
     }
 
     bool IsContextMenuOpen() const { return m_ContextMenuOpen; }
@@ -171,13 +178,18 @@ private:
     std::string m_DeleteTarget;
     std::string m_DeleteWarningMessage;
 
+    bool m_MovePrompt = false;
+    std::string m_MoveTarget;
+    std::string m_MoveInput;
+    std::vector<std::pair<sf::FloatRect, std::string> > m_MoveFolderButtons;
+    sf::FloatRect m_MoveConfirmBtnBounds;
+    sf::FloatRect m_MoveCancelBtnBounds;
+
     void CheckTemplateReferences(const std::string &path);
 
     std::string m_StatusMessage;
     double m_StatusMessageTime = 0.0;
     std::optional<bool> m_ForceBuildMode = std::nullopt;
-
-    static AssetType TypeFromFile(const std::string &fullPath);
 
     static sf::Color ColorForType(AssetType type);
 

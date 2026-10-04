@@ -45,6 +45,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     };
     m_ContentBrowser->onScriptOpenRequest = [this](const std::string &path) { this->OpenScriptInIDE(path); };
     m_ContentBrowser->onTemplateOpenRequest = [this](const std::string &path) { this->EnterTemplateEditMode(path); };
+    m_ContentBrowser->onAssetMoved = [this](const std::string &oldPath, const std::string &newPath) { this->HandleAssetMoved(oldPath, newPath); };
 
     m_camera = window.getDefaultView();
 
@@ -1114,6 +1115,16 @@ void EditorScene::HandleEvent(const sf::Event &event)
         DraggedAsset drag = m_ContentBrowser->GetDraggedAsset();
 
         m_ContentBrowser->ClearDrag();
+
+        if (inBrowser)
+        {
+            std::string targetFolder = m_ContentBrowser->GetDropTargetFolder(m_MouseScreenPos);
+            if (!targetFolder.empty())
+            {
+                m_ContentBrowser->MoveAsset(drag.path, targetFolder);
+            }
+            return;
+        }
 
         const bool inHierarchy = m_HierarchyBounds.contains(m_MouseScreenPos);
 
@@ -3474,6 +3485,224 @@ void EditorScene::ApplySpriteToObject(EditorObject &obj, const std::string &spri
     }
 
     std::cout << "[INFO] [EditorScene] Sprite texture applied: " << spritePath << "\n";
+}
+
+void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string &newPath)
+{
+    if (oldPath.empty() || newPath.empty() || oldPath == newPath) return;
+
+    std::error_code ec;
+    std::filesystem::path oldAbs = std::filesystem::absolute(oldPath, ec);
+    if (ec) oldAbs = std::filesystem::path(oldPath);
+    ec.clear();
+    std::filesystem::path newAbs = std::filesystem::absolute(newPath, ec);
+    if (ec) newAbs = std::filesystem::path(newPath);
+    ec.clear();
+
+    std::filesystem::path assetRoot = std::filesystem::absolute(ASSET_PATH, ec);
+    if (ec) assetRoot = std::filesystem::path(ASSET_PATH);
+    ec.clear();
+
+    std::filesystem::path projRoot = assetRoot.parent_path();
+
+    std::filesystem::path oldRelProj = std::filesystem::proximate(oldAbs, projRoot, ec);
+    if (ec) oldRelProj = oldAbs;
+    ec.clear();
+    std::filesystem::path newRelProj = std::filesystem::proximate(newAbs, projRoot, ec);
+    if (ec) newRelProj = newAbs;
+    ec.clear();
+
+    std::filesystem::path oldRelAssets = std::filesystem::proximate(oldAbs, assetRoot, ec);
+    if (ec) oldRelAssets = oldAbs;
+    ec.clear();
+    std::filesystem::path newRelAssets = std::filesystem::proximate(newAbs, assetRoot, ec);
+    if (ec) newRelAssets = newAbs;
+    ec.clear();
+
+    bool isDir = std::filesystem::is_directory(newAbs, ec);
+    ec.clear();
+
+    std::string oldAbsStr = oldAbs.generic_string();
+    std::string newAbsStr = newAbs.generic_string();
+    std::string oldP = oldRelProj.generic_string();
+    std::string newP = newRelProj.generic_string();
+    std::string oldA = oldRelAssets.generic_string();
+    std::string newA = newRelAssets.generic_string();
+
+    auto replacePathString = [&](std::string &str) -> bool {
+        if (str.empty()) return false;
+        std::string s = str;
+        std::replace(s.begin(), s.end(), '\\', '/');
+
+        auto replaceExactOrPrefix = [&](const std::string &oldMatch, const std::string &newMatch) -> bool {
+            if (oldMatch.empty() || oldMatch == "." || oldMatch == "/") return false;
+            if (s == oldMatch) {
+                str = newMatch;
+                return true;
+            }
+            if (isDir && s.rfind(oldMatch + "/", 0) == 0) {
+                str = newMatch + s.substr(oldMatch.size());
+                return true;
+            }
+            return false;
+        };
+
+        if (replaceExactOrPrefix(oldAbsStr, newAbsStr)) return true;
+        if (replaceExactOrPrefix(oldP, newP)) return true;
+        if (replaceExactOrPrefix(oldA, newA)) return true;
+        return false;
+    };
+
+    bool anyObjectChanged = false;
+    for (auto &obj : m_Objects)
+    {
+        // 1. Sprite path
+        std::string prevSprite = obj.spritePath;
+        if (replacePathString(obj.spritePath))
+        {
+            ApplySpriteToObject(obj, obj.spritePath);
+            anyObjectChanged = true;
+            std::cout << "[INFO] [EditorScene] Updated sprite path on entity '" << obj.id << "' to '" << obj.spritePath << "'\n";
+        }
+
+        // 2. Script path
+        std::string prevScript = obj.scriptPath;
+        if (replacePathString(obj.scriptPath))
+        {
+            anyObjectChanged = true;
+            std::cout << "[INFO] [EditorScene] Updated script path on entity '" << obj.id << "' to '" << obj.scriptPath << "'\n";
+            if (obj.entity != 0 && m_Registry.HasComponent<ScriptComponent>(obj.entity))
+            {
+                m_Registry.RemoveComponent<ScriptComponent>(obj.entity);
+                if (!obj.scriptPath.empty())
+                {
+                    std::string resolved = ResourceManager::ResolveAssetPath(obj.scriptPath);
+                    auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved));
+                    sc.SetEntity(obj.entity);
+                    SyncExportedScriptProperties(obj, sc);
+                }
+            }
+        }
+
+        // 3. Template path
+        std::string prevTemplate = obj.templatePath;
+        if (replacePathString(obj.templatePath))
+        {
+            anyObjectChanged = true;
+            std::cout << "[INFO] [EditorScene] Updated template path on entity '" << obj.id << "' to '" << obj.templatePath << "'\n";
+        }
+
+        // 4. Audio clip path
+        std::string prevAudio = obj.audioClipPath;
+        if (replacePathString(obj.audioClipPath))
+        {
+            anyObjectChanged = true;
+            std::cout << "[INFO] [EditorScene] Updated audio path on entity '" << obj.id << "' to '" << obj.audioClipPath << "'\n";
+            if (obj.entity != 0 && m_Registry.HasComponent<AudioSourceComponent>(obj.entity))
+            {
+                m_Registry.GetComponent<AudioSourceComponent>(obj.entity).soundPath = obj.audioClipPath;
+            }
+        }
+
+        // 5. Script exported properties of type Image or Template
+        for (auto &[pName, prop] : obj.scriptProperties)
+        {
+            if (prop.type == ScriptComponent::PropertyType::Image ||
+                prop.type == ScriptComponent::PropertyType::Template)
+            {
+                if (replacePathString(prop.stringVal))
+                {
+                    anyObjectChanged = true;
+                    std::cout << "[INFO] [EditorScene] Updated property '" << pName << "' on entity '" << obj.id << "' to '" << prop.stringVal << "'\n";
+                    if (obj.entity != 0 && m_Registry.HasComponent<ScriptComponent>(obj.entity))
+                    {
+                        m_Registry.GetComponent<ScriptComponent>(obj.entity).SetExportedProperty(prop);
+                    }
+                }
+            }
+        }
+    }
+
+    // Update active scene save path and project settings if moved
+    std::string prevSceneSave = m_SceneSavePath;
+    if (replacePathString(m_SceneSavePath))
+    {
+        SaveSettings();
+        std::cout << "[INFO] [EditorScene] Updated active scene save path from '" << prevSceneSave << "' to '" << m_SceneSavePath << "'\n";
+    }
+
+    std::string prevStartScene = m_ProjectStartScene;
+    if (replacePathString(m_ProjectStartScene))
+    {
+        SaveProjectSettings();
+        std::cout << "[INFO] [EditorScene] Updated project start scene from '" << prevStartScene << "' to '" << m_ProjectStartScene << "'\n";
+    }
+
+    if (m_EditingTemplate && replacePathString(m_EditingTemplatePath))
+    {
+        std::cout << "[INFO] [EditorScene] Updated currently edited template path to '" << m_EditingTemplatePath << "'\n";
+    }
+
+    // Scan all scripts (*.lua), templates (*.template), and scenes (*.json) on disk to fix references
+    auto replaceInTextFile = [&](const std::filesystem::path &filePath) {
+        std::ifstream inFile(filePath, std::ios::in | std::ios::binary);
+        if (!inFile.is_open()) return;
+        std::string content((std::istreambuf_iterator<char>(inFile)), std::istreambuf_iterator<char>());
+        inFile.close();
+
+        bool modified = false;
+        auto replaceAll = [&](const std::string &from, const std::string &to) {
+            if (from.empty() || from == "/" || from == ".") return;
+            size_t pos = 0;
+            while ((pos = content.find(from, pos)) != std::string::npos) {
+                content.replace(pos, from.length(), to);
+                pos += to.length();
+                modified = true;
+            }
+        };
+
+        std::string oldA_back = oldA; std::replace(oldA_back.begin(), oldA_back.end(), '/', '\\');
+        std::string newA_back = newA; std::replace(newA_back.begin(), newA_back.end(), '/', '\\');
+        std::string oldP_back = oldP; std::replace(oldP_back.begin(), oldP_back.end(), '/', '\\');
+        std::string newP_back = newP; std::replace(newP_back.begin(), newP_back.end(), '/', '\\');
+
+        replaceAll(oldAbsStr, newAbsStr);
+        replaceAll(oldP, newP);
+        replaceAll(oldP_back, newP_back);
+        replaceAll(oldA, newA);
+        replaceAll(oldA_back, newA_back);
+
+        if (modified)
+        {
+            std::ofstream outFile(filePath, std::ios::out | std::ios::binary | std::ios::trunc);
+            if (outFile.is_open())
+            {
+                outFile.write(content.data(), content.size());
+                outFile.close();
+                std::cout << "[INFO] [EditorScene] Updated asset references in file: " << filePath.string() << "\n";
+            }
+        }
+    };
+
+    if (std::filesystem::exists(assetRoot, ec))
+    {
+        for (const auto &dirEntry : std::filesystem::recursive_directory_iterator(assetRoot, ec))
+        {
+            if (ec) break;
+            if (!dirEntry.is_regular_file(ec)) continue;
+            std::string ext = dirEntry.path().extension().string();
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == ".lua" || ext == ".json" || ext == ".template")
+            {
+                replaceInTextFile(dirEntry.path());
+            }
+        }
+    }
+
+    if (anyObjectChanged)
+    {
+        SetDirty(true);
+    }
 }
 
 

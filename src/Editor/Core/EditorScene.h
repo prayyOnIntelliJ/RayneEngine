@@ -485,6 +485,8 @@ private:
 
     void ApplySpriteToObject(EditorObject &obj, const std::string &spritePath);
 
+    void HandleAssetMoved(const std::string &oldPath, const std::string &newPath);
+
     void UpdateBounds();
 
     void DeleteSelected();

@@ -338,7 +338,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
-    if (m_DeletePrompt &&event.type == sf::Event::TextEntered) {
+    if (m_DeletePrompt && event.type == sf::Event::TextEntered) {
         if (event.text.unicode == 27 || event.text.unicode == 'n' || event.text.unicode == 'N')
         {
             m_DeletePrompt = false;
@@ -351,9 +351,43 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
         return;
     }
 
+    if (m_MovePrompt && event.type == sf::Event::TextEntered) {
+        if (event.text.unicode == '\b')
+        {
+            if (!m_MoveInput.empty()) m_MoveInput.pop_back();
+        } else if (event.text.unicode == 27)
+        {
+            m_MovePrompt = false;
+            m_MoveInput.clear();
+            m_MoveTarget.clear();
+        } else if (event.text.unicode == '\r' || event.text.unicode == '\n')
+        {
+            std::string destDir = m_MoveInput;
+            fs::path rootP(m_RootPath);
+            fs::path destPath;
+            if (destDir.empty() || destDir == "/" || destDir == ".") {
+                destPath = rootP;
+            } else if (fs::path(destDir).is_absolute()) {
+                destPath = fs::path(destDir);
+            } else {
+                destPath = rootP / destDir;
+            }
+            MoveAsset(m_MoveTarget, destPath.string());
+            m_MovePrompt = false;
+            m_MoveInput.clear();
+            m_MoveTarget.clear();
+        } else if (event.text.unicode >= 32 && event.text.unicode < 128)
+        {
+            char c = static_cast<char>(event.text.unicode);
+            if (c != ':' && c != '*' && c != '?' && c != '"' && c != '<' && c != '>' && c != '|')
+                m_MoveInput += c;
+        }
+        return;
+    }
+
     if (event.type == sf::Event::KeyPressed)
     {
-        if (m_RenamePrompt || m_NewScriptPrompt || m_NewScenePrompt || m_NewFolderPrompt || m_DeletePrompt)
+        if (m_RenamePrompt || m_NewScriptPrompt || m_NewScenePrompt || m_NewFolderPrompt || m_DeletePrompt || m_MovePrompt)
         {
             if (event.key.code == sf::Keyboard::Escape)
             {
@@ -362,11 +396,31 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
                 m_NewScenePrompt = false;
                 m_NewFolderPrompt = false;
                 m_DeletePrompt = false;
+                m_MovePrompt = false;
+                m_MoveInput.clear();
+                m_MoveTarget.clear();
                 return;
             }
-            if (m_DeletePrompt &&event.key.code == sf::Keyboard::Enter) {
+            if (m_DeletePrompt && event.key.code == sf::Keyboard::Enter) {
                 DeleteAsset(m_DeleteTarget);
                 m_DeletePrompt = false;
+                return;
+            }
+            if (m_MovePrompt && event.key.code == sf::Keyboard::Enter) {
+                std::string destDir = m_MoveInput;
+                fs::path rootP(m_RootPath);
+                fs::path destPath;
+                if (destDir.empty() || destDir == "/" || destDir == ".") {
+                    destPath = rootP;
+                } else if (fs::path(destDir).is_absolute()) {
+                    destPath = fs::path(destDir);
+                } else {
+                    destPath = rootP / destDir;
+                }
+                MoveAsset(m_MoveTarget, destPath.string());
+                m_MovePrompt = false;
+                m_MoveInput.clear();
+                m_MoveTarget.clear();
                 return;
             }
         } else if (!m_SearchActive)
@@ -436,6 +490,47 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
             }
             m_ContextMenuOpen = false;
             if (clickedMenu) return;
+        }
+
+        if (m_MovePrompt)
+        {
+            if (m_MoveCancelBtnBounds.contains(mouseScreenPos))
+            {
+                m_MovePrompt = false;
+                m_MoveInput.clear();
+                m_MoveTarget.clear();
+                return;
+            }
+            if (m_MoveConfirmBtnBounds.contains(mouseScreenPos))
+            {
+                std::string destDir = m_MoveInput;
+                fs::path rootP(m_RootPath);
+                fs::path destPath;
+                if (destDir.empty() || destDir == "/" || destDir == ".") {
+                    destPath = rootP;
+                } else if (fs::path(destDir).is_absolute()) {
+                    destPath = fs::path(destDir);
+                } else {
+                    destPath = rootP / destDir;
+                }
+                MoveAsset(m_MoveTarget, destPath.string());
+                m_MovePrompt = false;
+                m_MoveInput.clear();
+                m_MoveTarget.clear();
+                return;
+            }
+            for (const auto &[fBtn, fPath] : m_MoveFolderButtons)
+            {
+                if (fBtn.contains(mouseScreenPos))
+                {
+                    MoveAsset(m_MoveTarget, fPath);
+                    m_MovePrompt = false;
+                    m_MoveInput.clear();
+                    m_MoveTarget.clear();
+                    return;
+                }
+            }
+            return;
         }
 
         if (m_SearchBoxBounds.contains(mouseScreenPos))
@@ -598,21 +693,29 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
     float curX = x + 8.f;
     const float curY = y + 5.f;
 
+    std::string dropTargetFolder = "";
+    if (m_Drag.active)
+    {
+        dropTargetFolder = GetDropTargetFolder(m_MousePos);
+    }
+
     bool canGoUp = (m_CurrentPath != m_RootPath);
     m_UpBtnBounds = sf::FloatRect(curX, curY, 24.f, 22.f);
     bool upHovered = m_UpBtnBounds.contains(m_MousePos) && canGoUp;
+    bool isDropUpTarget = (m_Drag.active && !dropTargetFolder.empty() &&
+                           dropTargetFolder == fs::path(m_CurrentPath).parent_path().string());
 
     sf::RectangleShape upBtn({m_UpBtnBounds.width, m_UpBtnBounds.height});
     upBtn.setPosition(m_UpBtnBounds.left, m_UpBtnBounds.top);
-    upBtn.setFillColor(canGoUp ? (upHovered ? C_BG_ELEVATED : C_BORDER) : C_BG_PANEL);
-    upBtn.setOutlineColor(upHovered ? C_BORDER_LIGHT : C_BORDER);
-    upBtn.setOutlineThickness(1.f);
+    upBtn.setFillColor(isDropUpTarget ? sf::Color(0, 150, 255, 80) : canGoUp ? (upHovered ? C_BG_ELEVATED : C_BORDER) : C_BG_PANEL);
+    upBtn.setOutlineColor(isDropUpTarget ? sf::Color(50, 200, 255, 255) : upHovered ? C_BORDER_LIGHT : C_BORDER);
+    upBtn.setOutlineThickness(isDropUpTarget ? 2.f : 1.f);
     window.draw(upBtn);
 
     sf::Text upText;
     upText.setFont(m_Font);
     upText.setCharacterSize(12);
-    upText.setFillColor(canGoUp ? (upHovered ? sf::Color::White : C_TEXT_SECONDARY) : C_TEXT_MUTED);
+    upText.setFillColor(isDropUpTarget ? sf::Color::Cyan : canGoUp ? (upHovered ? sf::Color::White : C_TEXT_SECONDARY) : C_TEXT_MUTED);
     upText.setString("<");
     upText.setPosition(m_UpBtnBounds.left + 8.f, m_UpBtnBounds.top + 2.f);
     window.draw(upText);
@@ -661,12 +764,13 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         m_Breadcrumbs.push_back({cName, cPath, crumbBounds});
         bool isHovered = crumbBounds.contains(m_MousePos);
         bool isLast = (i == crumbs.size() - 1);
+        bool isDropCrumbTarget = (m_Drag.active && !dropTargetFolder.empty() && cPath == dropTargetFolder);
 
         sf::RectangleShape crumbBg({crumbBounds.width, crumbBounds.height});
         crumbBg.setPosition(crumbBounds.left, crumbBounds.top);
-        crumbBg.setFillColor(isHovered ? C_BG_ELEVATED : C_BG_INPUT);
-        crumbBg.setOutlineColor(isHovered ? C_BORDER_LIGHT : C_BORDER);
-        crumbBg.setOutlineThickness(1.f);
+        crumbBg.setFillColor(isDropCrumbTarget ? sf::Color(0, 150, 255, 80) : isHovered ? C_BG_ELEVATED : C_BG_INPUT);
+        crumbBg.setOutlineColor(isDropCrumbTarget ? sf::Color(50, 200, 255, 255) : isHovered ? C_BORDER_LIGHT : C_BORDER);
+        crumbBg.setOutlineThickness(isDropCrumbTarget ? 2.f : 1.f);
         window.draw(crumbBg);
 
         cText.setFillColor(isLast ? C_TEXT_PRIMARY : isHovered ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
@@ -878,17 +982,23 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                                 radius + 3.f, glowColor);
             }
 
-            sf::Color cardFill = selected
-                                     ? C_ACCENT_DIM
-                                     : hovered
-                                           ? C_BG_ELEVATED
-                                           : sf::Color(C_BG_PANEL.r, C_BG_PANEL.g, C_BG_PANEL.b, 200);
-            sf::Color cardOutline = selected
-                                        ? C_ACCENT
-                                        : hovered
+            bool isDropCardTarget = (m_Drag.active && entry.isDirectory && !dropTargetFolder.empty() &&
+                                     entry.fullPath == dropTargetFolder);
+            sf::Color cardFill = isDropCardTarget
+                                     ? sf::Color(0, 150, 255, 60)
+                                     : selected
+                                           ? C_ACCENT_DIM
+                                           : hovered
+                                                 ? C_BG_ELEVATED
+                                                 : sf::Color(C_BG_PANEL.r, C_BG_PANEL.g, C_BG_PANEL.b, 200);
+            sf::Color cardOutline = isDropCardTarget
+                                        ? sf::Color(50, 200, 255, 240)
+                                        : selected
                                               ? C_ACCENT
-                                              : C_BORDER;
-            float outlineThick = selected ? 1.5f : 1.f;
+                                              : hovered
+                                                    ? C_ACCENT
+                                                    : C_BORDER;
+            float outlineThick = isDropCardTarget ? 2.5f : selected ? 1.5f : 1.f;
             DrawRoundedRect(window, ix, drawY, cardW, cardH, radius, cardFill, cardOutline, outlineThick);
 
             const float previewW = 80.f;
@@ -1135,6 +1245,7 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         {
             if (!targetReadOnly)
             {
+                actions.push_back({"Move to...", "move"});
                 actions.push_back({"Rename (F2)", "rename"});
                 if (!isDir) { actions.push_back({"Duplicate (Ctrl+D)", "duplicate"}); }
             }
@@ -1442,6 +1553,185 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         window.draw(sub);
     }
 
+    if (m_MovePrompt)
+    {
+        m_MoveFolderButtons.clear();
+
+        sf::Text title;
+        title.setFont(m_Font);
+        title.setCharacterSize(12);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_ACCENT_HOV);
+        title.setString("Move Asset to Folder (Enter to Move, Esc to Cancel)");
+
+        std::string fname = fs::path(m_MoveTarget).filename().string();
+        if (fname.size() > 40) fname = fname.substr(0, 38) + "...";
+
+        // Find existing directories in root
+        std::vector<std::pair<std::string, std::string> > availableFolders;
+        availableFolders.push_back({"/ (root: assets)", m_RootPath});
+        std::error_code ec;
+        for (const auto &entry: fs::recursive_directory_iterator(m_RootPath, ec))
+        {
+            if (ec) break;
+            if (entry.is_directory(ec))
+            {
+                std::string pStr = entry.path().string();
+                if (IsReadOnlyPath(pStr)) continue;
+                if (entry.path().filename().string().rfind(".", 0) == 0) continue;
+                if (fs::equivalent(entry.path(), fs::path(m_MoveTarget), ec)) continue;
+                ec.clear();
+                std::string rel = fs::proximate(entry.path(), m_RootPath, ec).generic_string();
+                if (!ec && !rel.empty())
+                {
+                    availableFolders.push_back({rel, pStr});
+                }
+            }
+        }
+
+        const float modalW = 460.f;
+        float modalH = 150.f;
+        float foldersAreaH = 0.f;
+        if (!availableFolders.empty())
+        {
+            foldersAreaH = std::min(4, static_cast<int>((availableFolders.size() + 2) / 3)) * 26.f + 16.f;
+            modalH += foldersAreaH;
+        }
+
+        const float modalX = x + (width - modalW) / 2.f;
+        const float modalY = y + (height - modalH) / 2.f;
+
+        sf::RectangleShape modalDim({width, height});
+        modalDim.setPosition(x, y);
+        modalDim.setFillColor(sf::Color(0, 0, 0, 175));
+        window.draw(modalDim);
+
+        sf::RectangleShape modalBg({modalW, modalH});
+        modalBg.setPosition(modalX, modalY);
+        modalBg.setFillColor(C_BG_ELEVATED);
+        modalBg.setOutlineColor(C_ACCENT);
+        modalBg.setOutlineThickness(1.5f);
+        window.draw(modalBg);
+
+        title.setPosition(modalX + 16.f, modalY + 12.f);
+        window.draw(title);
+
+        sf::Text targetText;
+        targetText.setFont(m_Font);
+        targetText.setCharacterSize(11);
+        targetText.setFillColor(C_TEXT_PRIMARY);
+        targetText.setString("Moving: " + fname);
+        targetText.setPosition(modalX + 16.f, modalY + 34.f);
+        window.draw(targetText);
+
+        sf::Text promptLbl;
+        promptLbl.setFont(m_Font);
+        promptLbl.setCharacterSize(10);
+        promptLbl.setFillColor(C_TEXT_SECONDARY);
+        promptLbl.setString("Destination folder (relative to assets or select below):");
+        promptLbl.setPosition(modalX + 16.f, modalY + 52.f);
+        window.draw(promptLbl);
+
+        sf::RectangleShape inputField({modalW - 32.f, 26.f});
+        inputField.setPosition(modalX + 16.f, modalY + 68.f);
+        inputField.setFillColor(C_BG_INPUT);
+        inputField.setOutlineColor(C_ACCENT_HOV);
+        inputField.setOutlineThickness(1.f);
+        window.draw(inputField);
+
+        sf::Text inputText;
+        inputText.setFont(m_Font);
+        inputText.setCharacterSize(11);
+        inputText.setFillColor(sf::Color::White);
+        inputText.setString(m_MoveInput + cursor);
+        inputText.setPosition(modalX + 22.f, modalY + 73.f);
+        window.draw(inputText);
+
+        float curBtnY = modalY + 102.f;
+        if (!availableFolders.empty())
+        {
+            sf::Text quickLbl;
+            quickLbl.setFont(m_Font);
+            quickLbl.setCharacterSize(10);
+            quickLbl.setFillColor(C_TEXT_MUTED);
+            quickLbl.setString("Quick Select:");
+            quickLbl.setPosition(modalX + 16.f, curBtnY);
+            window.draw(quickLbl);
+            curBtnY += 16.f;
+
+            float curBtnX = modalX + 16.f;
+            for (const auto &[fName, fPath]: availableFolders)
+            {
+                sf::Text btnText;
+                btnText.setFont(m_Font);
+                btnText.setCharacterSize(10);
+                btnText.setString(fName);
+                float btnW = btnText.getLocalBounds().width + 16.f;
+
+                if (curBtnX + btnW > modalX + modalW - 16.f)
+                {
+                    curBtnX = modalX + 16.f;
+                    curBtnY += 26.f;
+                    if (curBtnY > modalY + 102.f + foldersAreaH - 30.f) break;
+                }
+
+                sf::FloatRect fRect(curBtnX, curBtnY, btnW, 22.f);
+                m_MoveFolderButtons.push_back({fRect, fPath});
+
+                bool hovered = fRect.contains(m_MousePos);
+                sf::RectangleShape fBtn({btnW, 22.f});
+                fBtn.setPosition(curBtnX, curBtnY);
+                fBtn.setFillColor(hovered ? C_ACCENT_DIM : C_BG_CANVAS);
+                fBtn.setOutlineColor(hovered ? C_ACCENT : C_BORDER);
+                fBtn.setOutlineThickness(1.f);
+                window.draw(fBtn);
+
+                btnText.setFillColor(hovered ? sf::Color::White : C_TEXT_SECONDARY);
+                btnText.setPosition(curBtnX + 8.f, curBtnY + 4.f);
+                window.draw(btnText);
+
+                curBtnX += btnW + 6.f;
+            }
+            curBtnY += 30.f;
+        }
+
+        float btnW = 75.f;
+        float btnH = 24.f;
+        float actionY = modalY + modalH - 32.f;
+
+        m_MoveCancelBtnBounds = sf::FloatRect(modalX + modalW - 16.f - btnW, actionY, btnW, btnH);
+        bool cancelHov = m_MoveCancelBtnBounds.contains(m_MousePos);
+        sf::RectangleShape cancelBtn({btnW, btnH});
+        cancelBtn.setPosition(m_MoveCancelBtnBounds.left, m_MoveCancelBtnBounds.top);
+        cancelBtn.setFillColor(cancelHov ? C_BG_CANVAS : C_BG_INPUT);
+        cancelBtn.setOutlineColor(cancelHov ? C_BORDER_LIGHT : C_BORDER);
+        cancelBtn.setOutlineThickness(1.f);
+        window.draw(cancelBtn);
+
+        sf::Text cancelText;
+        cancelText.setFont(m_Font);
+        cancelText.setCharacterSize(10);
+        cancelText.setFillColor(cancelHov ? sf::Color::White : C_TEXT_SECONDARY);
+        cancelText.setString("Cancel");
+        cancelText.setPosition(m_MoveCancelBtnBounds.left + 18.f, m_MoveCancelBtnBounds.top + 5.f);
+        window.draw(cancelText);
+
+        m_MoveConfirmBtnBounds = sf::FloatRect(modalX + modalW - 24.f - btnW * 2.f, actionY, btnW, btnH);
+        bool confHov = m_MoveConfirmBtnBounds.contains(m_MousePos);
+        sf::RectangleShape confBtn({btnW, btnH});
+        confBtn.setPosition(m_MoveConfirmBtnBounds.left, m_MoveConfirmBtnBounds.top);
+        confBtn.setFillColor(confHov ? C_ACCENT_HOV : C_ACCENT);
+        window.draw(confBtn);
+
+        sf::Text confText;
+        confText.setFont(m_Font);
+        confText.setCharacterSize(10);
+        confText.setFillColor(sf::Color::White);
+        confText.setString("Move");
+        confText.setPosition(m_MoveConfirmBtnBounds.left + 22.f, m_MoveConfirmBtnBounds.top + 5.f);
+        window.draw(confText);
+    }
+
     if (m_Drag.active)
         m_Drag.pos = m_MousePos;
 }
@@ -1520,6 +1810,26 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         label.setString(gname);
         label.setPosition(ox + 28.f, oy + 8.f);
         window.draw(label);
+    }
+
+    std::string dropTarget = GetDropTargetFolder(m_Drag.pos);
+    if (!dropTarget.empty())
+    {
+        std::string folderName = fs::path(dropTarget).filename().string();
+        if (folderName.empty() || dropTarget == m_RootPath) folderName = "assets";
+        std::string moveHint = "+ Move to: " + folderName;
+        sf::Text hintText;
+        hintText.setFont(m_Font);
+        hintText.setCharacterSize(10);
+        hintText.setFillColor(sf::Color::White);
+        hintText.setString(moveHint);
+        float hintW = hintText.getLocalBounds().width + 16.f;
+        float hintH = 20.f;
+        float hintY = oy + ((m_Drag.type == AssetType::Image) ? 90.f : 34.f);
+
+        DrawRoundedRect(window, ox, hintY, hintW, hintH, 4.f, sf::Color(35, 140, 70, 230), sf::Color(80, 220, 120), 1.f);
+        hintText.setPosition(ox + 8.f, hintY + 3.f);
+        window.draw(hintText);
     }
 }
 
@@ -1719,11 +2029,164 @@ void ContentBrowser::RenameAsset(const std::string &oldPath, const std::string &
         Refresh();
         m_SelectedPath = newP.string();
         SetStatusMessage("Renamed to: " + finalName);
+        if (onAssetMoved)
+        {
+            onAssetMoved(oldPath, newP.string());
+        }
     } else
     {
         std::cout << "[ERROR] [ContentBrowser] Failed to rename: " << ec.message() << "\n";
         SetStatusMessage("Rename failed: " + ec.message());
     }
+}
+
+bool ContentBrowser::MoveAsset(const std::string &oldPath, const std::string &targetDir)
+{
+    if (IsReadOnlyPath(oldPath))
+    {
+        SetStatusMessage("Cannot move read-only asset");
+        return false;
+    }
+    if (IsReadOnlyPath(targetDir))
+    {
+        SetStatusMessage("Cannot move asset into read-only folder");
+        return false;
+    }
+    if (oldPath.empty() || targetDir.empty()) return false;
+
+    std::error_code ec;
+    fs::path src(oldPath);
+    fs::path dstDir(targetDir);
+
+    if (!fs::exists(src, ec) || ec)
+    {
+        SetStatusMessage("File does not exist: " + src.filename().string());
+        return false;
+    }
+    if (!fs::exists(dstDir, ec) || !fs::is_directory(dstDir, ec) || ec)
+    {
+        SetStatusMessage("Target directory does not exist: " + dstDir.filename().string());
+        return false;
+    }
+
+    if (fs::equivalent(src.parent_path(), dstDir, ec))
+    {
+        SetStatusMessage("Asset is already in target folder");
+        return false;
+    }
+    ec.clear();
+
+    if (fs::is_directory(src, ec))
+    {
+        fs::path p = dstDir;
+        while (!p.empty())
+        {
+            if (fs::equivalent(p, src, ec))
+            {
+                SetStatusMessage("Cannot move folder into itself");
+                return false;
+            }
+            ec.clear();
+            if (p == p.parent_path()) break;
+            p = p.parent_path();
+        }
+    }
+
+    fs::path dst = dstDir / src.filename();
+    if (fs::exists(dst, ec))
+    {
+        SetStatusMessage("Destination already contains: " + src.filename().string());
+        return false;
+    }
+
+    fs::rename(src, dst, ec);
+    if (!ec)
+    {
+        std::cout << "[INFO] [ContentBrowser] Moved '" << oldPath << "' to '" << dst.string() << "'\n";
+        std::string newPath = dst.string();
+        Refresh();
+        m_SelectedPath = newPath;
+        SetStatusMessage("Moved to: " + dstDir.filename().string() + "/" + src.filename().string());
+        if (onAssetMoved)
+        {
+            onAssetMoved(oldPath, newPath);
+        }
+        return true;
+    } else
+    {
+        std::cout << "[ERROR] [ContentBrowser] Failed to move: " << ec.message() << "\n";
+        SetStatusMessage("Move failed: " + ec.message());
+        return false;
+    }
+}
+
+std::string ContentBrowser::GetDropTargetFolder(sf::Vector2f pos) const
+{
+    for (const auto &[rect, idx]: m_ItemBounds)
+    {
+        if (rect.contains(pos) && idx < m_FilteredEntries.size())
+        {
+            const auto &entry = m_FilteredEntries[idx];
+            if (entry.isDirectory)
+            {
+                if (m_Drag.active)
+                {
+                    if (entry.fullPath == m_Drag.path) continue;
+                    std::error_code ec;
+                    if (fs::equivalent(entry.fullPath, fs::path(m_Drag.path).parent_path(), ec)) continue;
+                }
+                return entry.fullPath;
+            }
+        }
+    }
+
+    for (const auto &crumb: m_Breadcrumbs)
+    {
+        if (crumb.bounds.contains(pos))
+        {
+            if (m_Drag.active)
+            {
+                if (crumb.fullPath == m_Drag.path) continue;
+                std::error_code ec;
+                if (fs::equivalent(crumb.fullPath, fs::path(m_Drag.path).parent_path(), ec)) continue;
+            }
+            return crumb.fullPath;
+        }
+    }
+
+    if (m_UpBtnBounds.contains(pos) && m_CurrentPath != m_RootPath)
+    {
+        std::string parentDir = fs::path(m_CurrentPath).parent_path().string();
+        if (m_Drag.active)
+        {
+            std::error_code ec;
+            if (fs::equivalent(parentDir, fs::path(m_Drag.path).parent_path(), ec))
+                return "";
+        }
+        return parentDir;
+    }
+
+    return "";
+}
+
+void ContentBrowser::StartDrag(const std::string &path, AssetType type)
+{
+    m_Drag.active = true;
+    m_Drag.path = path;
+    m_Drag.type = type;
+    m_Drag.pos = m_MousePos;
+}
+
+void ContentBrowser::OpenMovePrompt(const std::string &targetPath)
+{
+    if (IsReadOnlyPath(targetPath))
+    {
+        SetStatusMessage("Cannot move read-only asset");
+        return;
+    }
+    m_MovePrompt = true;
+    m_MoveTarget = targetPath;
+    m_MoveInput = "";
 }
 
 void ContentBrowser::DuplicateAsset(const std::string &path)
@@ -1869,6 +2332,10 @@ void ContentBrowser::HandleContextMenuAction(const std::string &action)
                       : TypeFromFile(m_ContextMenuTarget);
         OpenEntry(ce);
     } else if (action == "play_audio") { AudioManager::Get().PlaySound(m_ContextMenuTarget); } else if (
+        action == "move")
+    {
+        OpenMovePrompt(m_ContextMenuTarget);
+    } else if (
         action == "rename")
     {
         m_RenameTarget = m_ContextMenuTarget;

@@ -297,6 +297,15 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                 if (typeName != "Directory") { y = DrawRow(window, "Size", sizeStr, panelX, y); }
                 y = DrawRow(window, "Modified", timeStr, panelX, y);
 
+                std::string folderStr = p.parent_path().filename().string();
+                if (folderStr.empty()) folderStr = "assets";
+                y = DrawRow(window, "Folder", folderStr, panelX, y);
+                y += 4.f;
+                y = DrawActionButton(window, "Move to Folder...", "move_inspected_file", panelX, y,
+                                     sf::Color(45, 60, 80), sf::Color(70, 110, 160));
+                y = DrawActionButton(window, "Drag Asset", "drag_inspected_file", panelX, y,
+                                     sf::Color(35, 45, 60), sf::Color(60, 80, 110));
+
                 if (typeName == "Image Asset")
                 {
                     y += 10.f;
@@ -1681,6 +1690,27 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         float clipTop = m_InspectorBounds.top + 36.f;
         float clipBot = m_InspectorBounds.top + m_InspectorBounds.height;
         if (btn.bounds.top + btn.bounds.height < clipTop || btn.bounds.top > clipBot) continue;
+
+        if (btn.action == "move_inspected_file")
+        {
+            std::string selPath = m_ContentBrowser->GetSelectedPath();
+            if (!selPath.empty())
+            {
+                m_ContentBrowser->OpenMovePrompt(selPath);
+            }
+            return;
+        }
+
+        if (btn.action == "drag_inspected_file")
+        {
+            std::string selPath = m_ContentBrowser->GetSelectedPath();
+            if (!selPath.empty())
+            {
+                AssetType type = ContentBrowser::TypeFromFile(selPath);
+                m_ContentBrowser->StartDrag(selPath, type);
+            }
+            return;
+        }
 
         if (btn.action == "detach_parent" && target)
         {
