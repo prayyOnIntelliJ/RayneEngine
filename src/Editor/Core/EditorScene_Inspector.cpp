@@ -1050,24 +1050,13 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     if (target->entity != 0 && m_Registry.HasComponent<ScriptComponent>(target->entity))
     {
         auto &sc = m_Registry.GetComponent<ScriptComponent>(target->entity);
-        if (sc.ReloadIfNeeded())
+        if (sc.ReloadIfNeeded() || target->scriptProperties.empty())
         {
-            auto freshProps = sc.GetExportedProperties();
-            target->scriptProperties.clear();
-            for (const auto &prop: freshProps) { target->scriptProperties[prop.name] = prop; }
+            SyncExportedScriptProperties(*target, sc);
             if (m_ActiveField == EditField::ScriptProperty)
             {
                 m_ActiveField = EditField::None;
                 m_ActiveInputText.clear();
-            }
-        } else
-        {
-            for (const auto &prop: sc.GetExportedProperties())
-            {
-                if (target->scriptProperties.find(prop.name) == target->scriptProperties.end())
-                {
-                    target->scriptProperties[prop.name] = prop;
-                }
             }
         }
 

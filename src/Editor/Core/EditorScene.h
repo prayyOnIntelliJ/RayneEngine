@@ -521,6 +521,7 @@ private:
     void LoadFromJson(const std::string &path);
 
     void SyncToRegistry();
+    void SyncExportedScriptProperties(EditorObject &obj, ScriptComponent &sc);
 
     void CommitActiveField();
 

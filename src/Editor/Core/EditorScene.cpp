@@ -2087,22 +2087,20 @@ void EditorScene::Update(float deltaTime)
     m_Registry.ForEach<ScriptComponent>([this](Entity entity, ScriptComponent &sc) {
         if (sc.ReloadIfNeeded())
         {
-            auto freshProps = sc.GetExportedProperties();
             for (auto &obj: m_Objects)
             {
                 if (obj.entity == entity)
                 {
-                    obj.scriptProperties.clear();
-                    for (const auto &prop: freshProps) { obj.scriptProperties[prop.name] = prop; }
+                    SyncExportedScriptProperties(obj, sc);
 
-                    if (m_Selected &&m_Selected->entity == entity) {
+                    if (m_Selected && m_Selected->entity == entity) {
                         if (m_ActiveField == EditField::ScriptProperty)
                         {
                             m_ActiveField = EditField::None;
                             m_ActiveInputText.clear();
                         }
                     }
-                    std::cout << "[INFO] [EditorScene] Refreshed exported script variables for Entity " << obj.id <<
+                    std::cout << "[INFO] [EditorScene] Preserved and refreshed exported script variables for Entity " << obj.id <<
                             "\n";
                     break;
                 }
@@ -3516,6 +3514,64 @@ void EditorScene::SyncToRegistry()
                         SpriteComponent(obj.spritePath, obj.shape.getSize());
             } else { m_Registry.AddComponent(obj.entity, SpriteComponent(obj.spritePath, obj.shape.getSize())); }
         }
+
+        if (m_Registry.HasComponent<ScriptComponent>(obj.entity))
+        {
+            auto &sc = m_Registry.GetComponent<ScriptComponent>(obj.entity);
+            for (const auto &pair: obj.scriptProperties)
+            {
+                sc.SetExportedProperty(pair.second);
+            }
+        }
+    }
+}
+
+void EditorScene::SyncExportedScriptProperties(EditorObject &obj, ScriptComponent &sc)
+{
+    auto freshProps = sc.GetExportedProperties();
+    std::map<std::string, ScriptComponent::Property> mergedProps;
+
+    for (const auto &fresh: freshProps)
+    {
+        auto it = obj.scriptProperties.find(fresh.name);
+        if (it != obj.scriptProperties.end() && it->second.type == fresh.type)
+        {
+            // Preserve user's configured value from Inspector
+            mergedProps[fresh.name] = it->second;
+        }
+        else if (it != obj.scriptProperties.end() &&
+                 ((it->second.type == ScriptComponent::PropertyType::Int && fresh.type == ScriptComponent::PropertyType::Float) ||
+                  (it->second.type == ScriptComponent::PropertyType::Float && fresh.type == ScriptComponent::PropertyType::Int)))
+        {
+            ScriptComponent::Property converted = fresh;
+            if (fresh.type == ScriptComponent::PropertyType::Float)
+            {
+                converted.floatVal = (it->second.type == ScriptComponent::PropertyType::Int)
+                                         ? static_cast<float>(it->second.intVal)
+                                         : it->second.floatVal;
+            }
+            else
+            {
+                converted.intVal = (it->second.type == ScriptComponent::PropertyType::Float)
+                                       ? static_cast<int>(it->second.floatVal)
+                                       : it->second.intVal;
+                converted.floatVal = static_cast<float>(converted.intVal);
+            }
+            mergedProps[fresh.name] = converted;
+        }
+        else
+        {
+            // Brand new property or type changed: use default from script
+            mergedProps[fresh.name] = fresh;
+        }
+    }
+
+    obj.scriptProperties = std::move(mergedProps);
+
+    // Re-apply preserved values into the Lua environment
+    for (const auto &pair: obj.scriptProperties)
+    {
+        sc.SetExportedProperty(pair.second);
     }
 }
 
