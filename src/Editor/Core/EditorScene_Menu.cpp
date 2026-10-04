@@ -14,6 +14,7 @@ void EditorScene::InitMenus()
     datei.items = {
         {"Save", "save", false, "Ctrl+S"},
         {"Load", "load", false, "Ctrl+L"},
+        {"Open Template...", "open_template_dialog", false, "Ctrl+Shift+T"},
         {"", "", true, ""},
         {"Open in CLion", "open_clion", false, ""},
         {"Open in Rider", "open_rider", false, ""},
@@ -73,10 +74,26 @@ void EditorScene::HandleMenuAction(const std::string &action)
         m_SettingsInputText.clear();
     } else if (action == "save")
     {
-        SyncToRegistry();
-        SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
-        std::cout << "[INFO] [EditorScene] Scene saved successfully to " << m_SceneSavePath << "\n";
-        m_SaveFeedbackTimer = 2.0f;
+        if (m_EditingTemplate)
+        {
+            SaveTemplateFile(m_EditingTemplatePath);
+            std::cout << "[INFO] [EditorScene] Template saved successfully to " << m_EditingTemplatePath << "\n";
+            m_SaveFeedbackTimer = 2.0f;
+        }
+        else
+        {
+            SyncToRegistry();
+            SaveToJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
+            std::cout << "[INFO] [EditorScene] Scene saved successfully to " << m_SceneSavePath << "\n";
+            m_SaveFeedbackTimer = 2.0f;
+        }
+    } else if (action == "open_template_dialog")
+    {
+        std::string selected = OpenTemplateFileDialog(m_Window.getSystemHandle());
+        if (!selected.empty())
+        {
+            EnterTemplateEditMode(selected);
+        }
     } else if (action == "load")
     {
         LoadFromJson(std::string(ASSET_PATH) + "/" + m_SceneSavePath);
@@ -141,7 +158,16 @@ void EditorScene::HandleMenuAction(const std::string &action)
         }
     } else if (action == "copy") { CopySelection(); } else if (action == "paste") { PasteClipboard(); } else if (
         action == "open_ui_editor") { m_manager.SwitchSceneTo("ui_editor"); } else if (
-        action == "exit_template_mode") { ExitTemplateEditMode(true); }
+        action == "exit_template_mode") { ExitTemplateEditMode(true); } else if (
+        action == "discard_template_mode") { ExitTemplateEditMode(false); } else if (
+        action == "save_template_only")
+    {
+        if (m_EditingTemplate)
+        {
+            SaveTemplateFile(m_EditingTemplatePath);
+            m_SaveFeedbackTimer = 2.0f;
+        }
+    }
 }
 
 

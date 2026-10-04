@@ -208,12 +208,15 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
         const float itemH = 28.f;
         const float menuW = 140.f;
 
-        std::vector<std::pair<std::string, std::string> > actions = {
-            {"Rename", "rename"},
-            {"Duplicate", "duplicate"},
-            {"Save as Template", "save_template"},
-            {"Delete", "delete"}
-        };
+        std::vector<std::pair<std::string, std::string> > actions;
+        if (m_ContextObject && !m_ContextObject->templatePath.empty())
+        {
+            actions.push_back({"Edit Template", "edit_template"});
+        }
+        actions.push_back({"Rename", "rename"});
+        actions.push_back({"Duplicate", "duplicate"});
+        actions.push_back({"Save as Template", "save_template"});
+        actions.push_back({"Delete", "delete"});
 
         const float menuH = actions.size() * itemH;
         sf::RectangleShape bg({menuW, menuH});

@@ -518,7 +518,7 @@ void ContentBrowser::HandleEvent(const sf::Event &event, sf::Vector2f mouseScree
 
             m_SelectedPath = entry.fullPath;
             double now = CurrentTimeSeconds();
-            bool doubleClick = (m_LastClickedPath == entry.fullPath && now - m_LastClickTime < 0.35);
+            bool doubleClick = (m_LastClickedPath == entry.fullPath && now - m_LastClickTime < 0.45);
             m_LastClickTime = now;
             m_LastClickedPath = entry.fullPath;
 
@@ -1124,7 +1124,10 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
         std::vector<std::pair<std::string, std::string> > actions;
         if (!isDir)
         {
-            actions.push_back({"Open", "open"});
+            if (targetType == AssetType::Template)
+                actions.push_back({"Edit Template", "open"});
+            else
+                actions.push_back({"Open", "open"});
             if (targetType == AssetType::Audio)
                 actions.push_back({"Play Audio", "play_audio"});
         }

@@ -165,6 +165,8 @@ private:
 
     void ExitTemplateEditMode(bool saveChanges = true);
 
+    void SaveTemplateFile(const std::string &templatePath);
+
     bool m_EditingTemplate = false;
     std::string m_EditingTemplatePath;
     json m_PreTemplateEditSceneState;

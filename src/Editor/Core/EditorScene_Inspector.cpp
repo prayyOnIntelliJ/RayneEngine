@@ -439,6 +439,8 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawRow(window, "Template", tp.filename().string(), panelX, y);
         y = DrawTemplatePreview(window, target->templatePath, panelX + InspectorPad, y,
                                 InspectorWidth - InspectorPad * 2.f, 52.f);
+        y = DrawActionButton(window, "Edit Template", "edit_template", panelX, y, sf::Color(30, 100, 70),
+                             sf::Color(60, 180, 120));
         y = DrawActionButton(window, "Apply to Template", "apply_template", panelX, y, sf::Color(30, 80, 140),
                              sf::Color(70, 140, 240));
         y = DrawActionButton(window, "Unlink Template", "unlink_template", panelX, y, C_DANGER_DIM, C_DANGER);
@@ -2259,6 +2261,9 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         } else if (btn.action == "change_sprite" && target)
         {
             std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
+        } else if (btn.action == "edit_template" && target && !target->templatePath.empty())
+        {
+            EnterTemplateEditMode(target->templatePath);
         } else if (btn.action == "save_as_template" && target) { SaveAsTemplate(target, ""); } else if (
             btn.action == "apply_template" && target) { ApplyToTemplate(target); } else if (
             btn.action == "unlink_template" && target)

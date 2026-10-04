@@ -51,6 +51,35 @@ inline bool OpenColorPickerDialog(sf::Color &ioColor, HWND hwnd = nullptr)
     }
     return false;
 }
+
+inline std::string OpenTemplateFileDialog(HWND hwnd = nullptr)
+{
+    char filename[MAX_PATH] = {0};
+    OPENFILENAMEA ofn;
+    ZeroMemory(&ofn, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = hwnd;
+    ofn.lpstrFilter = "Rayne Template (*.template)\0*.template\0All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = filename;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    std::filesystem::path curDir = std::filesystem::current_path();
+    std::filesystem::path templatesDir = curDir / "assets" / "templates";
+    std::string initDir = std::filesystem::exists(templatesDir) ? templatesDir.string() : (curDir / "assets").string();
+    ofn.lpstrInitialDir = initDir.c_str();
+
+    if (GetOpenFileNameA(&ofn))
+    {
+        std::error_code ec;
+        std::filesystem::path fullPath(filename);
+        std::string relPath = std::filesystem::proximate(fullPath, curDir, ec).generic_string();
+        if (ec || relPath.empty())
+            relPath = fullPath.generic_string();
+        return relPath;
+    }
+    return "";
+}
 #endif
 
 inline std::filesystem::path GetAppDir()

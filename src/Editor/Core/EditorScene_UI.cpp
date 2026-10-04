@@ -122,10 +122,21 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         window.draw(tMode);
         cx += tMode.getLocalBounds().width + 12.f;
 
-        const sf::FloatRect exitBtn(cx, ty + 4.f, 130.f, ToolbarHeight - 8.f);
+        const sf::FloatRect saveBtn(cx, ty + 4.f, 65.f, ToolbarHeight - 8.f);
+        drawBtn(saveBtn, "Save", false, sf::Color(35, 90, 60), sf::Color(60, 160, 100));
+        m_ToolbarHitboxes.push_back({saveBtn, "save_template_only"});
+        cx += saveBtn.width + 6.f;
+
+        const sf::FloatRect exitBtn(cx, ty + 4.f, 120.f, ToolbarHeight - 8.f);
         drawBtn(exitBtn, "< Save & Exit", true, sf::Color(200, 100, 40), sf::Color(255, 140, 50));
         m_ToolbarHitboxes.push_back({exitBtn, "exit_template_mode"});
         m_ExitTemplateModeBtnBounds = exitBtn;
+        cx += exitBtn.width + 6.f;
+
+        const sf::FloatRect discardBtn(cx, ty + 4.f, 75.f, ToolbarHeight - 8.f);
+        drawBtn(discardBtn, "Discard", false, C_DANGER_DIM, C_DANGER);
+        m_ToolbarHitboxes.push_back({discardBtn, "discard_template_mode"});
+        cx += discardBtn.width + 6.f;
     } {
         const float runW = 92.f;
         const float runX = w - InspectorWidth - runW - 10.f;

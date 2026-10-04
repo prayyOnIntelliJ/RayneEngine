@@ -1666,6 +1666,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
                             m_RedoStack.clear();
                             SetDirty(true);
                         }
+                    } else if (action == "edit_template" && m_ContextObject && !m_ContextObject->templatePath.empty())
+                    {
+                        EnterTemplateEditMode(m_ContextObject->templatePath);
                     } else if (action == "save_template" && m_ContextObject) { SaveAsTemplate(m_ContextObject, ""); }
                     break;
                 }
@@ -1896,6 +1899,8 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
         }
 
+        const bool shift = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
+        if (ctrl && shift && event.key.code == sf::Keyboard::T) HandleMenuAction("open_template_dialog");
         if (ctrl && event.key.code == sf::Keyboard::S) HandleMenuAction("save");
         if (ctrl && event.key.code == sf::Keyboard::L) HandleMenuAction("load");
         if (ctrl && event.key.code == sf::Keyboard::D) HandleMenuAction("duplicate");
@@ -2094,6 +2099,30 @@ void EditorScene::Render(sf::RenderWindow &window)
     window.setView(m_camera);
     DrawGrid();
     DrawWorldAxes(window);
+
+    if (m_EditingTemplate)
+    {
+        sf::VertexArray crosshair(sf::Lines, 4);
+        crosshair[0] = sf::Vertex(sf::Vector2f(-30.f, 0.f), sf::Color(255, 200, 80, 220));
+        crosshair[1] = sf::Vertex(sf::Vector2f(30.f, 0.f), sf::Color(255, 200, 80, 220));
+        crosshair[2] = sf::Vertex(sf::Vector2f(0.f, -30.f), sf::Color(255, 200, 80, 220));
+        crosshair[3] = sf::Vertex(sf::Vector2f(0.f, 30.f), sf::Color(255, 200, 80, 220));
+        window.draw(crosshair);
+
+        sf::CircleShape originPoint(3.f);
+        originPoint.setOrigin(3.f, 3.f);
+        originPoint.setPosition(0.f, 0.f);
+        originPoint.setFillColor(sf::Color(255, 200, 80));
+        window.draw(originPoint);
+
+        sf::Text originText;
+        originText.setFont(*m_Font);
+        originText.setCharacterSize(11);
+        originText.setFillColor(sf::Color(255, 200, 80, 200));
+        originText.setString("Template Origin (0,0)");
+        originText.setPosition(8.f, 6.f);
+        window.draw(originText);
+    }
 
     std::vector<EditorObject *> sortedObjects;
     sortedObjects.reserve(m_Objects.size());
@@ -4774,10 +4803,23 @@ void EditorScene::SyncTemplateInstances(const std::string &templatePath)
 
     const auto &tmplRoot = data["objects"][0];
 
+    std::filesystem::path targetP(templatePath);
+    std::string targetFilename = targetP.filename().string();
+
     int updatedCount = 0;
     for (auto &obj : m_Objects)
     {
-        if (obj.templatePath == templatePath)
+        if (obj.templatePath.empty()) continue;
+        bool matches = (obj.templatePath == templatePath);
+        if (!matches)
+        {
+            std::filesystem::path objP(obj.templatePath);
+            if (!targetFilename.empty() && objP.filename() == targetFilename)
+            {
+                matches = true;
+            }
+        }
+        if (matches)
         {
             if (tmplRoot.contains("tag")) obj.tag = tmplRoot["tag"];
             if (tmplRoot.contains("color") && tmplRoot["color"].is_array() && tmplRoot["color"].size() >= 3)
@@ -4864,6 +4906,51 @@ void EditorScene::SyncTemplateInstances(const std::string &templatePath)
     }
 }
 
+void EditorScene::SaveTemplateFile(const std::string &templatePath)
+{
+    if (templatePath.empty()) return;
+
+    std::filesystem::path rootDir = m_ContentBrowser
+                                        ? std::filesystem::path(m_ContentBrowser->GetRootPath())
+                                        : (FindProjectRoot() / "assets");
+    std::filesystem::path tp(templatePath);
+    if (!tp.is_absolute())
+    {
+        if (templatePath.rfind("assets/", 0) == 0) { tp = rootDir.parent_path() / templatePath; }
+        else { tp = rootDir / tp; }
+    }
+
+    json data;
+    data["name"] = tp.stem().string();
+    data["objects"] = json::array();
+
+    size_t idx = 0;
+    for (const auto &obj : m_Objects)
+    {
+        json j = SerializeObject(obj);
+        if (idx == 0)
+        {
+            j["parent"] = "";
+            j["x"] = 0.f;
+            j["y"] = 0.f;
+        }
+        data["objects"].push_back(j);
+        idx++;
+    }
+
+    std::ofstream out(tp);
+    if (out.is_open())
+    {
+        out << data.dump(4);
+        out.close();
+        std::cout << "[INFO] [EditorScene] Saved template edits to: " << tp << "\n";
+    }
+    else
+    {
+        std::cerr << "[ERROR] [EditorScene] Failed to save template edits to: " << tp << "\n";
+    }
+}
+
 void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
 {
     if (m_EditingTemplate)
@@ -4882,6 +4969,27 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
     }
 
     std::ifstream file(tp);
+    if (!file.is_open())
+    {
+        std::vector<std::filesystem::path> candidates = {
+            rootDir / templatePath,
+            rootDir / "templates" / templatePath,
+            rootDir.parent_path() / templatePath,
+            FindProjectRoot() / "assets" / templatePath,
+            FindProjectRoot() / "assets" / "templates" / templatePath,
+            FindProjectRoot() / "assets" / "templates" / std::filesystem::path(templatePath).filename()
+        };
+        for (const auto &cand : candidates)
+        {
+            if (std::filesystem::exists(cand))
+            {
+                tp = cand;
+                file.open(tp);
+                if (file.is_open()) break;
+            }
+        }
+    }
+
     if (!file.is_open())
     {
         std::cerr << "[ERROR] [EditorScene] Cannot open template file for editing: " << tp << "\n";
@@ -4915,7 +5023,7 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
     ClearSelection();
 
     m_EditingTemplate = true;
-    m_EditingTemplatePath = templatePath;
+    m_EditingTemplatePath = tp.string();
 
     // Load template objects
     if (data.contains("objects") && data["objects"].is_array())
@@ -4929,7 +5037,7 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
     UpdateWorldTransforms();
     m_camera.setCenter(0.f, 0.f);
     UpdateStatusText();
-    std::cout << "[INFO] [EditorScene] Entered Template Edit Mode for: " << templatePath << "\n";
+    std::cout << "[INFO] [EditorScene] Entered Template Edit Mode for: " << m_EditingTemplatePath << "\n";
 }
 
 void EditorScene::ExitTemplateEditMode(bool saveChanges)
@@ -4938,41 +5046,7 @@ void EditorScene::ExitTemplateEditMode(bool saveChanges)
 
     if (saveChanges && !m_EditingTemplatePath.empty())
     {
-        std::filesystem::path rootDir = m_ContentBrowser
-                                            ? std::filesystem::path(m_ContentBrowser->GetRootPath())
-                                            : (FindProjectRoot() / "assets");
-        std::filesystem::path tp(m_EditingTemplatePath);
-        if (!tp.is_absolute())
-        {
-            if (m_EditingTemplatePath.rfind("assets/", 0) == 0) { tp = rootDir.parent_path() / m_EditingTemplatePath; }
-            else { tp = rootDir / tp; }
-        }
-
-        json data;
-        data["name"] = tp.stem().string();
-        data["objects"] = json::array();
-
-        size_t idx = 0;
-        for (const auto &obj : m_Objects)
-        {
-            json j = SerializeObject(obj);
-            if (idx == 0)
-            {
-                j["parent"] = "";
-                j["x"] = 0.f;
-                j["y"] = 0.f;
-            }
-            data["objects"].push_back(j);
-            idx++;
-        }
-
-        std::ofstream out(tp);
-        if (out.is_open())
-        {
-            out << data.dump(4);
-            out.close();
-            std::cout << "[INFO] [EditorScene] Saved template edits to: " << tp << "\n";
-        }
+        SaveTemplateFile(m_EditingTemplatePath);
     }
 
     std::string savedTemplatePath = m_EditingTemplatePath;
