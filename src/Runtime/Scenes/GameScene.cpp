@@ -15,6 +15,7 @@
 #include "../Audio/AudioManager.h"
 #include "../Input/InputManager.h"
 #include "../Scripting/LuaState.h"
+#include "../Profiler/Profiler.h"
 #include "../Application/EngineVersion.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -464,6 +465,11 @@ void GameScene::HandleEvent(const sf::Event &event)
         event.key.code == sf::Keyboard::Escape) { m_Window.close(); }
 #endif
 
+    if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3)
+    {
+        Profiler::Get().ToggleHud();
+    }
+
     if (IsInputEvent(event)) { EventManager::Get().FireInput(event); }
 }
 
@@ -498,13 +504,24 @@ void GameScene::Update(float deltaTime)
 
     UIManager::Get().Update(deltaTime, mousePos, justClicked, justReleased);
 
-    m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
+    size_t entCount = 0;
+    m_Registry.ForEach<TransformComponent>([&entCount](Entity, TransformComponent &) { ++entCount; });
+    Profiler::Get().SetEntityCount(static_cast<int>(entCount));
+    Profiler::Get().SetLuaMemory(static_cast<float>(LuaState::GetLua().memory_used()) / 1024.f);
+
+    {
+        PROFILE_SUBSYSTEM("Scripts");
+        m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
+    }
 
     if (!isPaused)
     {
         TimerManager::Get().Update(effectiveDt);
         TweenManager::Get().Update(effectiveDt);
-        PhysicsSystem::Step(m_Registry, effectiveDt);
+        {
+            PROFILE_SUBSYSTEM("Physics");
+            PhysicsSystem::Step(m_Registry, effectiveDt);
+        }
         HierarchySystem::UpdateWorldTransforms(m_Registry);
 
         m_Registry.ForEach<TransformComponent, ParticleEmitterComponent>(
@@ -558,6 +575,7 @@ void GameScene::Update(float deltaTime)
 
 void GameScene::Render(sf::RenderWindow &window)
 {
+    PROFILE_SUBSYSTEM("Rendering");
     sf::View uiView(sf::FloatRect(0.f, 0.f, 1920.f, 1080.f));
     uiView.setViewport(sf::FloatRect(0.f, 0.f, 1.f, 1.f));
 

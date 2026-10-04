@@ -12,6 +12,7 @@
 #include <shellapi.h>
 
 #include "../ECS/Components.h"
+#include "../Profiler/Profiler.h"
 #include "../Input/InputManager.h"
 
 #include "../../Editor/Core/EditorScene.h"
@@ -265,6 +266,8 @@ void Application::Run()
     std::cout << "[INFO] [Application] Entering main application loop...\n";
     while (m_RenderWindow.isOpen())
     {
+        Profiler::Get().BeginFrame();
+
         sf::Time dt = m_DeltaTimeClock.restart();
         float deltaTime = dt.asSeconds();
 
@@ -275,12 +278,21 @@ void Application::Run()
             m_CurrentFPS = (m_CurrentFPS <= 0.f) ? instantFPS : (m_CurrentFPS * 0.9f + instantFPS * 0.1f);
         }
 
-        SetEvents();
-        if (!m_RenderWindow.isOpen()) break;
+        {
+            PROFILE_SUBSYSTEM("Engine");
+            SetEvents();
+        }
+        if (!m_RenderWindow.isOpen())
+        {
+            Profiler::Get().EndFrame();
+            break;
+        }
 
         Update(deltaTime);
         Render();
         InputManager::Get().EndFrame();
+
+        Profiler::Get().EndFrame();
     }
 
     m_SceneManager.Shutdown();
@@ -409,6 +421,15 @@ void Application::Render()
 #ifndef RAYNE_STANDALONE
     RenderScreenLogs();
 #endif
+
+    if (Profiler::Get().IsHudVisible())
+    {
+        auto font = ResourceManager::Get().GetFont(std::string(ENGINE_ASSET_PATH) + "/fonts/Merriweather.ttf");
+        if (font)
+        {
+            Profiler::Get().RenderHud(m_RenderWindow, *font);
+        }
+    }
 
     m_RenderWindow.display();
 }

@@ -131,6 +131,10 @@ add_executable(RayneEngine
         src/Runtime/ECS/PhysicsSystem.h
         src/Runtime/Graphics/SpriteBatch.h
         src/Runtime/Graphics/SpriteBatch.cpp
+        src/Runtime/Profiler/Profiler.h
+        src/Runtime/Profiler/Profiler.cpp
+        src/Editor/Panels/ProfilerPanel.h
+        src/Editor/Panels/ProfilerPanel.cpp
 )
 
 target_include_directories(RayneEngine PRIVATE
@@ -276,6 +280,10 @@ add_executable(RayneGame
         src/Runtime/ECS/PhysicsSystem.h
         src/Runtime/Graphics/SpriteBatch.h
         src/Runtime/Graphics/SpriteBatch.cpp
+        src/Runtime/Profiler/Profiler.h
+        src/Runtime/Profiler/Profiler.cpp
+        src/Editor/Panels/ProfilerPanel.h
+        src/Editor/Panels/ProfilerPanel.cpp
 )
 
 target_include_directories(RayneGame PRIVATE

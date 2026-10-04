@@ -17,6 +17,7 @@
 #include "../Scenes/SceneSerializer.h"
 #include "../Scenes/CameraManager.h"
 #include "ScriptComponent.h"
+#include "../Profiler/Profiler.h"
 
 sol::state LuaState::s_Lua;
 std::vector<LuaApiDoc> s_ApiDocs;
@@ -1070,4 +1071,23 @@ void LuaState::RegisterStatics()
     InputManager::RegisterLua(s_Lua);
     ResourceManager::RegisterLua(s_Lua);
     AudioManager::RegisterLua(s_Lua);
+
+    sol::table profilerTable = s_Lua.create_named_table("Profiler");
+    profilerTable["BeginSample"] = [](const std::string &name) {
+        Profiler::Get().BeginSample(name);
+    };
+    profilerTable["EndSample"] = [](const std::string &name) {
+        Profiler::Get().EndSample(name);
+    };
+    profilerTable["GetFPS"] = []() -> float {
+        return Profiler::Get().GetCurrentFPS();
+    };
+    profilerTable["GetFrameTime"] = []() -> float {
+        return Profiler::Get().GetCurrentFrameTimeMs();
+    };
+    profilerTable["Sample"] = [](const std::string &name, sol::function func) {
+        Profiler::Get().BeginSample(name);
+        func();
+        Profiler::Get().EndSample(name);
+    };
 }

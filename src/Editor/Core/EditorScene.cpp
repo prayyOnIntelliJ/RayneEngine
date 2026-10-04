@@ -24,6 +24,7 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     std::filesystem::path projRoot = FindProjectRoot();
     m_ContentBrowser = std::make_unique<ContentBrowser>(*m_Font, (projRoot / "assets").string());
     m_ConsolePanel = std::make_unique<ConsolePanel>(*m_Font);
+    m_ProfilerPanel = std::make_unique<ProfilerPanel>(*m_Font);
     m_ContentBrowser->onSceneLoadRequest = [this](const std::string &path) {
         std::error_code ec;
         std::filesystem::path p(path);
@@ -162,6 +163,7 @@ void EditorScene::UpdateBounds()
 
     m_TabBrowserBounds = {HierarchyWidth, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
     m_TabConsoleBounds = {HierarchyWidth + 100.f, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
+    m_TabProfilerBounds = {HierarchyWidth + 200.f, h - BrowserHeight - TabBarHeight, 100.f, TabBarHeight};
 
     m_InspectorBounds = {w - InspectorWidth, TopBarHeight, InspectorWidth, h - TopBarHeight};
 }
@@ -1066,11 +1068,18 @@ void EditorScene::HandleEvent(const sf::Event &event)
         }
     }
 
+    if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::F3)
+    {
+        Profiler::Get().ToggleHud();
+    }
+
     const bool inTopBars = m_MouseScreenPos.y < TopBarHeight;
     const bool inMenuBar = m_MouseScreenPos.y < MenuBarHeight;
     const bool inBrowser = m_BrowserBounds.contains(m_MouseScreenPos);
     const bool inInspector = m_InspectorBounds.contains(m_MouseScreenPos);
-    const bool inTabs = m_TabBrowserBounds.contains(m_MouseScreenPos) || m_TabConsoleBounds.contains(m_MouseScreenPos);
+    const bool inTabs = m_TabBrowserBounds.contains(m_MouseScreenPos) ||
+                        m_TabConsoleBounds.contains(m_MouseScreenPos) ||
+                        m_TabProfilerBounds.contains(m_MouseScreenPos);
 
     if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left)
     {
@@ -1104,6 +1113,10 @@ void EditorScene::HandleEvent(const sf::Event &event)
         } else if (m_TabConsoleBounds.contains(m_MouseScreenPos))
         {
             m_ActiveBottomPanelTab = BottomPanelTab::Console;
+            return;
+        } else if (m_TabProfilerBounds.contains(m_MouseScreenPos))
+        {
+            m_ActiveBottomPanelTab = BottomPanelTab::Profiler;
             return;
         }
     }
@@ -1327,6 +1340,9 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (m_ActiveBottomPanelTab == BottomPanelTab::Console)
     {
         if (inBrowser || m_ConsolePanel->IsInputActive()) { m_ConsolePanel->HandleEvent(event, m_MouseScreenPos); }
+    } else if (m_ActiveBottomPanelTab == BottomPanelTab::Profiler)
+    {
+        if (inBrowser) { m_ProfilerPanel->HandleEvent(event, m_MouseScreenPos); }
     } else
     {
         if (inBrowser || m_ContentBrowser->HasDraggedAsset() ||
@@ -2043,6 +2059,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
 void EditorScene::Update(float deltaTime)
 {
+    Profiler::Get().SetEntityCount(static_cast<int>(m_Objects.size()));
+    lua_State *L = LuaState::GetLua().lua_state();
+    if (L)
+    {
+        int kb = lua_gc(L, LUA_GCCOUNT, 0);
+        Profiler::Get().SetLuaMemory(static_cast<float>(kb));
+    }
+
     if (m_SaveFeedbackTimer > 0.f)
         m_SaveFeedbackTimer -= deltaTime;
 
@@ -2598,6 +2622,7 @@ void EditorScene::Render(sf::RenderWindow &window)
         else if (m_HierarchyBounds.contains(m_MouseScreenPos)) canPlace = false;
         else if (m_TabBrowserBounds.contains(m_MouseScreenPos)) canPlace = false;
         else if (m_TabConsoleBounds.contains(m_MouseScreenPos)) canPlace = false;
+        else if (m_TabProfilerBounds.contains(m_MouseScreenPos)) canPlace = false;
     }
 
     if (canPlace)
@@ -2723,17 +2748,23 @@ void EditorScene::Render(sf::RenderWindow &window)
 
     drawTab("Files", m_TabBrowserBounds, m_ActiveBottomPanelTab == BottomPanelTab::ContentBrowser);
     drawTab("Console", m_TabConsoleBounds, m_ActiveBottomPanelTab == BottomPanelTab::Console);
+    drawTab("Profiler", m_TabProfilerBounds, m_ActiveBottomPanelTab == BottomPanelTab::Profiler);
 
     if (m_ActiveBottomPanelTab == BottomPanelTab::ContentBrowser)
     {
         m_ContentBrowser->Render(window,
                                  m_BrowserBounds.left, m_BrowserBounds.top,
                                  m_BrowserBounds.width, m_BrowserBounds.height);
-    } else
+    } else if (m_ActiveBottomPanelTab == BottomPanelTab::Console)
     {
         m_ConsolePanel->Render(window,
                                m_BrowserBounds.left, m_BrowserBounds.top,
                                m_BrowserBounds.width, m_BrowserBounds.height);
+    } else if (m_ActiveBottomPanelTab == BottomPanelTab::Profiler)
+    {
+        m_ProfilerPanel->Render(window,
+                                m_BrowserBounds.left, m_BrowserBounds.top,
+                                m_BrowserBounds.width, m_BrowserBounds.height);
     }
 
     if (m_Inspector) m_Inspector->Draw(window);

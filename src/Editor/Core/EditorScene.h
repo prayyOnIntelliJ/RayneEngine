@@ -11,6 +11,8 @@
 
 #include "../Panels/ContentBrowser.h"
 #include "../Panels/ConsolePanel.h"
+#include "../Panels/ProfilerPanel.h"
+#include "../../Runtime/Profiler/Profiler.h"
 #include "../../Runtime/UI/UIManager.h"
 #include "SFML/Graphics/RectangleShape.hpp"
 #include "SFML/Graphics/CircleShape.hpp"
@@ -201,6 +203,7 @@ private:
 
     std::unique_ptr<ContentBrowser> m_ContentBrowser;
     std::unique_ptr<ConsolePanel> m_ConsolePanel;
+    std::unique_ptr<ProfilerPanel> m_ProfilerPanel;
     std::unique_ptr<class HierarchyPanel> m_Hierarchy;
     std::unique_ptr<class InspectorPanel> m_Inspector;
     std::unique_ptr<class MenuBarPanel> m_MenuBar;
@@ -213,13 +216,15 @@ private:
     enum class BottomPanelTab
     {
         ContentBrowser,
-        Console
+        Console,
+        Profiler
     };
 
     BottomPanelTab m_ActiveBottomPanelTab = BottomPanelTab::ContentBrowser;
 
     sf::FloatRect m_TabBrowserBounds;
     sf::FloatRect m_TabConsoleBounds;
+    sf::FloatRect m_TabProfilerBounds;
     static constexpr float TabBarHeight = 24.f;
 
     bool m_PlacementActive = false;

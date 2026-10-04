@@ -1,4 +1,5 @@
 #include "SpriteBatch.h"
+#include "../Profiler/Profiler.h"
 #include <cmath>
 
 namespace Rayne
@@ -107,6 +108,7 @@ void SpriteBatch::Draw(const sf::Texture* texture,
 void SpriteBatch::End(sf::RenderWindow& window)
 {
     m_LastDrawCallCount = m_Batches.size();
+    Profiler::Get().RecordDrawCall(static_cast<int>(m_Batches.size()));
 
     for (const auto& batch : m_Batches)
     {
