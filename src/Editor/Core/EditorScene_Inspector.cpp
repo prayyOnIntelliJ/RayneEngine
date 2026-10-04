@@ -26,6 +26,8 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
     };
 
     std::vector<DropItem> items = {
+        {"Tools", "", "", true},
+        {"Pointer / Select", "tool_select", "Clear held object (Select mode)", false},
         {"Primitives", "", "", true},
         {"Rectangle", "add_rect", "Rectangle primitive", false},
         {"Circle", "add_circle", "Circle primitive", false},
@@ -64,12 +66,14 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
 
         const sf::FloatRect ir(dropX, iy, dropW, itemH);
         const bool hov = ir.contains(m_MouseScreenPos);
-        const bool cur = (item.action == "add_rect" && m_PlacementType == ObjectType::Rectangle) ||
-                         (item.action == "add_circle" && m_PlacementType == ObjectType::Circle) ||
-                         (item.action == "add_triangle" && m_PlacementType == ObjectType::Triangle) ||
-                         (item.action == "add_pentagon" && m_PlacementType == ObjectType::Pentagon) ||
-                         (item.action == "add_hexagon" && m_PlacementType == ObjectType::Hexagon) ||
-                         (item.action == "add_cam_obj" && m_PlacementType == ObjectType::Camera);
+        const bool cur = (!m_PlacementActive && item.action == "tool_select") ||
+                         (m_PlacementActive && (
+                             (item.action == "add_rect" && m_PlacementType == ObjectType::Rectangle) ||
+                             (item.action == "add_circle" && m_PlacementType == ObjectType::Circle) ||
+                             (item.action == "add_triangle" && m_PlacementType == ObjectType::Triangle) ||
+                             (item.action == "add_pentagon" && m_PlacementType == ObjectType::Pentagon) ||
+                             (item.action == "add_hexagon" && m_PlacementType == ObjectType::Hexagon) ||
+                             (item.action == "add_cam_obj" && m_PlacementType == ObjectType::Camera)));
 
         if (hov)
         {

@@ -15,6 +15,7 @@
             "scaleY": 1.0,
             "tag": "",
             "type": "rectangle",
+            "visibleInGame": true,
             "width": 40.0,
             "x": 0.0,
             "y": 0.0,

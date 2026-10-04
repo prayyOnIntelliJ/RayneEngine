@@ -167,6 +167,11 @@ void EditorScene::HandleMenuAction(const std::string &action)
             SaveTemplateFile(m_EditingTemplatePath);
             m_SaveFeedbackTimer = 2.0f;
         }
+    } else if (action == "tool_select" || action == "clear_placement")
+    {
+        m_PlacementActive = false;
+        UpdateStatusText();
+        std::cout << "[INFO] [EditorScene] Switched to Pointer / Select mode (no object in hand)\n";
     }
 }
 

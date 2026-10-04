@@ -19,10 +19,35 @@
 
 enum class ObjectType
 {
+    None = 0,
     Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite, Camera,
     Empty, SpawnPoint, TriggerZone, PhysicsBox, PhysicsBall, StaticPlatform,
     WorldText, AudioSource, ParticleEmitter
 };
+
+inline std::string GetObjectTypeName(ObjectType type)
+{
+    switch (type)
+    {
+        case ObjectType::Rectangle: return "Rectangle";
+        case ObjectType::Circle: return "Circle";
+        case ObjectType::Triangle: return "Triangle";
+        case ObjectType::Pentagon: return "Pentagon";
+        case ObjectType::Hexagon: return "Hexagon";
+        case ObjectType::Sprite: return "Sprite";
+        case ObjectType::Camera: return "Camera";
+        case ObjectType::Empty: return "Empty";
+        case ObjectType::SpawnPoint: return "Spawn";
+        case ObjectType::TriggerZone: return "Trigger";
+        case ObjectType::PhysicsBox: return "PhysBox";
+        case ObjectType::PhysicsBall: return "PhysBall";
+        case ObjectType::StaticPlatform: return "Platform";
+        case ObjectType::WorldText: return "Text";
+        case ObjectType::AudioSource: return "Audio";
+        case ObjectType::ParticleEmitter: return "Particles";
+        default: return "None";
+    }
+}
 
 struct EditorObject
 {

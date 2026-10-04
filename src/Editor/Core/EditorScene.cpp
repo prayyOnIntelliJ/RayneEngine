@@ -805,7 +805,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
             m_camera.move(m_panStart - current);
         }
 
-        if (m_MouseScreenPos.y > TopBarHeight)
+        if (m_MouseScreenPos.y > TopBarHeight && m_PlacementActive)
         {
             sf::Vector2f pos = MouseWorldPos();
             if (IsPolygonType(m_PlacementType))
@@ -1428,6 +1428,17 @@ void EditorScene::HandleEvent(const sf::Event &event)
     if (event.type == sf::Event::MouseButtonPressed &&
         (event.mouseButton.button == sf::Mouse::Middle || event.mouseButton.button == sf::Mouse::Right))
     {
+        if (event.mouseButton.button == sf::Mouse::Right)
+        {
+            if (m_PlacementActive && !inHierarchy && !inInspector && !inBrowser && !inTopBars)
+            {
+                m_PlacementActive = false;
+                UpdateStatusText();
+                std::cout << "[INFO] [EditorScene] Cancelled placement (Select Mode)\n";
+                return;
+            }
+        }
+
         if (event.mouseButton.button == sf::Mouse::Right && inHierarchy)
         {
             m_HierarchyContextMenuOpen = false;
@@ -1548,7 +1559,17 @@ void EditorScene::HandleEvent(const sf::Event &event)
         {
             sf::Vector2f pos = MouseWorldPos();
             sf::Vector2f diff = pos - m_BoxSelectStart;
-            if (std::abs(diff.x) < 2.f && std::abs(diff.y) < 2.f) { AddObject(pos, m_PlacementType); } else
+            if (std::abs(diff.x) < 2.f && std::abs(diff.y) < 2.f)
+            {
+                if (m_PlacementActive)
+                {
+                    AddObject(pos, m_PlacementType);
+                }
+                else
+                {
+                    ClearSelection();
+                }
+            } else
             {
                 sf::FloatRect selectRect(
                     std::min(m_BoxSelectStart.x, pos.x),
@@ -1706,12 +1727,41 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 if (r.contains(m_MouseScreenPos))
                 {
-                    if (a == "add_rect") m_PlacementType = ObjectType::Rectangle;
-                    else if (a == "add_circle") m_PlacementType = ObjectType::Circle;
-                    else if (a == "add_triangle") m_PlacementType = ObjectType::Triangle;
-                    else if (a == "add_pentagon") m_PlacementType = ObjectType::Pentagon;
-                    else if (a == "add_hexagon") m_PlacementType = ObjectType::Hexagon;
-                    else if (a == "add_cam_obj") m_PlacementType = ObjectType::Camera;
+                    if (a == "tool_select" || a == "clear_placement")
+                    {
+                        m_PlacementActive = false;
+                    }
+                    else if (a == "add_rect")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Rectangle) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Rectangle; }
+                    }
+                    else if (a == "add_circle")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Circle) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Circle; }
+                    }
+                    else if (a == "add_triangle")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Triangle) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Triangle; }
+                    }
+                    else if (a == "add_pentagon")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Pentagon) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Pentagon; }
+                    }
+                    else if (a == "add_hexagon")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Hexagon) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Hexagon; }
+                    }
+                    else if (a == "add_cam_obj")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Camera) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Camera; }
+                    }
+                    UpdateStatusText();
                     m_AddDropdownOpen = false;
                     return;
                 }
@@ -1785,6 +1835,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     m_Selected = obj;
                     m_Selected->selected = true;
                     m_SelectedObjects = {obj};
+                    m_PlacementActive = false;
                     UpdateStatusText();
 
                     m_HierarchyPotentialDrag = true;
@@ -1837,6 +1888,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (hit)
         {
+            m_PlacementActive = false;
             if (ctrl || shift)
             {
                 if (IsSelected(hit))
@@ -1938,10 +1990,28 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_InputSelectionEnd = -1;
                 return;
             }
+            if (m_PlacementActive)
+            {
+                m_PlacementActive = false;
+                UpdateStatusText();
+                std::cout << "[INFO] [EditorScene] Cleared held object (Select Mode)\n";
+                return;
+            }
             if (m_Selected) m_Selected->selected = false;
             m_Selected = nullptr;
+            m_SelectedObjects.clear();
 
             UpdateStatusText();
+        }
+
+        if ((event.key.code == sf::Keyboard::Q || event.key.code == sf::Keyboard::V) && m_ActiveField == EditField::None)
+        {
+            if (m_PlacementActive)
+            {
+                m_PlacementActive = false;
+                UpdateStatusText();
+                std::cout << "[INFO] [EditorScene] Switched to Select / Pointer mode (no object in hand)\n";
+            }
         }
 
         if (event.key.code == sf::Keyboard::F5) { TryLaunchPlayMode(); }
@@ -2486,7 +2556,7 @@ void EditorScene::Render(sf::RenderWindow &window)
         }
     }
 
-    bool canPlace = true;
+    bool canPlace = m_PlacementActive;
     if (m_Dragging || m_Resizing || m_Rotating || m_BoxSelecting || m_panning) canPlace = false;
 
     if (canPlace)

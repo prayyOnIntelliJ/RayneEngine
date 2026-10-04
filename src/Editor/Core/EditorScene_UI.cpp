@@ -61,9 +61,16 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
     };
 
     float cx = 10.f; {
-        const sf::FloatRect ar(cx, ty + 4.f, 86.f, ToolbarHeight - 8.f);
+        const sf::FloatRect selRect(cx, ty + 4.f, 72.f, ToolbarHeight - 8.f);
+        drawBtn(selRect, "Pointer", !m_PlacementActive, C_ACCENT, C_ACCENT);
+        m_ToolbarHitboxes.push_back({selRect, "tool_select"});
+        cx += selRect.width + 6.f;
+    } {
+        std::string addLabel = m_PlacementActive ? "+ " + GetObjectTypeName(m_PlacementType) : "+ Add";
+        float addW = m_PlacementActive ? 100.f : 86.f;
+        const sf::FloatRect ar(cx, ty + 4.f, addW, ToolbarHeight - 8.f);
         const bool hov = ar.contains(m_MouseScreenPos);
-        const bool act = m_AddDropdownOpen;
+        const bool act = m_AddDropdownOpen || m_PlacementActive;
 
         sf::Color fill = act ? C_ACCENT_DIM : hov ? C_BG_ELEVATED : C_BG_ELEVATED;
         sf::Color bdr = act ? C_ACCENT : hov ? C_BORDER_LIGHT : C_BORDER;
@@ -73,14 +80,22 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         at.setFont(*m_Font);
         at.setCharacterSize(12);
         at.setFillColor(act ? C_ACCENT_BRIGHT : hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-        at.setString("+ Add");
+        at.setString(addLabel);
         at.setPosition(ar.left + (ar.width - at.getLocalBounds().width) / 2.f,
                        ar.top + (ar.height - at.getLocalBounds().height) / 2.f - 2.f);
         window.draw(at);
 
         m_AddBtnBounds = ar;
         m_ToolbarHitboxes.push_back({ar, "add_dropdown"});
-        cx += ar.width + 8.f;
+        cx += ar.width + 6.f;
+    }
+
+    if (m_PlacementActive)
+    {
+        const sf::FloatRect dropRect(cx, ty + 4.f, 60.f, ToolbarHeight - 8.f);
+        drawBtn(dropRect, "Drop", false, C_TEXT_MUTED, C_BORDER_LIGHT);
+        m_ToolbarHitboxes.push_back({dropRect, "clear_placement"});
+        cx += dropRect.width + 6.f;
     }
 
     drawSep(cx);
@@ -167,6 +182,7 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
 void EditorScene::InitSpotlightItems()
 {
     m_AllSpotlightItems = {
+        {"tool_select", "Pointer / Select", "Tools", "Clear held object and enter selection mode", ObjectType::None},
         {"add_rect", "Rectangle", "Primitives", "2D rectangular shape primitive", ObjectType::Rectangle},
         {"add_circle", "Circle", "Primitives", "2D circular shape primitive", ObjectType::Circle},
         {"add_triangle", "Triangle", "Primitives", "3-sided polygon primitive", ObjectType::Triangle},
@@ -274,9 +290,19 @@ void EditorScene::CloseSpotlight()
 
 void EditorScene::SelectSpotlightItem(const SpotlightItem &item)
 {
-    m_PlacementType = item.type;
+    if (item.type == ObjectType::None || item.id == "tool_select")
+    {
+        m_PlacementActive = false;
+        std::cout << "[INFO] [EditorScene] Switched to Select / Pointer mode (no object in hand)\n";
+    }
+    else
+    {
+        m_PlacementActive = true;
+        m_PlacementType = item.type;
+        std::cout << "[INFO] [EditorScene] Placement mode activated for: " << item.name << "\n";
+    }
     CloseSpotlight();
-    std::cout << "[INFO] [EditorScene] Placement mode activated for: " << item.name << "\n";
+    UpdateStatusText();
 }
 
 
@@ -285,6 +311,16 @@ void EditorScene::DrawSpotlightItemIcon(sf::RenderWindow &window, ObjectType typ
     float half = size * 0.5f;
     switch (type)
     {
+        case ObjectType::None: {
+            sf::ConvexShape arrow(4);
+            arrow.setPoint(0, {center.x - half * 0.4f, center.y - half * 0.8f});
+            arrow.setPoint(1, {center.x - half * 0.4f, center.y + half * 0.6f});
+            arrow.setPoint(2, {center.x + half * 0.1f, center.y + half * 0.1f});
+            arrow.setPoint(3, {center.x + half * 0.6f, center.y + half * 0.1f});
+            arrow.setFillColor(sf::Color(200, 210, 225));
+            window.draw(arrow);
+            break;
+        }
         case ObjectType::Rectangle: {
             sf::RectangleShape r({size, size * 0.75f});
             r.setOrigin(half, half * 0.75f);
@@ -835,6 +871,10 @@ void EditorScene::UpdateStatusText()
 {
     std::string s = "Objects: " + std::to_string(m_Objects.size());
     s += "  Grid: " + std::string(m_SnapToGrid ? "ON" : "OFF");
+    if (m_PlacementActive)
+        s += "  |  [Holding: " + GetObjectTypeName(m_PlacementType) + " (Esc/R-Click to drop)]";
+    else
+        s += "  |  [Pointer]";
     if (m_Selected)
         s += "  |  " + m_Selected->id
                 + "  (" + std::to_string((int) m_Selected->shape.getPosition().x)

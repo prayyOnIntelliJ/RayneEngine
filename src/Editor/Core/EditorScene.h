@@ -220,6 +220,7 @@ private:
     sf::FloatRect m_TabConsoleBounds;
     static constexpr float TabBarHeight = 24.f;
 
+    bool m_PlacementActive = false;
     ObjectType m_PlacementType = ObjectType::Rectangle;
     std::string m_PlacementSpritePath;
     std::shared_ptr<sf::Texture> m_PlacementTexture;
