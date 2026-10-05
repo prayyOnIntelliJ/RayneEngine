@@ -345,7 +345,12 @@ private:
         AnimRows,
         AnimFPS,
         AnimSpeed,
-        AnimClipName
+        AnimClipName,
+        CollisionOffsetX,
+        CollisionOffsetY,
+        CollisionSizeX,
+        CollisionSizeY,
+        CollisionRadius
     };
 
     EditField m_ActiveField = EditField::None;
@@ -577,6 +582,18 @@ private:
     sf::Vector2f GetRotateHandlePos(const EditorObject *obj) const;
 
     bool GetRotateHandle(sf::Vector2f worldPos) const;
+
+    bool m_ResizingCollider = false;
+    int m_ColliderHandle = -1;
+    sf::Vector2f m_ColliderMouseStart{0.f, 0.f};
+    sf::Vector2f m_ColliderInitialSize{0.f, 0.f};
+    sf::Vector2f m_ColliderInitialOffset{0.f, 0.f};
+    float m_ColliderInitialRadius = 0.f;
+    bool m_ColliderGizmoActive = true;
+
+    sf::Vector2f GetColliderHandlePos(const EditorObject *obj, int handleIndex) const;
+    int GetColliderHandle(sf::Vector2f worldPos) const;
+    void DrawColliderGizmos(sf::RenderWindow &window);
 
     void UpdateStatusText();
 

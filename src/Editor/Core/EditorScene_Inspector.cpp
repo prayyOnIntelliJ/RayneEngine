@@ -851,7 +851,51 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y = DrawActionButton(window, shapeLabel, "toggle_collision_shape", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
         std::string typeLabel = "Contact Type: " + std::string(col.type == CollisionType::Solid ? "Solid" : "Static");
         y = DrawActionButton(window, typeLabel, "toggle_collision_type", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
-        y += 4.f;
+
+        std::string offXDisplay = (m_ActiveField == EditField::CollisionOffsetX && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CollisionOffsetX
+                                             ? "|"
+                                             : FormatFloat(col.offsetX, 2));
+        y = DrawEditableRow(window, "Offset X", offXDisplay, "edit_collision_offset_x", panelX, y);
+
+        std::string offYDisplay = (m_ActiveField == EditField::CollisionOffsetY && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::CollisionOffsetY
+                                             ? "|"
+                                             : FormatFloat(col.offsetY, 2));
+        y = DrawEditableRow(window, "Offset Y", offYDisplay, "edit_collision_offset_y", panelX, y);
+
+        if (col.shape == ColliderShape::Box)
+        {
+            std::string szXDisplay = (m_ActiveField == EditField::CollisionSizeX && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CollisionSizeX
+                                                 ? "|"
+                                                 : (col.sizeX > 0.001f ? FormatFloat(col.sizeX, 2) : "Auto (" + FormatFloat(target->shape.getSize().x, 1) + ")"));
+            y = DrawEditableRow(window, "Width", szXDisplay, "edit_collision_size_x", panelX, y);
+
+            std::string szYDisplay = (m_ActiveField == EditField::CollisionSizeY && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CollisionSizeY
+                                                 ? "|"
+                                                 : (col.sizeY > 0.001f ? FormatFloat(col.sizeY, 2) : "Auto (" + FormatFloat(target->shape.getSize().y, 1) + ")"));
+            y = DrawEditableRow(window, "Height", szYDisplay, "edit_collision_size_y", panelX, y);
+        }
+        else
+        {
+            float defRad = std::min(target->shape.getSize().x, target->shape.getSize().y) * 0.5f;
+            std::string radDisplay = (m_ActiveField == EditField::CollisionRadius && !m_ActiveInputText.empty())
+                                          ? m_ActiveInputText + "|"
+                                          : (m_ActiveField == EditField::CollisionRadius
+                                                 ? "|"
+                                                 : (col.radius > 0.001f ? FormatFloat(col.radius, 2) : "Auto (" + FormatFloat(defRad, 1) + ")"));
+            y = DrawEditableRow(window, "Radius", radDisplay, "edit_collision_radius", panelX, y);
+        }
+
+        y += 2.f;
+        y = DrawActionButton(window, "Reset to Entity Bounds", "reset_collision_bounds", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 2.f;
         y = DrawActionButton(window, "Remove Collision", "remove_collision", panelX, y, C_DANGER_DIM, C_DANGER);
         y += 8.f;
     } else if (target->entity != 0)
@@ -1515,6 +1559,8 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
     {
         if (action == "toggle_collision_shape" || label.find("Collider Shape") != std::string::npos)
             m_ActiveTooltip = "Toggle collider geometry between Box and Circle";
+        else if (action == "reset_collision_bounds" || label.find("Reset to Entity Bounds") != std::string::npos)
+            m_ActiveTooltip = "Reset collider size, radius, and offset back to default entity visual bounds";
         else if (action == "toggle_collision_type" || label.find("Contact Type") != std::string::npos)
             m_ActiveTooltip = "Solid: movable physical response; Static: immovable world obstacle";
         else if (action == "add_animation" || label == "+ Sprite Animation")
@@ -1974,6 +2020,53 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
                 auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
                 col.shape = (col.shape == ColliderShape::Box) ? ColliderShape::Circle : ColliderShape::Box;
                 SetDirty(true);
+            }
+        } else if (btn.action == "edit_collision_offset_x" && target)
+        {
+            m_ActiveField = EditField::CollisionOffsetX;
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CollisionComponent>(target->entity).offsetX, 2);
+        } else if (btn.action == "edit_collision_offset_y" && target)
+        {
+            m_ActiveField = EditField::CollisionOffsetY;
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<CollisionComponent>(target->entity).offsetY, 2);
+        } else if (btn.action == "edit_collision_size_x" && target)
+        {
+            m_ActiveField = EditField::CollisionSizeX;
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                m_ActiveInputText = FormatFloat(col.GetEffectiveSize(target->shape.getSize()).x, 2);
+            }
+        } else if (btn.action == "edit_collision_size_y" && target)
+        {
+            m_ActiveField = EditField::CollisionSizeY;
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                m_ActiveInputText = FormatFloat(col.GetEffectiveSize(target->shape.getSize()).y, 2);
+            }
+        } else if (btn.action == "edit_collision_radius" && target)
+        {
+            m_ActiveField = EditField::CollisionRadius;
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                m_ActiveInputText = FormatFloat(col.GetEffectiveRadius(target->shape.getSize()), 2);
+            }
+        } else if (btn.action == "reset_collision_bounds" && target)
+        {
+            if (m_Registry.HasComponent<CollisionComponent>(target->entity))
+            {
+                auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
+                col.offsetX = 0.0f;
+                col.offsetY = 0.0f;
+                col.sizeX = 0.0f;
+                col.sizeY = 0.0f;
+                col.radius = 0.0f;
+                SetDirty(true);
+                std::cout << "[INFO] [Inspector] Reset collider to entity bounds for " << target->id << "\n";
             }
         } else if (btn.action == "add_rigidbody" && target)
         {
@@ -2642,6 +2735,46 @@ void EditorScene::CommitActiveField()
                 if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
                     m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).channel =
                             std::stoi(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionOffsetX)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).offsetX =
+                            std::stof(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionOffsetY)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).offsetY =
+                            std::stof(m_ActiveInputText);
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionSizeX)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).sizeX =
+                            std::max(0.0f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionSizeY)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).sizeY =
+                            std::max(0.0f, std::stof(m_ActiveInputText));
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::CollisionRadius)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<CollisionComponent>(inputTarget->entity))
+                    m_Registry.GetComponent<CollisionComponent>(inputTarget->entity).radius =
+                            std::max(0.0f, std::stof(m_ActiveInputText));
             } catch (...) {}
         } else if (m_ActiveField == EditField::RigidbodyMass)
         {

@@ -316,6 +316,31 @@ struct CollisionComponent
     CollisionType type = CollisionType::Solid;
     bool isTrigger = false;
     ColliderShape shape = ColliderShape::Box;
+
+    float offsetX = 0.0f;
+    float offsetY = 0.0f;
+    float sizeX = 0.0f;   // 0.0f = auto-fit entity bounds
+    float sizeY = 0.0f;   // 0.0f = auto-fit entity bounds
+    float radius = 0.0f;  // 0.0f = auto-fit entity bounds (min(w, h) * 0.5f)
+
+    CollisionComponent() = default;
+    CollisionComponent(int ch, CollisionType t = CollisionType::Solid, bool trig = false, ColliderShape sh = ColliderShape::Box)
+        : channel(ch), type(t), isTrigger(trig), shape(sh) {}
+
+    sf::Vector2f GetEffectiveSize(sf::Vector2f defaultEntitySize) const
+    {
+        return sf::Vector2f(
+            (sizeX > 0.001f) ? sizeX : defaultEntitySize.x,
+            (sizeY > 0.001f) ? sizeY : defaultEntitySize.y
+        );
+    }
+
+    float GetEffectiveRadius(sf::Vector2f defaultEntitySize) const
+    {
+        if (radius > 0.001f) return radius;
+        sf::Vector2f eff = GetEffectiveSize(defaultEntitySize);
+        return std::min(eff.x, eff.y) * 0.5f;
+    }
 };
 
 struct Rigidbody2DComponent

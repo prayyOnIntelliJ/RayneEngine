@@ -200,7 +200,13 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
                 shape = ColliderShape::Circle;
             else if (j.contains("type") && j["type"] == "circle")
                 shape = ColliderShape::Circle;
-            registry.AddComponent(entity, CollisionComponent{ch, cType, isTrig, shape});
+            CollisionComponent col{ch, cType, isTrig, shape};
+            col.offsetX = j["collision"].value("offsetX", 0.0f);
+            col.offsetY = j["collision"].value("offsetY", 0.0f);
+            col.sizeX = j["collision"].value("sizeX", 0.0f);
+            col.sizeY = j["collision"].value("sizeY", 0.0f);
+            col.radius = j["collision"].value("radius", 0.0f);
+            registry.AddComponent(entity, col);
         }
 
         if (j.contains("rigidbody"))
@@ -546,7 +552,13 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
                 shape = ColliderShape::Circle;
             else if (j.contains("type") && j["type"] == "circle")
                 shape = ColliderShape::Circle;
-            registry.AddComponent(entity, CollisionComponent{ch, cType, isTrig, shape});
+            CollisionComponent col{ch, cType, isTrig, shape};
+            col.offsetX = j["collision"].value("offsetX", 0.0f);
+            col.offsetY = j["collision"].value("offsetY", 0.0f);
+            col.sizeX = j["collision"].value("sizeX", 0.0f);
+            col.sizeY = j["collision"].value("sizeY", 0.0f);
+            col.radius = j["collision"].value("radius", 0.0f);
+            registry.AddComponent(entity, col);
         }
 
         if (j.contains("rigidbody"))

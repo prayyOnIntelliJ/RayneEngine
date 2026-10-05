@@ -427,6 +427,72 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
         return "static";
     });
 
+    s_Lua.set_function("SetCollisionOffset", [&](const Entity e, float x, float y) {
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            auto &col = registry.GetComponent<CollisionComponent>(e);
+            col.offsetX = x;
+            col.offsetY = y;
+        }
+    });
+
+    s_Lua.set_function("GetCollisionOffset", [&](const Entity e) -> sol::table {
+        sol::table t = s_Lua.create_table();
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            const auto &col = registry.GetComponent<CollisionComponent>(e);
+            t["x"] = col.offsetX;
+            t["y"] = col.offsetY;
+        }
+        else
+        {
+            t["x"] = 0.0f;
+            t["y"] = 0.0f;
+        }
+        return t;
+    });
+
+    s_Lua.set_function("SetCollisionSize", [&](const Entity e, float w, float h) {
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            auto &col = registry.GetComponent<CollisionComponent>(e);
+            col.sizeX = std::max(0.0f, w);
+            col.sizeY = std::max(0.0f, h);
+        }
+    });
+
+    s_Lua.set_function("GetCollisionSize", [&](const Entity e) -> sol::table {
+        sol::table t = s_Lua.create_table();
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            const auto &col = registry.GetComponent<CollisionComponent>(e);
+            t["x"] = col.sizeX;
+            t["y"] = col.sizeY;
+            t["w"] = col.sizeX;
+            t["h"] = col.sizeY;
+        }
+        else
+        {
+            t["x"] = 0.0f; t["y"] = 0.0f; t["w"] = 0.0f; t["h"] = 0.0f;
+        }
+        return t;
+    });
+
+    s_Lua.set_function("SetCollisionRadius", [&](const Entity e, float r) {
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            registry.GetComponent<CollisionComponent>(e).radius = std::max(0.0f, r);
+        }
+    });
+
+    s_Lua.set_function("GetCollisionRadius", [&](const Entity e) -> float {
+        if (registry.HasComponent<CollisionComponent>(e))
+        {
+            return registry.GetComponent<CollisionComponent>(e).radius;
+        }
+        return 0.0f;
+    });
+
     s_Lua.set_function("AddTag", [&](const Entity e, const std::string &tag) {
         registry.AddComponent(e, TagComponent{tag});
     });

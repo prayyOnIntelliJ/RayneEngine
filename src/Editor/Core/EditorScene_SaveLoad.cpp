@@ -277,7 +277,13 @@ void EditorScene::LoadFromJson(const std::string &path)
                 shape = ColliderShape::Circle;
             else if (obj.objectType == ObjectType::Circle)
                 shape = ColliderShape::Circle;
-            m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
+            CollisionComponent col{ch, cType, isTrig, shape};
+            col.offsetX = j["collision"].value("offsetX", 0.0f);
+            col.offsetY = j["collision"].value("offsetY", 0.0f);
+            col.sizeX = j["collision"].value("sizeX", 0.0f);
+            col.sizeY = j["collision"].value("sizeY", 0.0f);
+            col.radius = j["collision"].value("radius", 0.0f);
+            m_Registry.AddComponent(obj.entity, col);
         }
 
         if (j.contains("rigidbody"))
@@ -496,7 +502,12 @@ json EditorScene::SerializeObject(const EditorObject &obj) const
             {"channel", col.channel},
             {"type", col.type == CollisionType::Solid ? "solid" : "static"},
             {"isTrigger", col.isTrigger},
-            {"shape", col.shape == ColliderShape::Circle ? "circle" : "box"}
+            {"shape", col.shape == ColliderShape::Circle ? "circle" : "box"},
+            {"offsetX", col.offsetX},
+            {"offsetY", col.offsetY},
+            {"sizeX", col.sizeX},
+            {"sizeY", col.sizeY},
+            {"radius", col.radius}
         };
     }
 
@@ -815,7 +826,13 @@ void EditorScene::DeserializeObject(const json &j)
             shape = ColliderShape::Circle;
         else if (obj.objectType == ObjectType::Circle)
             shape = ColliderShape::Circle;
-        m_Registry.AddComponent(obj.entity, CollisionComponent{ch, cType, isTrig, shape});
+        CollisionComponent col{ch, cType, isTrig, shape};
+        col.offsetX = j["collision"].value("offsetX", 0.0f);
+        col.offsetY = j["collision"].value("offsetY", 0.0f);
+        col.sizeX = j["collision"].value("sizeX", 0.0f);
+        col.sizeY = j["collision"].value("sizeY", 0.0f);
+        col.radius = j["collision"].value("radius", 0.0f);
+        m_Registry.AddComponent(obj.entity, col);
     }
 
     if (j.contains("rigidbody"))

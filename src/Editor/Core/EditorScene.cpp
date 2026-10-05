@@ -956,6 +956,80 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
         }
 
+        if (m_ResizingCollider && m_Selected && m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+        {
+            auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+            sf::Vector2f mouseWorld = MouseWorldPos();
+            sf::Vector2f deltaWorld = mouseWorld - m_ColliderMouseStart;
+            sf::Vector2f deltaLocal = RotatePoint(deltaWorld, {0.f, 0.f}, -m_Selected->worldRotation);
+
+            if (std::abs(m_Selected->worldScaleX) > 0.001f) deltaLocal.x /= m_Selected->worldScaleX;
+            if (std::abs(m_Selected->worldScaleY) > 0.001f) deltaLocal.y /= m_Selected->worldScaleY;
+
+            if (col.shape == ColliderShape::Circle)
+            {
+                if (m_ColliderHandle == 4) // Center offset handle
+                {
+                    col.offsetX = m_ColliderInitialOffset.x + deltaLocal.x;
+                    col.offsetY = m_ColliderInitialOffset.y + deltaLocal.y;
+                }
+                else // Perimeter radius handles (0: Top, 1: Right, 2: Bottom, 3: Left)
+                {
+                    float newR = m_ColliderInitialRadius;
+                    if (m_ColliderHandle == 0) newR = m_ColliderInitialRadius - deltaLocal.y;
+                    else if (m_ColliderHandle == 1) newR = m_ColliderInitialRadius + deltaLocal.x;
+                    else if (m_ColliderHandle == 2) newR = m_ColliderInitialRadius + deltaLocal.y;
+                    else if (m_ColliderHandle == 3) newR = m_ColliderInitialRadius - deltaLocal.x;
+                    col.radius = std::max(2.f, newR);
+                }
+            }
+            else // Box
+            {
+                if (m_ColliderHandle == 8) // Center offset handle
+                {
+                    col.offsetX = m_ColliderInitialOffset.x + deltaLocal.x;
+                    col.offsetY = m_ColliderInitialOffset.y + deltaLocal.y;
+                }
+                else
+                {
+                    const float minSize = 4.f;
+                    float newW = m_ColliderInitialSize.x;
+                    float newH = m_ColliderInitialSize.y;
+                    float newOffX = m_ColliderInitialOffset.x;
+                    float newOffY = m_ColliderInitialOffset.y;
+
+                    // X-axis adjustments
+                    if (m_ColliderHandle == 0 || m_ColliderHandle == 3 || m_ColliderHandle == 5) // Left
+                    {
+                        newW = std::max(minSize, m_ColliderInitialSize.x - deltaLocal.x);
+                        newOffX = m_ColliderInitialOffset.x - (newW - m_ColliderInitialSize.x) * 0.5f;
+                    }
+                    else if (m_ColliderHandle == 2 || m_ColliderHandle == 4 || m_ColliderHandle == 7) // Right
+                    {
+                        newW = std::max(minSize, m_ColliderInitialSize.x + deltaLocal.x);
+                        newOffX = m_ColliderInitialOffset.x + (newW - m_ColliderInitialSize.x) * 0.5f;
+                    }
+
+                    // Y-axis adjustments
+                    if (m_ColliderHandle == 0 || m_ColliderHandle == 1 || m_ColliderHandle == 2) // Top
+                    {
+                        newH = std::max(minSize, m_ColliderInitialSize.y - deltaLocal.y);
+                        newOffY = m_ColliderInitialOffset.y - (newH - m_ColliderInitialSize.y) * 0.5f;
+                    }
+                    else if (m_ColliderHandle == 5 || m_ColliderHandle == 6 || m_ColliderHandle == 7) // Bottom
+                    {
+                        newH = std::max(minSize, m_ColliderInitialSize.y + deltaLocal.y);
+                        newOffY = m_ColliderInitialOffset.y + (newH - m_ColliderInitialSize.y) * 0.5f;
+                    }
+
+                    col.sizeX = newW;
+                    col.sizeY = newH;
+                    col.offsetX = newOffX;
+                    col.offsetY = newOffY;
+                }
+            }
+        }
+
         if (m_Resizing && m_Selected)
         {
             sf::Vector2f mouseWorld = MouseWorldPos();
@@ -1676,6 +1750,21 @@ void EditorScene::HandleEvent(const sf::Event &event)
         m_Resizing = false;
         m_ResizeHandle = -1;
 
+        if (m_ResizingCollider && m_Selected && m_Selected->entity != 0)
+        {
+            json after = SerializeObject(*m_Selected);
+            json before = m_DragBeforeStates[m_Selected->id];
+            if (before != after)
+            {
+                auto cmd = std::make_shared<ObjectStateCommand>(m_Selected->id, before, after);
+                m_UndoStack.push_back(cmd);
+                m_RedoStack.clear();
+                SetDirty(true);
+            }
+        }
+        m_ResizingCollider = false;
+        m_ColliderHandle = -1;
+
         if (m_Rotating && m_Selected &&m_Selected->entity != 0) {
             if (m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
             {
@@ -1906,6 +1995,26 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (m_Selected)
         {
+            if (m_ColliderGizmoActive && m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+            {
+                const int colHandle = GetColliderHandle(pos);
+                if (colHandle >= 0)
+                {
+                    m_ResizingCollider = true;
+                    m_ColliderHandle = colHandle;
+                    m_ColliderMouseStart = pos;
+                    const auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+                    sf::Vector2f entitySize = m_Selected->shape.getSize();
+                    m_ColliderInitialSize = col.GetEffectiveSize(entitySize);
+                    m_ColliderInitialOffset = sf::Vector2f(col.offsetX, col.offsetY);
+                    m_ColliderInitialRadius = col.GetEffectiveRadius(entitySize);
+                    m_DragBeforeStates.clear();
+                    m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
+                    UpdateStatusText();
+                    return;
+                }
+            }
+
             const int handle = GetResizeHandle(pos);
             if (handle >= 0)
             {
@@ -2496,30 +2605,37 @@ void EditorScene::Render(sf::RenderWindow &window)
             window.draw(obj.previewSprite);
         }
 
-        if (m_ShowColliderOutlines &&obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity)) {
+        if ((m_ShowColliderOutlines || obj.selected) && obj.entity != 0 && m_Registry.HasComponent<CollisionComponent>(obj.entity)) {
             auto &col = m_Registry.GetComponent<CollisionComponent>(obj.entity);
-            sf::Color colOutline = col.isTrigger ? sf::Color(255, 215, 0, 200) : sf::Color(40, 220, 100, 200);
+            sf::Color colOutline = col.isTrigger ? sf::Color(255, 215, 0, 220) : sf::Color(74, 222, 128, 220);
+            sf::Vector2f entitySize = obj.shape.getSize();
+            sf::Vector2f effSize = col.GetEffectiveSize(entitySize);
+            sf::Vector2f localCenter(entitySize.x * 0.5f + col.offsetX, entitySize.y * 0.5f + col.offsetY);
+            sf::Vector2f scaledCenter(localCenter.x * obj.scaleX, localCenter.y * obj.scaleY);
+            sf::Vector2f worldCenter = RotatePoint(obj.shape.getPosition() + scaledCenter, obj.shape.getPosition(), obj.rotation);
+
             if (col.shape == ColliderShape::Circle)
             {
-                float rx = obj.shape.getSize().x * 0.5f;
-                float ry = obj.shape.getSize().y * 0.5f;
-                sf::CircleShape circ(rx);
-                circ.setPosition(obj.shape.getPosition());
-                circ.setScale(obj.scaleX, obj.scaleY * (ry / std::max(0.001f, rx)));
+                float effR = col.GetEffectiveRadius(entitySize);
+                sf::CircleShape circ(effR);
+                circ.setOrigin(effR, effR);
+                circ.setPosition(worldCenter);
+                circ.setScale(obj.scaleX, obj.scaleY);
                 circ.setRotation(obj.rotation);
-                circ.setFillColor(sf::Color::Transparent);
+                circ.setFillColor(sf::Color(74, 222, 128, obj.selected ? 25 : 8));
                 circ.setOutlineColor(colOutline);
-                circ.setOutlineThickness(1.5f);
+                circ.setOutlineThickness(obj.selected ? 2.0f : 1.5f);
                 window.draw(circ);
             } else
             {
-                sf::RectangleShape colBox(obj.shape.getSize());
-                colBox.setPosition(obj.shape.getPosition());
+                sf::RectangleShape colBox(effSize);
+                colBox.setOrigin(effSize * 0.5f);
+                colBox.setPosition(worldCenter);
                 colBox.setScale(obj.scaleX, obj.scaleY);
                 colBox.setRotation(obj.rotation);
-                colBox.setFillColor(sf::Color::Transparent);
+                colBox.setFillColor(sf::Color(74, 222, 128, obj.selected ? 25 : 8));
                 colBox.setOutlineColor(colOutline);
-                colBox.setOutlineThickness(1.5f);
+                colBox.setOutlineThickness(obj.selected ? 2.0f : 1.5f);
                 window.draw(colBox);
             }
         }
@@ -2652,7 +2768,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     }
 
     bool canPlace = m_PlacementActive;
-    if (m_Dragging || m_Resizing || m_Rotating || m_BoxSelecting || m_panning) canPlace = false;
+    if (m_Dragging || m_Resizing || m_Rotating || m_BoxSelecting || m_panning || m_ResizingCollider) canPlace = false;
 
     if (canPlace)
     {
@@ -2668,8 +2784,9 @@ void EditorScene::Render(sf::RenderWindow &window)
     if (canPlace)
     {
         sf::Vector2f wPos = MouseWorldPos();
-        if (m_Selected &&GetResizeHandle(wPos) >= 0) canPlace = false;
-        else if (m_Selected &&GetRotateHandle(wPos)) canPlace = false;
+        if (m_Selected && GetResizeHandle(wPos) >= 0) canPlace = false;
+        else if (m_Selected && GetRotateHandle(wPos)) canPlace = false;
+        else if (m_Selected && m_ColliderGizmoActive && GetColliderHandle(wPos) >= 0) canPlace = false;
         else if (ObjectAt(wPos) != nullptr) canPlace = false;
     }
 
@@ -4220,6 +4337,8 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     arc[3] = {{m_RotateHandlePos.x + a * 0.5f, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
     arc[4] = {{m_RotateHandlePos.x + a, m_RotateHandlePos.y}, sf::Color(255, 255, 255, 200)};
     window.draw(arc);
+
+    DrawColliderGizmos(window);
 }
 
 bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
@@ -4236,6 +4355,143 @@ bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
     const float dx = worldPos.x - rotHandlePos.x;
     const float dy = worldPos.y - rotHandlePos.y;
     return std::sqrt(dx * dx + dy * dy) <= hitRadius;
+}
+
+sf::Vector2f EditorScene::GetColliderHandlePos(const EditorObject *obj, int idx) const
+{
+    if (!obj || obj->entity == 0 || !m_Registry.HasComponent<CollisionComponent>(obj->entity))
+        return {0.f, 0.f};
+
+    const auto &col = m_Registry.GetComponent<CollisionComponent>(obj->entity);
+    sf::Vector2f entitySize = obj->shape.getSize();
+    sf::Vector2f effSize = col.GetEffectiveSize(entitySize);
+    float effRadius = col.GetEffectiveRadius(entitySize);
+    sf::Vector2f localCenter = sf::Vector2f(entitySize.x * 0.5f + col.offsetX, entitySize.y * 0.5f + col.offsetY);
+
+    sf::Vector2f u{0.f, 0.f};
+    if (col.shape == ColliderShape::Circle)
+    {
+        switch (idx)
+        {
+            case 0: u = {localCenter.x, localCenter.y - effRadius}; break; // Top
+            case 1: u = {localCenter.x + effRadius, localCenter.y}; break; // Right
+            case 2: u = {localCenter.x, localCenter.y + effRadius}; break; // Bottom
+            case 3: u = {localCenter.x - effRadius, localCenter.y}; break; // Left
+            case 4: u = localCenter; break;                                // Center (Offset)
+            default: break;
+        }
+    }
+    else
+    {
+        float hx = effSize.x * 0.5f;
+        float hy = effSize.y * 0.5f;
+        switch (idx)
+        {
+            case 0: u = {localCenter.x - hx, localCenter.y - hy}; break; // Top-Left
+            case 1: u = {localCenter.x, localCenter.y - hy}; break;      // Top-Mid
+            case 2: u = {localCenter.x + hx, localCenter.y - hy}; break; // Top-Right
+            case 3: u = {localCenter.x - hx, localCenter.y}; break;      // Mid-Left
+            case 4: u = {localCenter.x + hx, localCenter.y}; break;      // Mid-Right
+            case 5: u = {localCenter.x - hx, localCenter.y + hy}; break; // Bottom-Left
+            case 6: u = {localCenter.x, localCenter.y + hy}; break;      // Bottom-Mid
+            case 7: u = {localCenter.x + hx, localCenter.y + hy}; break; // Bottom-Right
+            case 8: u = localCenter; break;                              // Center (Offset)
+            default: break;
+        }
+    }
+
+    sf::Vector2f scaled = {u.x * obj->scaleX, u.y * obj->scaleY};
+    return RotatePoint(obj->shape.getPosition() + scaled, obj->shape.getPosition(), obj->rotation);
+}
+
+int EditorScene::GetColliderHandle(sf::Vector2f worldPos) const
+{
+    if (!m_Selected || m_Selected->entity == 0 || !m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+        return -1;
+
+    const auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+    int count = (col.shape == ColliderShape::Circle) ? 5 : 9;
+
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i hitScreen{9, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wHit = m_Window.mapPixelToCoords(hitScreen, m_camera);
+    const float hitRadius = std::abs(wHit.x - wZero.x);
+
+    // Check perimeter handles first so they have priority over center handle when collider is tiny
+    for (int i = 0; i < count - 1; ++i)
+    {
+        sf::Vector2f hp = GetColliderHandlePos(m_Selected, i);
+        float dx = worldPos.x - hp.x;
+        float dy = worldPos.y - hp.y;
+        if (std::sqrt(dx * dx + dy * dy) <= hitRadius)
+            return i;
+    }
+    // Check center handle
+    sf::Vector2f centerHp = GetColliderHandlePos(m_Selected, count - 1);
+    float cdx = worldPos.x - centerHp.x;
+    float cdy = worldPos.y - centerHp.y;
+    if (std::sqrt(cdx * cdx + cdy * cdy) <= hitRadius)
+        return count - 1;
+
+    return -1;
+}
+
+void EditorScene::DrawColliderGizmos(sf::RenderWindow &window)
+{
+    if (!m_Selected || m_Selected->entity == 0 || !m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+        return;
+
+    const auto &col = m_Registry.GetComponent<CollisionComponent>(m_Selected->entity);
+    int count = (col.shape == ColliderShape::Circle) ? 5 : 9;
+    int centerIdx = count - 1;
+
+    sf::Vector2i zeroScreen{0, 0};
+    sf::Vector2i handleScreen{6, 0};
+    const sf::Vector2f wZero = m_Window.mapPixelToCoords(zeroScreen, m_camera);
+    const sf::Vector2f wHandle = m_Window.mapPixelToCoords(handleScreen, m_camera);
+    const float hr = std::abs(wHandle.x - wZero.x);
+
+    static const sf::Color C_COL_HANDLE = sf::Color(74, 222, 128);       // Bright emerald green
+    static const sf::Color C_COL_CENTER = sf::Color(34, 197, 94);       // Emerald center
+    static const sf::Color C_COL_ACTIVE = sf::Color(255, 255, 255);     // White when dragging
+    static const sf::Color C_COL_OUTL = sf::Color(15, 35, 20, 240);     // Dark border
+
+    for (int i = 0; i < count; ++i)
+    {
+        sf::Vector2f hp = GetColliderHandlePos(m_Selected, i);
+        bool isDraggingThis = (m_ResizingCollider && m_ColliderHandle == i);
+
+        if (i == centerIdx)
+        {
+            // Center handle: diamond with dark inner dot for moving offset
+            sf::CircleShape centerHandle(hr * 1.15f, 4);
+            centerHandle.setOrigin(hr * 1.15f, hr * 1.15f);
+            centerHandle.setPosition(hp);
+            centerHandle.setRotation(m_Selected->rotation + 45.f);
+            centerHandle.setFillColor(isDraggingThis ? C_COL_ACTIVE : C_COL_CENTER);
+            centerHandle.setOutlineColor(C_COL_OUTL);
+            centerHandle.setOutlineThickness(std::max(1.f, hr * 0.25f));
+            window.draw(centerHandle);
+
+            sf::CircleShape dot(std::max(1.5f, hr * 0.35f));
+            dot.setOrigin(std::max(1.5f, hr * 0.35f), std::max(1.5f, hr * 0.35f));
+            dot.setPosition(hp);
+            dot.setFillColor(sf::Color(15, 35, 20));
+            window.draw(dot);
+        }
+        else
+        {
+            // Perimeter / corner handle: green circle
+            sf::CircleShape handle(hr);
+            handle.setOrigin(hr, hr);
+            handle.setPosition(hp);
+            handle.setFillColor(isDraggingThis ? C_COL_ACTIVE : C_COL_HANDLE);
+            handle.setOutlineColor(C_COL_OUTL);
+            handle.setOutlineThickness(std::max(1.f, hr * 0.25f));
+            window.draw(handle);
+        }
+    }
 }
 
 

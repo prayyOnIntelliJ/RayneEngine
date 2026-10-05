@@ -188,23 +188,31 @@ RaycastResult PhysicsSystem::Raycast(Registry &registry, float startX, float sta
         [&](Entity e, TransformComponent &t, CollisionComponent &col) {
             if (channel != -1 && col.channel != channel) return;
 
-            float w = 0.0f, h = 0.0f;
+            float baseW = 0.0f, baseH = 0.0f;
             if (registry.HasComponent<RenderComponent>(e))
             {
                 auto &r = registry.GetComponent<RenderComponent>(e);
-                w = r.size.x * t.worldScaleX;
-                h = r.size.y * t.worldScaleY;
+                baseW = r.size.x;
+                baseH = r.size.y;
             } else if (registry.HasComponent<SpriteComponent>(e))
             {
                 auto &s = registry.GetComponent<SpriteComponent>(e);
-                w = s.size.x * t.worldScaleX;
-                h = s.size.y * t.worldScaleY;
+                baseW = s.size.x;
+                baseH = s.size.y;
             } else { return; }
+
+            sf::Vector2f effSize = col.GetEffectiveSize(sf::Vector2f(baseW, baseH));
+            float effW = effSize.x * t.worldScaleX;
+            float effH = effSize.y * t.worldScaleY;
+            float offX = col.offsetX * t.worldScaleX;
+            float offY = col.offsetY * t.worldScaleY;
+            float boxX = t.worldX + (baseW * t.worldScaleX - effW) * 0.5f + offX;
+            float boxY = t.worldY + (baseH * t.worldScaleY - effH) * 0.5f + offY;
 
             float hit_t = 0.0f;
             float hit_nx = 0.0f, hit_ny = 0.0f;
 
-            if (RayAABB(startX, startY, dirX, dirY, closest.distance, t.worldX, t.worldY, w, h, hit_t, hit_nx, hit_ny))
+            if (RayAABB(startX, startY, dirX, dirY, closest.distance, boxX, boxY, effW, effH, hit_t, hit_nx, hit_ny))
             {
                 if (hit_t < closest.distance)
                 {
@@ -291,24 +299,33 @@ void PhysicsSystem::FixedUpdate(Registry &registry, float fixedDt)
             info.channel = col.channel;
             info.isTrigger = col.isTrigger;
 
-            float w = 32.f;
-            float h = 32.f;
+            float baseW = 32.f;
+            float baseH = 32.f;
             if (registry.HasComponent<RenderComponent>(e))
             {
                 auto &r = registry.GetComponent<RenderComponent>(e);
-                w = r.size.x * t.worldScaleX;
-                h = r.size.y * t.worldScaleY;
+                baseW = r.size.x;
+                baseH = r.size.y;
                 if (r.shapeType == ShapeType::Circle) { info.shape = ColliderShape::Circle; }
             } else if (registry.HasComponent<SpriteComponent>(e))
             {
                 auto &s = registry.GetComponent<SpriteComponent>(e);
-                w = s.size.x * t.worldScaleX;
-                h = s.size.y * t.worldScaleY;
+                baseW = s.size.x;
+                baseH = s.size.y;
             }
 
-            info.center = sf::Vector2f(t.worldX + w * 0.5f, t.worldY + h * 0.5f);
-            info.halfSize = sf::Vector2f(std::abs(w) * 0.5f, std::abs(h) * 0.5f);
-            info.radius = std::max(info.halfSize.x, info.halfSize.y);
+            sf::Vector2f effSize = col.GetEffectiveSize(sf::Vector2f(baseW, baseH));
+            float effW = effSize.x * t.worldScaleX;
+            float effH = effSize.y * t.worldScaleY;
+            float offX = col.offsetX * t.worldScaleX;
+            float offY = col.offsetY * t.worldScaleY;
+
+            info.center = sf::Vector2f(t.worldX + (baseW * t.worldScaleX) * 0.5f + offX,
+                                       t.worldY + (baseH * t.worldScaleY) * 0.5f + offY);
+            info.halfSize = sf::Vector2f(std::abs(effW) * 0.5f, std::abs(effH) * 0.5f);
+            info.radius = (info.shape == ColliderShape::Circle)
+                ? (col.GetEffectiveRadius(sf::Vector2f(baseW, baseH)) * std::max(std::abs(t.worldScaleX), std::abs(t.worldScaleY)))
+                : std::max(info.halfSize.x, info.halfSize.y);
 
             colliders.push_back(info);
         });
