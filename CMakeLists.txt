@@ -86,6 +86,8 @@ add_executable(RayneEngine
         src/Editor/Core/EditorScene_SaveLoad.cpp
         src/Editor/Core/EditorScene_Settings.cpp
         src/Editor/Core/EditorScene_UI.cpp
+        src/Editor/Core/FileDropManager.h
+        src/Editor/Core/FileDropManager.cpp
         src/Editor/Scenes/UIEditorScene.cpp
         src/Editor/Scenes/ProjectHubScene.cpp
         src/Editor/Core/EditorScene.h
@@ -155,7 +157,7 @@ target_link_libraries(RayneEngine
 )
 
 if(WIN32)
-    target_link_libraries(RayneEngine PRIVATE comdlg32)
+    target_link_libraries(RayneEngine PRIVATE comdlg32 shell32)
 endif()
 
 add_custom_command(TARGET RayneEngine POST_BUILD
@@ -235,6 +237,8 @@ add_executable(RayneGame
         src/Editor/Core/EditorScene_SaveLoad.cpp
         src/Editor/Core/EditorScene_Settings.cpp
         src/Editor/Core/EditorScene_UI.cpp
+        src/Editor/Core/FileDropManager.h
+        src/Editor/Core/FileDropManager.cpp
         src/Editor/Scenes/UIEditorScene.cpp
         src/Editor/Scenes/ProjectHubScene.cpp
         src/Editor/Core/EditorScene.h

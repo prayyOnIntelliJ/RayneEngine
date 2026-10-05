@@ -2169,6 +2169,83 @@ std::string ContentBrowser::GetDropTargetFolder(sf::Vector2f pos) const
     return "";
 }
 
+bool ContentBrowser::ImportExternalFiles(const std::vector<std::string> &droppedPaths, sf::Vector2f mousePos, std::string &outImportedFileName)
+{
+    if (droppedPaths.empty()) return false;
+
+    std::string targetDir = GetDropTargetFolder(mousePos);
+    if (targetDir.empty())
+    {
+        targetDir = m_CurrentPath.empty() ? m_RootPath : m_CurrentPath;
+    }
+
+    if (IsReadOnlyPath(targetDir))
+    {
+        SetStatusMessage("Cannot import to read-only folder!");
+        return false;
+    }
+
+    std::error_code ec;
+    if (!fs::exists(targetDir, ec))
+    {
+        fs::create_directories(targetDir, ec);
+    }
+
+    std::vector<std::string> importedNames;
+    for (const auto &srcStr : droppedPaths)
+    {
+        fs::path src(srcStr);
+        if (!fs::exists(src, ec)) continue;
+
+        std::string filename = src.filename().string();
+        if (filename.empty()) continue;
+
+        fs::path dest = fs::path(targetDir) / filename;
+
+        if (fs::equivalent(src, dest, ec)) continue;
+
+        ec.clear();
+        if (fs::is_directory(src, ec))
+        {
+            fs::copy(src, dest, fs::copy_options::recursive | fs::copy_options::overwrite_existing, ec);
+        }
+        else
+        {
+            fs::copy_file(src, dest, fs::copy_options::overwrite_existing, ec);
+        }
+
+        if (!ec)
+        {
+            importedNames.push_back(filename);
+            std::cout << "[INFO] [ContentBrowser] Imported '" << srcStr << "' -> '" << dest.string() << "'\n";
+        }
+        else
+        {
+            std::cerr << "[ERROR] [ContentBrowser] Failed to copy " << srcStr << " to " << dest.string() << ": " << ec.message() << "\n";
+        }
+    }
+
+    if (importedNames.empty()) return false;
+
+    Refresh();
+
+    if (importedNames.size() == 1)
+    {
+        outImportedFileName = importedNames[0];
+    }
+    else if (importedNames.size() == 2)
+    {
+        outImportedFileName = importedNames[0] + ", " + importedNames[1];
+    }
+    else
+    {
+        outImportedFileName = importedNames[0] + ", " + importedNames[1] + " (+" + std::to_string(importedNames.size() - 2) + " more)";
+    }
+
+    SetStatusMessage("Imported: " + outImportedFileName);
+    return true;
+}
+
 void ContentBrowser::StartDrag(const std::string &path, AssetType type)
 {
     m_Drag.active = true;

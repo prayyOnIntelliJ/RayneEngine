@@ -18,6 +18,7 @@ class UIEditorScene : public Scene
 {
 public:
     UIEditorScene(SceneManager &manager, sf::RenderWindow &window);
+    ~UIEditorScene() override;
 
     void HandleEvent(const sf::Event &event) override;
 
@@ -28,6 +29,9 @@ public:
     void OnEnter() override;
 
     void OnExit() override;
+
+    void HandleExternalFileDrop(const std::vector<std::string> &paths, sf::Vector2f mousePos);
+    void ShowImportNotification(const std::string &filename);
 
 private:
     sf::RenderWindow &m_Window;
@@ -297,6 +301,11 @@ private:
     void SyncFileToRuntime(const std::filesystem::path &sourceRelPath);
 
     void AutoDetectPreferredIDE();
+
+    void DrawImportNotification(sf::RenderWindow &window);
+    std::string m_ImportNotificationText;
+    float m_ImportNotificationTimer = 0.f;
+    static constexpr float ImportNotificationDuration = 3.5f;
 };
 
 #endif

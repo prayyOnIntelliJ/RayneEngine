@@ -1,4 +1,5 @@
 #include "UIEditorScene.h"
+#include "../Core/FileDropManager.h"
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -343,12 +344,21 @@ void UIEditorScene::SyncFileToRuntime(const std::filesystem::path &sourceRelPath
     }
 }
 
+UIEditorScene::~UIEditorScene()
+{
+    FileDropManager::Get().ClearDropCallback();
+}
+
 void UIEditorScene::OnEnter()
 {
     std::cout << "[INFO] [UIEditorScene] Entered UI Editor\n";
     AutoDetectPreferredIDE();
     UpdateBounds();
     SelectElement(nullptr);
+
+    FileDropManager::Get().SetDropCallback([this](const std::vector<std::string> &paths, sf::Vector2f pos) {
+        HandleExternalFileDrop(paths, pos);
+    });
 
     std::string currentPath = UIManager::Get().GetCurrentUIPath();
     if (currentPath.empty())
@@ -400,7 +410,11 @@ void UIEditorScene::OnEnter()
     SetDirty(false);
 }
 
-void UIEditorScene::OnExit() { std::cout << "[INFO] [UIEditorScene] Exited UI Editor\n"; }
+void UIEditorScene::OnExit()
+{
+    FileDropManager::Get().ClearDropCallback();
+    std::cout << "[INFO] [UIEditorScene] Exited UI Editor\n";
+}
 
 void UIEditorScene::UpdateBounds()
 {
@@ -1583,6 +1597,12 @@ void UIEditorScene::Update(float deltaTime)
     if (m_SaveFeedbackTimer > 0.f)
         m_SaveFeedbackTimer -= deltaTime;
 
+    if (m_ImportNotificationTimer > 0.f)
+    {
+        m_ImportNotificationTimer -= deltaTime;
+        if (m_ImportNotificationTimer < 0.f) m_ImportNotificationTimer = 0.f;
+    }
+
     std::string uiPath = UIManager::Get().GetCurrentUIPath();
     if (uiPath.empty()) uiPath = "game_ui.json";
     std::string title = uiPath + (m_HasUnsavedChanges ? "*" : "") + " [UI Editor] - RayneEngine";
@@ -1679,6 +1699,7 @@ void UIEditorScene::Render(sf::RenderWindow &window)
 
     DrawTooltip(window);
     DrawDeleteModal(window);
+    DrawImportNotification(window);
 }
 
 void UIEditorScene::DrawToolbar(sf::RenderWindow &window)
@@ -4930,3 +4951,88 @@ bool UIEditorScene::InsertScriptMethod(UIElement *el, const std::string &scriptP
     std::cout << "[INFO] [UIEditor] Successfully inserted " << normMethod << " into " << fullPath.string() << "\n";
     return true;
 }
+
+void UIEditorScene::HandleExternalFileDrop(const std::vector<std::string> &paths, sf::Vector2f mousePos)
+{
+    if (!m_ContentBrowser) return;
+
+    std::string importedFileName;
+    if (m_ContentBrowser->ImportExternalFiles(paths, mousePos, importedFileName))
+    {
+        ShowImportNotification(importedFileName);
+        std::cout << "[INFO] [UIEditorScene] External file drop imported: " << importedFileName << "\n";
+    }
+}
+
+void UIEditorScene::ShowImportNotification(const std::string &filename)
+{
+    m_ImportNotificationText = "Imported: " + filename;
+    m_ImportNotificationTimer = ImportNotificationDuration;
+}
+
+void UIEditorScene::DrawImportNotification(sf::RenderWindow &window)
+{
+    if (m_ImportNotificationTimer <= 0.f || m_ImportNotificationText.empty()) return;
+
+    const float winW = static_cast<float>(window.getSize().x);
+    const float winH = static_cast<float>(window.getSize().y);
+
+    float alpha = 1.f;
+    if (m_ImportNotificationTimer < 0.5f)
+    {
+        alpha = m_ImportNotificationTimer / 0.5f;
+    }
+    else if (m_ImportNotificationTimer > ImportNotificationDuration - 0.25f)
+    {
+        alpha = (ImportNotificationDuration - m_ImportNotificationTimer) / 0.25f;
+    }
+    alpha = std::clamp(alpha, 0.f, 1.f);
+    const sf::Uint8 a = static_cast<sf::Uint8>(alpha * 255.f);
+
+    sf::Text text;
+    if (m_Font) text.setFont(*m_Font);
+    text.setCharacterSize(13);
+    text.setString(m_ImportNotificationText);
+
+    const float tw = text.getLocalBounds().width;
+    const float th = text.getLocalBounds().height;
+
+    const float boxW = std::max(220.f, tw + 56.f);
+    const float boxH = 40.f;
+    const float margin = 20.f;
+
+    const float boxX = winW - boxW - margin;
+    const float boxY = winH - boxH - margin;
+
+    // Shadow
+    sf::RectangleShape shadow({boxW, boxH});
+    shadow.setPosition(boxX + 2.f, boxY + 2.f);
+    shadow.setFillColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(70.f * alpha)));
+    window.draw(shadow);
+
+    // Card background
+    sf::RectangleShape bg({boxW, boxH});
+    bg.setPosition(boxX, boxY);
+    bg.setFillColor(sf::Color(24, 26, 32, static_cast<sf::Uint8>(245.f * alpha)));
+    bg.setOutlineColor(sf::Color(55, 60, 75, static_cast<sf::Uint8>(200.f * alpha)));
+    bg.setOutlineThickness(1.f);
+    window.draw(bg);
+
+    // Left emerald accent bar
+    sf::RectangleShape bar({4.f, boxH});
+    bar.setPosition(boxX, boxY);
+    bar.setFillColor(sf::Color(46, 204, 113, a));
+    window.draw(bar);
+
+    // Status dot
+    sf::CircleShape dot(4.f);
+    dot.setPosition(boxX + 14.f, boxY + (boxH - 8.f) / 2.f);
+    dot.setFillColor(sf::Color(46, 204, 113, a));
+    window.draw(dot);
+
+    // Text
+    text.setFillColor(sf::Color(240, 242, 245, a));
+    text.setPosition(boxX + 28.f, boxY + (boxH - th) / 2.f - 3.f);
+    window.draw(text);
+}
+

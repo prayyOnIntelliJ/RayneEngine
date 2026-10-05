@@ -16,6 +16,7 @@
 #include "../Input/InputManager.h"
 
 #include "../../Editor/Core/EditorScene.h"
+#include "../../Editor/Core/FileDropManager.h"
 #include "../../Editor/Scenes/UIEditorScene.h"
 #include "../../Editor/Scenes/ProjectHubScene.h"
 
@@ -161,9 +162,16 @@ Application::Application()
 #endif
     SetIcon();
 
+    FileDropManager::Get().Init(m_RenderWindow.getSystemHandle());
+
     RunSplashSequence();
 
     std::cout << "[INFO] [Application] Engine Initialization Complete!\n";
+}
+
+Application::~Application()
+{
+    FileDropManager::Get().Shutdown();
 }
 
 void Application::RunSplashSequence()

@@ -106,6 +106,9 @@ public:
     void Refresh();
 
     const std::string &GetRootPath() const { return m_RootPath; }
+    const std::string &GetCurrentPath() const { return m_CurrentPath; }
+    const sf::FloatRect &GetBounds() const { return m_Bounds; }
+    bool ImportExternalFiles(const std::vector<std::string> &droppedPaths, sf::Vector2f mousePos, std::string &outImportedFileName);
 
     bool IsReadOnlyPath(const std::string &path) const;
 

@@ -1,4 +1,5 @@
 #include "EditorScene_Common.h"
+#include "FileDropManager.h"
 #include "../Panels/HierarchyPanel.h"
 #include "../Panels/InspectorPanel.h"
 #include "../Panels/MenuBarPanel.h"
@@ -116,6 +117,10 @@ EditorScene::EditorScene(SceneManager &manager, sf::RenderWindow &window, Regist
     }
 }
 
+EditorScene::~EditorScene()
+{
+    FileDropManager::Get().ClearDropCallback();
+}
 
 void EditorScene::OnEnter()
 {
@@ -132,10 +137,15 @@ void EditorScene::OnEnter()
     std::cout << "[INFO] [EditorScene] Activated Editor Layout\n";
     UpdateBounds();
     UpdateStatusText();
+
+    FileDropManager::Get().SetDropCallback([this](const std::vector<std::string> &paths, sf::Vector2f pos) {
+        HandleExternalFileDrop(paths, pos);
+    });
 }
 
 void EditorScene::OnExit()
 {
+    FileDropManager::Get().ClearDropCallback();
     std::cout << "[INFO] [EditorScene] Exited Editor mode.\n";
     SyncToRegistry();
 }
@@ -2071,6 +2081,12 @@ void EditorScene::Update(float deltaTime)
     if (m_SaveFeedbackTimer > 0.f)
         m_SaveFeedbackTimer -= deltaTime;
 
+    if (m_ImportNotificationTimer > 0.f)
+    {
+        m_ImportNotificationTimer -= deltaTime;
+        if (m_ImportNotificationTimer < 0.f) m_ImportNotificationTimer = 0.f;
+    }
+
     m_FrameCount++;
     float elapsed = m_FPSClock.getElapsedTime().asSeconds();
     if (elapsed >= 0.5f)
@@ -2920,6 +2936,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     DrawTooltip(window);
     DrawDeleteModal(window);
     if (m_ShowScriptErrorModal) DrawScriptErrorModal(window);
+    DrawImportNotification(window);
 }
 
 void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Color outline)
@@ -5497,4 +5514,90 @@ void EditorScene::ExitTemplateEditMode(bool saveChanges)
     if (m_ContentBrowser) { m_ContentBrowser->Refresh(); }
     std::cout << "[INFO] [EditorScene] Exited Template Edit Mode and synchronized instances.\n";
 }
+
+void EditorScene::HandleExternalFileDrop(const std::vector<std::string> &paths, sf::Vector2f mousePos)
+{
+    if (!m_ContentBrowser) return;
+
+    std::string importedFileName;
+    if (m_ContentBrowser->ImportExternalFiles(paths, mousePos, importedFileName))
+    {
+        m_ActiveBottomPanelTab = BottomPanelTab::ContentBrowser;
+        ShowImportNotification(importedFileName);
+        std::cout << "[INFO] [EditorScene] External file drop imported: " << importedFileName << "\n";
+    }
+}
+
+void EditorScene::ShowImportNotification(const std::string &filename)
+{
+    m_ImportNotificationText = "Imported: " + filename;
+    m_ImportNotificationTimer = ImportNotificationDuration;
+}
+
+void EditorScene::DrawImportNotification(sf::RenderWindow &window)
+{
+    if (m_ImportNotificationTimer <= 0.f || m_ImportNotificationText.empty()) return;
+
+    const float winW = static_cast<float>(window.getSize().x);
+    const float winH = static_cast<float>(window.getSize().y);
+
+    float alpha = 1.f;
+    if (m_ImportNotificationTimer < 0.5f)
+    {
+        alpha = m_ImportNotificationTimer / 0.5f;
+    }
+    else if (m_ImportNotificationTimer > ImportNotificationDuration - 0.25f)
+    {
+        alpha = (ImportNotificationDuration - m_ImportNotificationTimer) / 0.25f;
+    }
+    alpha = std::clamp(alpha, 0.f, 1.f);
+    const sf::Uint8 a = static_cast<sf::Uint8>(alpha * 255.f);
+
+    sf::Text text;
+    text.setFont(*m_Font);
+    text.setCharacterSize(13);
+    text.setString(m_ImportNotificationText);
+
+    const float tw = text.getLocalBounds().width;
+    const float th = text.getLocalBounds().height;
+
+    const float boxW = std::max(220.f, tw + 56.f);
+    const float boxH = 40.f;
+    const float margin = 20.f;
+
+    const float boxX = winW - boxW - margin;
+    const float boxY = winH - boxH - margin;
+
+    // Shadow
+    sf::RectangleShape shadow({boxW, boxH});
+    shadow.setPosition(boxX + 2.f, boxY + 2.f);
+    shadow.setFillColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(70.f * alpha)));
+    window.draw(shadow);
+
+    // Card background
+    sf::RectangleShape bg({boxW, boxH});
+    bg.setPosition(boxX, boxY);
+    bg.setFillColor(sf::Color(24, 26, 32, static_cast<sf::Uint8>(245.f * alpha)));
+    bg.setOutlineColor(sf::Color(55, 60, 75, static_cast<sf::Uint8>(200.f * alpha)));
+    bg.setOutlineThickness(1.f);
+    window.draw(bg);
+
+    // Left emerald accent bar
+    sf::RectangleShape bar({4.f, boxH});
+    bar.setPosition(boxX, boxY);
+    bar.setFillColor(sf::Color(46, 204, 113, a));
+    window.draw(bar);
+
+    // Status dot
+    sf::CircleShape dot(4.f);
+    dot.setPosition(boxX + 14.f, boxY + (boxH - 8.f) / 2.f);
+    dot.setFillColor(sf::Color(46, 204, 113, a));
+    window.draw(dot);
+
+    // Text
+    text.setFillColor(sf::Color(240, 242, 245, a));
+    text.setPosition(boxX + 28.f, boxY + (boxH - th) / 2.f - 3.f);
+    window.draw(text);
+}
+
 

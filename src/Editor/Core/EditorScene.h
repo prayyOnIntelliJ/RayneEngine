@@ -44,6 +44,7 @@ class EditorScene : public Scene
 
 public:
     EditorScene(SceneManager &manager, sf::RenderWindow &window, Registry &registry);
+    ~EditorScene() override;
 
     void HandleEvent(const sf::Event &event) override;
 
@@ -56,6 +57,9 @@ public:
     void OnExit() override;
 
     void OnShutdown() override;
+
+    void HandleExternalFileDrop(const std::vector<std::string> &paths, sf::Vector2f mousePos);
+    void ShowImportNotification(const std::string &filename);
 
 private:
     sf::RenderWindow &m_Window;
@@ -657,6 +661,11 @@ private:
     float DrawProjectSettingsToggle(sf::RenderWindow &window, const std::string &label,
                                     bool value, const std::string &action,
                                     float x, float y, float winW);
+
+    void DrawImportNotification(sf::RenderWindow &window);
+    std::string m_ImportNotificationText;
+    float m_ImportNotificationTimer = 0.f;
+    static constexpr float ImportNotificationDuration = 3.5f;
 };
 
 #endif
