@@ -2988,27 +2988,94 @@ void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Col
 
 std::string GetInspectorTooltip(const std::string &key)
 {
-    if (key == "Name") return "Unique identifier of the object";
-    if (key == "Tag") return "Category tag for scripts and queries";
-    if (key == "Entity") return "Internal ECS entity ID";
-    if (key == "Type") return "Geometric shape or sprite type";
+    // Identity & Hierarchy
+    if (key == "Name") return "Unique identifier of the object in scene hierarchy";
+    if (key == "Tag") return "Category tag for scripts and collision queries (e.g. 'Player', 'Enemy', 'Ground')";
+    if (key == "Entity") return "Internal numeric ECS entity ID";
+    if (key == "Type") return "Geometric shape or sprite render type";
+    if (key == "Parent") return "Parent entity: moving or rotating parent transforms this child";
+
+    // Transform
     if (key == "Position X" || key == "X") return "Horizontal position in world units";
     if (key == "Position Y" || key == "Y") return "Vertical position in world units";
-    if (key == "Rotation") return "Rotation angle in degrees";
-    if (key == "Scale X") return "Scaling factor along X axis";
-    if (key == "Scale Y") return "Scaling factor along Y axis";
-    if (key == "Width" || key == "W") return "Width of the object in units";
-    if (key == "Height" || key == "H") return "Height of the object in units";
-    if (key == "Z-Index" || key == "Z") return "Render layer: higher values render in front";
+    if (key == "Rotation") return "Rotation angle in degrees (clockwise)";
+    if (key == "Scale X") return "Horizontal scale factor (1.0 = normal size)";
+    if (key == "Scale Y") return "Vertical scale factor (1.0 = normal size)";
+    if (key == "Width" || key == "W") return "Width of the shape / collider in world units";
+    if (key == "Height" || key == "H") return "Height of the shape / collider in world units";
+    if (key == "Radius" || key == "R") return "Radius of the circle shape / collider";
+    if (key == "Z-Index" || key == "Z") return "Render sorting layer: higher values render in front";
+
+    // Appearance & Color
     if (key == "Color Red" || key == "R") return "Red color component (0-255)";
     if (key == "Color Green" || key == "G") return "Green color component (0-255)";
     if (key == "Color Blue" || key == "B") return "Blue color component (0-255)";
-    if (key == "File") return "Assigned texture or image file";
-    if (key == "Script") return "Attached Lua script";
-    if (key == "Collision Channel" || key == "Channel") return "Collision channel number";
-    if (key == "Solid") return "Whether object has solid collision physics";
-    if (key == "Velocity X" || key == "dX" || key == "Dx") return "Velocity along X axis";
-    if (key == "Velocity Y" || key == "dY" || key == "Dy") return "Velocity along Y axis";
+    if (key == "Alpha" || key == "A" || key == "Opacity") return "Transparency opacity (0 = invisible, 255 = fully opaque)";
+    if (key == "File" || key == "Sprite") return "Assigned texture file path. Drag an image from Content Browser to replace";
+    if (key == "Flip X") return "Mirror sprite horizontally across vertical axis";
+    if (key == "Flip Y") return "Mirror sprite vertically across horizontal axis";
+
+    // Velocity
+    if (key == "Velocity X" || key == "dX" || key == "Dx") return "Linear velocity along X axis (units per second)";
+    if (key == "Velocity Y" || key == "dY" || key == "Dy") return "Linear velocity along Y axis (units per second)";
+
+    // Collision Component
+    if (key == "Collision Channel" || key == "Channel") return "Collision layer filter (0-31): entities only interact if channels match or are permitted";
+    if (key == "Is Trigger" || key == "Trigger") return "Trigger sensor: passes through objects without physical resistance, firing OnTriggerEnter / OnCollision in Lua";
+    if (key == "Collider Shape") return "Shape used for collision calculations: Circle (radial check) or Box (oriented bounding box)";
+    if (key == "Contact Type") return "Solid: movable dynamic collision response; Static: immovable physical world obstacle";
+    if (key == "Solid") return "Whether physical collisions stop and block movement";
+    if (key == "Offset X" || key == "Collider Offset X") return "Horizontal offset of collider relative to entity origin";
+    if (key == "Offset Y" || key == "Collider Offset Y") return "Vertical offset of collider relative to entity origin";
+
+    // Rigidbody 2D Component
+    if (key == "Body Type") return "Dynamic: affected by forces & gravity; Kinematic: moved by script velocity; Static: immovable terrain";
+    if (key == "Mass") return "Physical mass in kg: affects momentum, inertia, and how hard it is to push or stop";
+    if (key == "Gravity Scale") return "Gravity multiplier: 1.0 = normal gravity, 0.0 = zero-G / top-down, -1.0 = inverted gravity";
+    if (key == "Bounciness" || key == "Restitution") return "Impact elasticity: 0.0 = no bounce (thud), 1.0 = perfect bounce (100% kinetic energy conserved)";
+    if (key == "Linear Drag" || key == "Drag") return "Air / fluid resistance slowing linear velocity over time (0.0 = frictionless)";
+    if (key == "Angular Drag") return "Rotational friction slowing spin speed over time";
+    if (key == "Freeze Rotation") return "Locks rotation angle: keeps entity upright even after off-center collisions";
+
+    // Camera Component
+    if (key == "Active" || key == "Active Camera") return "Designates whether this camera currently renders the game view";
+    if (key == "Zoom" || key == "Camera Zoom") return "Camera zoom multiplier: 1.0 = normal, <1.0 = zoom in, >1.0 = zoom out";
+    if (key == "View Width" || key == "View Height") return "Viewport dimensions in world units";
+    if (key == "Clear Color") return "Background color rendered when clearing screen before drawing entities";
+
+    // Audio Source Component
+    if (key == "Audio Clip" || key == "Audio Path" || key == "Sound") return "Audio sound effect or music file path (WAV, OGG, MP3)";
+    if (key == "Volume") return "Audio playback volume level (0 = silent, 100 = full volume)";
+    if (key == "Pitch") return "Audio playback speed and pitch multiplier (1.0 = normal pitch)";
+    if (key == "Loop" || key == "Looping") return "Automatically repeat playback when finished";
+    if (key == "Play on Start" || key == "Play On Start") return "Begin audio playback automatically as soon as scene starts";
+
+    // Particle Emitter Component
+    if (key == "Emitting" || key == "Particle Emitting") return "Toggle continuous generation of particles on or off";
+    if (key == "Emission Rate" || key == "Rate") return "Number of particles spawned per second";
+    if (key == "Lifetime (s)" || key == "Lifetime") return "Duration in seconds before an individual particle expires";
+    if (key == "Speed") return "Initial ejection velocity speed for new particles";
+    if (key == "Angle (deg)" || key == "Angle") return "Base direction angle for emitted particles in degrees";
+    if (key == "Spread (deg)" || key == "Spread") return "Cone angle dispersion around base emission direction";
+    if (key == "Start Size") return "Particle scale when newly spawned";
+    if (key == "End Size") return "Particle scale at the end of its lifetime";
+    if (key == "Gravity X") return "Horizontal drift acceleration applied to particles";
+    if (key == "Gravity Y") return "Vertical acceleration applied to particles (positive = downwards)";
+
+    // Script Component
+    if (key == "Script" || key == "Script Path") return "Attached Lua script controlling entity logic and behaviors";
+    if (key == "OnCreate") return "Lua lifecycle function called once when entity spawns or scene starts";
+    if (key == "OnUpdate") return "Lua lifecycle function called every frame with delta time (dt)";
+    if (key == "OnCollision") return "Lua callback called when physical collision occurs";
+    if (key == "OnTriggerEnter") return "Lua callback called when trigger zone overlap occurs";
+    if (key == "OnInputReceived") return "Lua callback called on keyboard, mouse, and game controller input";
+
+    // Text Component
+    if (key == "Text" || key == "Text Content") return "String displayed by in-game world text";
+    if (key == "Font Size" || key == "Character Size") return "Size of the font glyphs in points / pixels";
+    if (key == "Font" || key == "Font Path") return "TrueType font (.ttf) file used for text rendering";
+    if (key == "Line Spacing") return "Vertical distance factor between text lines";
+
     return "";
 }
 

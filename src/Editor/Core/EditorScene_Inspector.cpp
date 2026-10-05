@@ -1463,9 +1463,58 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
 
     if (hovered)
     {
-        if (label.find("Add") != std::string::npos) m_ActiveTooltip = "Add new component to this object";
-        else if (label.find("Remove") != std::string::npos) m_ActiveTooltip = "Remove component from this object";
-        else if (label == "Open Script") m_ActiveTooltip = "Open script in code editor";
+        if (action == "toggle_collision_shape" || label.find("Collider Shape") != std::string::npos)
+            m_ActiveTooltip = "Toggle collider geometry between Box and Circle";
+        else if (action == "toggle_collision_type" || label.find("Contact Type") != std::string::npos)
+            m_ActiveTooltip = "Solid: movable physical response; Static: immovable world obstacle";
+        else if (action == "add_collision" || label == "+ Collision")
+            m_ActiveTooltip = "Attach CollisionComponent for 2D collision detection and triggers";
+        else if (action == "remove_collision" || label == "Remove Collision")
+            m_ActiveTooltip = "Remove CollisionComponent from this entity";
+        else if (action == "toggle_rigidbody_type" || label.find("Body Type") != std::string::npos)
+            m_ActiveTooltip = "Dynamic: physics-driven; Kinematic: script-driven; Static: immovable";
+        else if (action == "add_rigidbody" || label == "+ Rigidbody 2D")
+            m_ActiveTooltip = "Attach Rigidbody2DComponent to simulate mass, gravity, and forces";
+        else if (action == "remove_rigidbody" || label == "Remove Rigidbody")
+            m_ActiveTooltip = "Remove Rigidbody2DComponent from this entity";
+        else if (action == "open_script" || label == "Open Script")
+            m_ActiveTooltip = "Open script in default IDE / code editor";
+        else if (action == "add_script" || label == "+ Script")
+            m_ActiveTooltip = "Attach a Lua script component to this entity";
+        else if (action == "remove_script" || label == "Remove Script")
+            m_ActiveTooltip = "Remove Lua script component from this entity";
+        else if (action == "add_audio" || label == "+ Audio Source")
+            m_ActiveTooltip = "Attach AudioSourceComponent for sound effects and music";
+        else if (action == "remove_audio" || label == "Remove Audio")
+            m_ActiveTooltip = "Remove AudioSourceComponent from this entity";
+        else if (action == "add_particle" || label == "+ Particle Emitter")
+            m_ActiveTooltip = "Attach ParticleEmitterComponent to create particle visual effects";
+        else if (action == "remove_particle" || label == "Remove Emitter")
+            m_ActiveTooltip = "Remove ParticleEmitterComponent from this entity";
+        else if (action == "pick_part_start_color")
+            m_ActiveTooltip = "Open color picker for particle spawn color";
+        else if (action == "pick_part_end_color")
+            m_ActiveTooltip = "Open color picker for particle expiration color";
+        else if (action == "add_camera" || label == "+ Camera")
+            m_ActiveTooltip = "Attach CameraComponent to define viewport rendering";
+        else if (action == "remove_camera" || label == "Remove Camera")
+            m_ActiveTooltip = "Remove CameraComponent from this entity";
+        else if (action == "set_main_camera" || label == "Set Main Camera")
+            m_ActiveTooltip = "Set this camera as the primary scene camera";
+        else if (action == "add_text" || label == "+ Text")
+            m_ActiveTooltip = "Attach TextComponent for in-world text rendering";
+        else if (action == "remove_text" || label == "Remove Text")
+            m_ActiveTooltip = "Remove TextComponent from this entity";
+        else if (action == "convert_template" || label == "Convert to Template")
+            m_ActiveTooltip = "Save this entity as a reusable template / prefab in assets";
+        else if (action == "unlink_template" || label == "Unlink Template")
+            m_ActiveTooltip = "Break template connection and convert this instance into a normal entity";
+        else if (action == "open_template" || label == "Open Template")
+            m_ActiveTooltip = "Open this template in Template Editor mode";
+        else if (label.find("Add") != std::string::npos || label.find("+ ") != std::string::npos)
+            m_ActiveTooltip = "Add new component to this object";
+        else if (label.find("Remove") != std::string::npos)
+            m_ActiveTooltip = "Remove component from this object";
     }
 
     sf::Color fill = hovered
