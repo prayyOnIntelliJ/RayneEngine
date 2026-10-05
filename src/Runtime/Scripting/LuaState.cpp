@@ -20,7 +20,34 @@
 #include "../Profiler/Profiler.h"
 
 sol::state LuaState::s_Lua;
+Entity LuaState::s_CurrentScriptEntity = 0;
 std::vector<LuaApiDoc> s_ApiDocs;
+
+Entity LuaState::GetCurrentEntity()
+{
+    return s_CurrentScriptEntity;
+}
+
+void LuaState::SetCurrentEntity(Entity e)
+{
+    s_CurrentScriptEntity = e;
+    if (s_Lua.lua_state())
+    {
+        s_Lua["self_entity"] = e;
+        s_Lua["self"] = e;
+    }
+}
+
+LuaState::Scope::Scope(Entity e)
+{
+    prev = s_CurrentScriptEntity;
+    LuaState::SetCurrentEntity(e);
+}
+
+LuaState::Scope::~Scope()
+{
+    LuaState::SetCurrentEntity(prev);
+}
 
 void LuaState::Init(Registry & registry, std::function < void(const std::string &) > loadSceneCallback)
 {
@@ -60,6 +87,10 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
     s_Lua.set_function("CreateEntity", [&]() { return registry.CreateEntity(); });
 
     s_Lua.set_function("DestroyEntity", [&](const Entity e) { return registry.DestroyEntity(e); });
+
+    s_Lua.set_function("GetSelf", []() -> Entity { return LuaState::GetCurrentEntity(); });
+    s_Lua.set_function("Getself", []() -> Entity { return LuaState::GetCurrentEntity(); });
+    s_Lua.set_function("getself", []() -> Entity { return LuaState::GetCurrentEntity(); });
 
     s_Lua.set_function("Template", [&](sol::object pathObj) -> sol::table {
         std::string pathStr;
@@ -1039,18 +1070,18 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
                 id = 0
             }
             if nameOrId == nil then
-                if self_entity and self_entity ~= 0 then
-                    t.id = self_entity
-                    local n = GetName(self_entity)
+                local sid = GetSelf()
+                if (not sid or sid == 0) and self_entity and self_entity ~= 0 then
+                    sid = self_entity
+                end
+                if (not sid or sid == 0) and self and type(self) == "number" and self ~= 0 then
+                    sid = self
+                end
+                if sid and sid ~= 0 then
+                    t.id = sid
+                    local n = GetName(sid)
                     if n and n ~= "" then t.name = n else
-                        local tg = GetTag(self_entity)
-                        if tg and tg ~= "" then t.name = tg end
-                    end
-                elseif self and type(self) == "number" and self ~= 0 then
-                    t.id = self
-                    local n = GetName(self)
-                    if n and n ~= "" then t.name = n else
-                        local tg = GetTag(self)
+                        local tg = GetTag(sid)
                         if tg and tg ~= "" then t.name = tg end
                     end
                 end
@@ -1077,13 +1108,11 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
 
         _G.GetEntity = _G.Entity
 
-        _G.GetSelf = function()
-            return self_entity or (type(self) == "number" and self or 0)
-        end
-
         _G.GetSelfEntity = function()
-            return _G.Entity()
+            return _G.Entity(GetSelf())
         end
+        _G.GetselfEntity = _G.GetSelfEntity
+        _G.getselfEntity = _G.GetSelfEntity
     )lua");
 }
 

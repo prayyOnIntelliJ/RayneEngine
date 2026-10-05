@@ -215,28 +215,44 @@ void GameScene::OnEnter()
 
     EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
         if (m_Registry.HasComponent<ScriptComponent>(e.a))
-            m_Registry.GetComponent<ScriptComponent>(e.a).OnCollision(e.b);
+        {
+            auto &sc = m_Registry.GetComponent<ScriptComponent>(e.a);
+            if (sc.GetEntity() == 0) sc.SetEntity(e.a);
+            sc.OnCollision(e.b);
+        }
 
         if (m_Registry.HasComponent<ScriptComponent>(e.b))
-            m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
+        {
+            auto &sc = m_Registry.GetComponent<ScriptComponent>(e.b);
+            if (sc.GetEntity() == 0) sc.SetEntity(e.b);
+            sc.OnCollision(e.a);
+        }
     });
 
     EventManager::Get().SubscribeButtonClick([this](const std::string &buttonId) {
-        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity, ScriptComponent &sc) { sc.OnButtonClicked(buttonId); });
+        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.OnButtonClicked(buttonId);
+        });
     });
 
     EventManager::Get().SubscribeButtonHover([this](const std::string &buttonId) {
-        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity, ScriptComponent &sc) { sc.OnButtonHovered(buttonId); });
+        m_Registry.ForEach<ScriptComponent>([&buttonId](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.OnButtonHovered(buttonId);
+        });
     });
 
     EventManager::Get().SubscribeSliderChange([this](const std::string &sliderId, float val) {
-        m_Registry.ForEach<ScriptComponent>([&sliderId, val](Entity, ScriptComponent &sc) {
+        m_Registry.ForEach<ScriptComponent>([&sliderId, val](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
             sc.OnSliderChanged(sliderId, val);
         });
     });
 
     EventManager::Get().SubscribeCheckboxChange([this](const std::string &checkboxId, bool checked) {
-        m_Registry.ForEach<ScriptComponent>([&checkboxId, checked](Entity, ScriptComponent &sc) {
+        m_Registry.ForEach<ScriptComponent>([&checkboxId, checked](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
             sc.OnCheckboxChanged(checkboxId, checked);
         });
     });
@@ -250,23 +266,31 @@ void GameScene::OnEnter()
         });
 
     EventManager::Get().SubscribeTextInputChange([this](const std::string &inputId, const std::string &text) {
-        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity, ScriptComponent &sc) {
+        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
             sc.OnTextInputChanged(inputId, text);
         });
     });
 
     EventManager::Get().SubscribeTextInputSubmit([this](const std::string &inputId, const std::string &text) {
-        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity, ScriptComponent &sc) {
+        m_Registry.ForEach<ScriptComponent>([&inputId, &text](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
             sc.OnTextInputSubmitted(inputId, text);
         });
     });
 
     EventManager::Get().SubscribeUIHover([this](const std::string &id, bool hovered) {
-        m_Registry.ForEach<ScriptComponent>([&id, hovered](Entity, ScriptComponent &sc) { sc.OnUIHover(id, hovered); });
+        m_Registry.ForEach<ScriptComponent>([&id, hovered](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.OnUIHover(id, hovered);
+        });
     });
 
     EventManager::Get().SubscribeUIFocus([this](const std::string &id, bool focused) {
-        m_Registry.ForEach<ScriptComponent>([&id, focused](Entity, ScriptComponent &sc) { sc.OnUIFocus(id, focused); });
+        m_Registry.ForEach<ScriptComponent>([&id, focused](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.OnUIFocus(id, focused);
+        });
     });
 
     EventManager::Get().SubscribeInput([this](const sf::Event &event) {
@@ -274,7 +298,8 @@ void GameScene::OnEnter()
         sol::table eventTable = CreateInputEventTable(lua, event, m_Window, CameraManager::Get().GetView());
         lua["__last_input_event"] = eventTable;
 
-        m_Registry.ForEach<ScriptComponent>([&eventTable](Entity, ScriptComponent &sc) {
+        m_Registry.ForEach<ScriptComponent>([&eventTable](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
             sc.OnInputReceived(eventTable);
         });
 
@@ -312,14 +337,20 @@ void GameScene::OnEnter()
     }
 
     std::cout << "[INFO] [GameScene] Firing OnCreate() for all active scripts...\n";
-    m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+    m_Registry.ForEach<ScriptComponent>([](Entity e, ScriptComponent &sc) {
+        if (sc.GetEntity() == 0) sc.SetEntity(e);
+        sc.OnCreate();
+    });
     std::cout << "[INFO] [GameScene] Simulation initialized and running.\n";
 }
 
 void GameScene::OnExit()
 {
     std::cout << "[INFO] [GameScene] Stopping simulation, stopping audio, clearing collision state...\n";
-    m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnDestroy(); });
+    m_Registry.ForEach<ScriptComponent>([](Entity e, ScriptComponent &sc) {
+        if (sc.GetEntity() == 0) sc.SetEntity(e);
+        sc.OnDestroy();
+    });
     m_LastCollisions.clear();
     PhysicsSystem::Reset();
     TimerManager::Get().Clear();
@@ -486,7 +517,10 @@ void GameScene::Update(float deltaTime)
     if (m_HotReloadTimer >= 0.5f)
     {
         m_HotReloadTimer = 0.f;
-        m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.ReloadIfNeeded(); });
+        m_Registry.ForEach<ScriptComponent>([](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.ReloadIfNeeded();
+        });
     }
 #endif
 
@@ -511,7 +545,10 @@ void GameScene::Update(float deltaTime)
 
     {
         PROFILE_SUBSYSTEM("Scripts");
-        m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity, ScriptComponent &sc) { sc.OnUpdate(effectiveDt); });
+        m_Registry.ForEach<ScriptComponent>([effectiveDt](Entity e, ScriptComponent &sc) {
+            if (sc.GetEntity() == 0) sc.SetEntity(e);
+            sc.OnUpdate(effectiveDt);
+        });
     }
 
     if (!isPaused)

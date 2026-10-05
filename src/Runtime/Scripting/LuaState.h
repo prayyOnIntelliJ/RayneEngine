@@ -4,6 +4,8 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include "sol/sol.hpp"
 
+#include "../ECS/Entity.h"
+
 class Registry;
 
 struct LuaApiDoc
@@ -21,8 +23,19 @@ public:
 
     static sol::state &GetLua();
 
+    static Entity GetCurrentEntity();
+    static void SetCurrentEntity(Entity e);
+
+    struct Scope
+    {
+        Entity prev;
+        explicit Scope(Entity e);
+        ~Scope();
+    };
+
 private:
     static sol::state s_Lua;
+    static Entity s_CurrentScriptEntity;
 
     static void RegisterStatics();
 };

@@ -1,5 +1,6 @@
 #include "../Scripting/ScriptComponent.h"
 #include "../Resources/ResourceManager.h"
+#include "LuaState.h"
 
 ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path, Entity entity)
     : m_Lua(&lua), m_Path(ResourceManager::ResolveAssetPath(path)), m_Entity(entity)
@@ -10,6 +11,7 @@ ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path, Entit
         m_Env["self"] = m_Entity;
         m_Env["self_entity"] = m_Entity;
     }
+    LuaState::Scope scope(m_Entity);
     Reload();
     std::error_code ec;
     if (std::filesystem::exists(m_Path, ec))
@@ -43,6 +45,7 @@ bool ScriptComponent::Reload()
     sol::protected_function scriptFunc = loadResult;
     sol::set_environment(newEnv, scriptFunc);
 
+    LuaState::Scope scope(m_Entity);
     sol::protected_function_result execResult = scriptFunc();
 
     if (!execResult.valid())
@@ -103,9 +106,10 @@ bool ScriptComponent::ReloadIfNeeded()
 
 void ScriptComponent::OnCreate() const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (m_OnCreate.valid())
     {
-        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
         if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
         auto res = m_OnCreate(e);
         if (!res.valid())
@@ -118,9 +122,10 @@ void ScriptComponent::OnCreate() const
 
 void ScriptComponent::OnUpdate(float dt) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (m_OnUpdate.valid())
     {
-        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
         if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
         auto res = m_OnUpdate(e, dt);
         if (!res.valid())
@@ -133,9 +138,10 @@ void ScriptComponent::OnUpdate(float dt) const
 
 void ScriptComponent::OnCollision(Entity other) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (m_OnCollision.valid())
     {
-        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
         if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
         auto res = m_OnCollision(e, other);
         if (!res.valid())
@@ -149,6 +155,7 @@ void ScriptComponent::OnCollision(Entity other) const
 void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normalY) const
 {
     Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnCollisionEnter.valid())
     {
@@ -173,6 +180,7 @@ void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normal
 void ScriptComponent::OnTriggerEnter(Entity other) const
 {
     Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnTriggerEnter.valid())
     {
@@ -196,9 +204,10 @@ void ScriptComponent::OnTriggerEnter(Entity other) const
 
 void ScriptComponent::OnDestroy() const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (m_OnDestroy.valid())
     {
-        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
         if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
         auto res = m_OnDestroy(e);
         if (!res.valid())
@@ -211,6 +220,9 @@ void ScriptComponent::OnDestroy() const
 
 void ScriptComponent::OnButtonClicked(const std::string &buttonId) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnButtonClicked.valid())
     {
         auto res = m_OnButtonClicked(buttonId);
@@ -241,6 +253,9 @@ void ScriptComponent::OnButtonClicked(const std::string &buttonId) const
 
 void ScriptComponent::OnButtonHovered(const std::string &buttonId) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnButtonHovered.valid())
     {
         auto res = m_OnButtonHovered(buttonId);
@@ -271,6 +286,9 @@ void ScriptComponent::OnButtonHovered(const std::string &buttonId) const
 
 void ScriptComponent::OnSliderChanged(const std::string &sliderId, float value) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnSliderChanged.valid())
     {
         auto res = m_OnSliderChanged(sliderId, value);
@@ -301,6 +319,9 @@ void ScriptComponent::OnSliderChanged(const std::string &sliderId, float value) 
 
 void ScriptComponent::OnCheckboxChanged(const std::string &checkboxId, bool checked) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnCheckboxChanged.valid())
     {
         auto res = m_OnCheckboxChanged(checkboxId, checked);
@@ -332,6 +353,9 @@ void ScriptComponent::OnCheckboxChanged(const std::string &checkboxId, bool chec
 
 void ScriptComponent::OnTextInputChanged(const std::string &inputId, const std::string &text) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnTextInputChanged.valid())
     {
         auto res = m_OnTextInputChanged(inputId, text);
@@ -363,6 +387,9 @@ void ScriptComponent::OnTextInputChanged(const std::string &inputId, const std::
 
 void ScriptComponent::OnTextInputSubmitted(const std::string &inputId, const std::string &text) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnTextInputSubmitted.valid())
     {
         auto res = m_OnTextInputSubmitted(inputId, text);
@@ -394,6 +421,9 @@ void ScriptComponent::OnTextInputSubmitted(const std::string &inputId, const std
 
 void ScriptComponent::OnUIHover(const std::string &elementId, bool hovered) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnUIHover.valid())
     {
         auto res = m_OnUIHover(elementId, hovered);
@@ -423,6 +453,9 @@ void ScriptComponent::OnUIHover(const std::string &elementId, bool hovered) cons
 
 void ScriptComponent::OnUIFocus(const std::string &elementId, bool focused) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnUIFocus.valid())
     {
         auto res = m_OnUIFocus(elementId, focused);
@@ -453,6 +486,7 @@ void ScriptComponent::OnUIFocus(const std::string &elementId, bool focused) cons
 void ScriptComponent::OnInputReceived(const sol::table &eventTable) const
 {
     Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    LuaState::Scope scope(e);
     if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnInputReceived.valid())
     {
