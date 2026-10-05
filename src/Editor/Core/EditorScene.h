@@ -340,7 +340,12 @@ private:
         ParticleStartSize,
         ParticleEndSize,
         ParticleGravityX,
-        ParticleGravityY
+        ParticleGravityY,
+        AnimColumns,
+        AnimRows,
+        AnimFPS,
+        AnimSpeed,
+        AnimClipName
     };
 
     EditField m_ActiveField = EditField::None;

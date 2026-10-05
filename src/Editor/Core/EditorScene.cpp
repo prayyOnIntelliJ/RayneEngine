@@ -2223,6 +2223,12 @@ void EditorScene::Update(float deltaTime)
                 }
             }
         } else if (!obj.editorParticles.empty()) { obj.editorParticles.clear(); }
+
+        if (obj.entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(obj.entity))
+        {
+            auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(obj.entity);
+            anim.Update(deltaTime);
+        }
     }
 }
 
@@ -2466,9 +2472,26 @@ void EditorScene::Render(sf::RenderWindow &window)
             auto texSize = obj.previewTexture->getSize();
             if (texSize.x > 0 && texSize.y > 0)
             {
-                obj.previewSprite.setScale(
-                    (obj.shape.getSize().x / static_cast<float>(texSize.x)) * obj.scaleX,
-                    (obj.shape.getSize().y / static_cast<float>(texSize.y)) * obj.scaleY);
+                if (obj.entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(obj.entity))
+                {
+                    auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(obj.entity);
+                    sf::FloatRect rect = anim.GetCurrentTextureRect(texSize);
+                    obj.previewSprite.setTextureRect(sf::IntRect(static_cast<int>(rect.left), static_cast<int>(rect.top),
+                                                                 static_cast<int>(rect.width), static_cast<int>(rect.height)));
+                    if (rect.width > 0.f && rect.height > 0.f)
+                    {
+                        obj.previewSprite.setScale(
+                            (obj.shape.getSize().x / rect.width) * obj.scaleX,
+                            (obj.shape.getSize().y / rect.height) * obj.scaleY);
+                    }
+                }
+                else
+                {
+                    obj.previewSprite.setTextureRect(sf::IntRect(0, 0, texSize.x, texSize.y));
+                    obj.previewSprite.setScale(
+                        (obj.shape.getSize().x / static_cast<float>(texSize.x)) * obj.scaleX,
+                        (obj.shape.getSize().y / static_cast<float>(texSize.y)) * obj.scaleY);
+                }
             }
             window.draw(obj.previewSprite);
         }
@@ -2988,14 +3011,11 @@ void DrawPill(sf::RenderWindow &window, sf::FloatRect r, sf::Color fill, sf::Col
 
 std::string GetInspectorTooltip(const std::string &key)
 {
-    // Identity & Hierarchy
     if (key == "Name") return "Unique identifier of the object in scene hierarchy";
     if (key == "Tag") return "Category tag for scripts and collision queries (e.g. 'Player', 'Enemy', 'Ground')";
     if (key == "Entity") return "Internal numeric ECS entity ID";
     if (key == "Type") return "Geometric shape or sprite render type";
     if (key == "Parent") return "Parent entity: moving or rotating parent transforms this child";
-
-    // Transform
     if (key == "Position X" || key == "X") return "Horizontal position in world units";
     if (key == "Position Y" || key == "Y") return "Vertical position in world units";
     if (key == "Rotation") return "Rotation angle in degrees (clockwise)";
@@ -3005,8 +3025,6 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "Height" || key == "H") return "Height of the shape / collider in world units";
     if (key == "Radius" || key == "R") return "Radius of the circle shape / collider";
     if (key == "Z-Index" || key == "Z") return "Render sorting layer: higher values render in front";
-
-    // Appearance & Color
     if (key == "Color Red" || key == "R") return "Red color component (0-255)";
     if (key == "Color Green" || key == "G") return "Green color component (0-255)";
     if (key == "Color Blue" || key == "B") return "Blue color component (0-255)";
@@ -3014,12 +3032,8 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "File" || key == "Sprite") return "Assigned texture file path. Drag an image from Content Browser to replace";
     if (key == "Flip X") return "Mirror sprite horizontally across vertical axis";
     if (key == "Flip Y") return "Mirror sprite vertically across horizontal axis";
-
-    // Velocity
     if (key == "Velocity X" || key == "dX" || key == "Dx") return "Linear velocity along X axis (units per second)";
     if (key == "Velocity Y" || key == "dY" || key == "Dy") return "Linear velocity along Y axis (units per second)";
-
-    // Collision Component
     if (key == "Collision Channel" || key == "Channel") return "Collision layer filter (0-31): entities only interact if channels match or are permitted";
     if (key == "Is Trigger" || key == "Trigger") return "Trigger sensor: passes through objects without physical resistance, firing OnTriggerEnter / OnCollision in Lua";
     if (key == "Collider Shape") return "Shape used for collision calculations: Circle (radial check) or Box (oriented bounding box)";
@@ -3027,8 +3041,6 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "Solid") return "Whether physical collisions stop and block movement";
     if (key == "Offset X" || key == "Collider Offset X") return "Horizontal offset of collider relative to entity origin";
     if (key == "Offset Y" || key == "Collider Offset Y") return "Vertical offset of collider relative to entity origin";
-
-    // Rigidbody 2D Component
     if (key == "Body Type") return "Dynamic: affected by forces & gravity; Kinematic: moved by script velocity; Static: immovable terrain";
     if (key == "Mass") return "Physical mass in kg: affects momentum, inertia, and how hard it is to push or stop";
     if (key == "Gravity Scale") return "Gravity multiplier: 1.0 = normal gravity, 0.0 = zero-G / top-down, -1.0 = inverted gravity";
@@ -3037,20 +3049,24 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "Angular Drag") return "Rotational friction slowing spin speed over time";
     if (key == "Freeze Rotation") return "Locks rotation angle: keeps entity upright even after off-center collisions";
 
-    // Camera Component
+    // Sprite Animation Component
+    if (key == "Columns" || key == "Anim Columns") return "Number of horizontal frame columns in sprite sheet";
+    if (key == "Rows" || key == "Anim Rows") return "Number of vertical frame rows in sprite sheet";
+    if (key == "FPS" || key == "Frame Rate") return "Playback animation speed in frames per second";
+    if (key == "Speed" || key == "Playback Speed") return "Playback speed multiplier factor (1.0 = normal)";
+    if (key == "Loop" || key == "Animation Loop") return "Automatically loops animation from start when reaching final frame";
+    if (key == "Clip" || key == "Animation Clip") return "Name of the active animation sequence (e.g. idle, walk, run)";
+    if (key == "Frame" || key == "Current Frame") return "Active frame index within the current animation sequence";
+
     if (key == "Active" || key == "Active Camera") return "Designates whether this camera currently renders the game view";
     if (key == "Zoom" || key == "Camera Zoom") return "Camera zoom multiplier: 1.0 = normal, <1.0 = zoom in, >1.0 = zoom out";
     if (key == "View Width" || key == "View Height") return "Viewport dimensions in world units";
     if (key == "Clear Color") return "Background color rendered when clearing screen before drawing entities";
-
-    // Audio Source Component
     if (key == "Audio Clip" || key == "Audio Path" || key == "Sound") return "Audio sound effect or music file path (WAV, OGG, MP3)";
     if (key == "Volume") return "Audio playback volume level (0 = silent, 100 = full volume)";
     if (key == "Pitch") return "Audio playback speed and pitch multiplier (1.0 = normal pitch)";
     if (key == "Loop" || key == "Looping") return "Automatically repeat playback when finished";
     if (key == "Play on Start" || key == "Play On Start") return "Begin audio playback automatically as soon as scene starts";
-
-    // Particle Emitter Component
     if (key == "Emitting" || key == "Particle Emitting") return "Toggle continuous generation of particles on or off";
     if (key == "Emission Rate" || key == "Rate") return "Number of particles spawned per second";
     if (key == "Lifetime (s)" || key == "Lifetime") return "Duration in seconds before an individual particle expires";
@@ -3061,16 +3077,12 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "End Size") return "Particle scale at the end of its lifetime";
     if (key == "Gravity X") return "Horizontal drift acceleration applied to particles";
     if (key == "Gravity Y") return "Vertical acceleration applied to particles (positive = downwards)";
-
-    // Script Component
     if (key == "Script" || key == "Script Path") return "Attached Lua script controlling entity logic and behaviors";
     if (key == "OnCreate") return "Lua lifecycle function called once when entity spawns or scene starts";
     if (key == "OnUpdate") return "Lua lifecycle function called every frame with delta time (dt)";
     if (key == "OnCollision") return "Lua callback called when physical collision occurs";
     if (key == "OnTriggerEnter") return "Lua callback called when trigger zone overlap occurs";
     if (key == "OnInputReceived") return "Lua callback called on keyboard, mouse, and game controller input";
-
-    // Text Component
     if (key == "Text" || key == "Text Content") return "String displayed by in-game world text";
     if (key == "Font Size" || key == "Character Size") return "Size of the font glyphs in points / pixels";
     if (key == "Font" || key == "Font Path") return "TrueType font (.ttf) file used for text rendering";
@@ -3672,7 +3684,6 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
     bool anyObjectChanged = false;
     for (auto &obj : m_Objects)
     {
-        // 1. Sprite path
         std::string prevSprite = obj.spritePath;
         if (replacePathString(obj.spritePath))
         {
@@ -3680,8 +3691,6 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
             anyObjectChanged = true;
             std::cout << "[INFO] [EditorScene] Updated sprite path on entity '" << obj.id << "' to '" << obj.spritePath << "'\n";
         }
-
-        // 2. Script path
         std::string prevScript = obj.scriptPath;
         if (replacePathString(obj.scriptPath))
         {
@@ -3699,16 +3708,12 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
                 }
             }
         }
-
-        // 3. Template path
         std::string prevTemplate = obj.templatePath;
         if (replacePathString(obj.templatePath))
         {
             anyObjectChanged = true;
             std::cout << "[INFO] [EditorScene] Updated template path on entity '" << obj.id << "' to '" << obj.templatePath << "'\n";
         }
-
-        // 4. Audio clip path
         std::string prevAudio = obj.audioClipPath;
         if (replacePathString(obj.audioClipPath))
         {
@@ -3719,8 +3724,6 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
                 m_Registry.GetComponent<AudioSourceComponent>(obj.entity).soundPath = obj.audioClipPath;
             }
         }
-
-        // 5. Script exported properties of type Image or Template
         for (auto &[pName, prop] : obj.scriptProperties)
         {
             if (prop.type == ScriptComponent::PropertyType::Image ||
@@ -3738,8 +3741,6 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
             }
         }
     }
-
-    // Update active scene save path and project settings if moved
     std::string prevSceneSave = m_SceneSavePath;
     if (replacePathString(m_SceneSavePath))
     {
@@ -3758,8 +3759,6 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
     {
         std::cout << "[INFO] [EditorScene] Updated currently edited template path to '" << m_EditingTemplatePath << "'\n";
     }
-
-    // Scan all scripts (*.lua), templates (*.template), and scenes (*.json) on disk to fix references
     auto replaceInTextFile = [&](const std::filesystem::path &filePath) {
         std::ifstream inFile(filePath, std::ios::in | std::ios::binary);
         if (!inFile.is_open()) return;
@@ -3893,7 +3892,6 @@ void EditorScene::SyncExportedScriptProperties(EditorObject &obj, ScriptComponen
         auto it = obj.scriptProperties.find(fresh.name);
         if (it != obj.scriptProperties.end() && it->second.type == fresh.type)
         {
-            // Preserve user's configured value from Inspector
             mergedProps[fresh.name] = it->second;
         }
         else if (it != obj.scriptProperties.end() &&
@@ -3918,14 +3916,11 @@ void EditorScene::SyncExportedScriptProperties(EditorObject &obj, ScriptComponen
         }
         else
         {
-            // Brand new property or type changed: use default from script
             mergedProps[fresh.name] = fresh;
         }
     }
 
     obj.scriptProperties = std::move(mergedProps);
-
-    // Re-apply preserved values into the Lua environment
     for (const auto &pair: obj.scriptProperties)
     {
         sc.SetExportedProperty(pair.second);
@@ -5500,8 +5495,6 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
         std::cerr << "[ERROR] [EditorScene] JSON parse error: " << e.what() << "\n";
         return;
     }
-
-    // Snapshot existing scene
     SyncToRegistry();
     m_PreTemplateEditSceneState = json{};
     m_PreTemplateEditSceneState["objects"] = json::array();
@@ -5509,8 +5502,6 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
     {
         m_PreTemplateEditSceneState["objects"].push_back(SerializeObject(obj));
     }
-
-    // Clear current scene objects
     for (auto &obj : m_Objects)
     {
         if (obj.entity != 0) m_Registry.DestroyEntity(obj.entity);
@@ -5521,8 +5512,6 @@ void EditorScene::EnterTemplateEditMode(const std::string &templatePath)
 
     m_EditingTemplate = true;
     m_EditingTemplatePath = tp.string();
-
-    // Load template objects
     if (data.contains("objects") && data["objects"].is_array())
     {
         for (const auto &item : data["objects"])
@@ -5547,8 +5536,6 @@ void EditorScene::ExitTemplateEditMode(bool saveChanges)
     }
 
     std::string savedTemplatePath = m_EditingTemplatePath;
-
-    // Clear template objects from canvas
     for (auto &obj : m_Objects)
     {
         if (obj.entity != 0) m_Registry.DestroyEntity(obj.entity);
@@ -5556,8 +5543,6 @@ void EditorScene::ExitTemplateEditMode(bool saveChanges)
     m_Registry.Clear();
     m_Objects.clear();
     ClearSelection();
-
-    // Restore previous scene
     if (m_PreTemplateEditSceneState.contains("objects") && m_PreTemplateEditSceneState["objects"].is_array())
     {
         for (const auto &item : m_PreTemplateEditSceneState["objects"])
@@ -5571,8 +5556,6 @@ void EditorScene::ExitTemplateEditMode(bool saveChanges)
 
     UpdateWorldTransforms();
     UpdateStatusText();
-
-    // Automatically sync instances in the restored scene with updated template!
     if (saveChanges && !savedTemplatePath.empty())
     {
         SyncTemplateInstances(savedTemplatePath);
@@ -5634,34 +5617,24 @@ void EditorScene::DrawImportNotification(sf::RenderWindow &window)
 
     const float boxX = winW - boxW - margin;
     const float boxY = winH - boxH - margin;
-
-    // Shadow
     sf::RectangleShape shadow({boxW, boxH});
     shadow.setPosition(boxX + 2.f, boxY + 2.f);
     shadow.setFillColor(sf::Color(0, 0, 0, static_cast<sf::Uint8>(70.f * alpha)));
     window.draw(shadow);
-
-    // Card background
     sf::RectangleShape bg({boxW, boxH});
     bg.setPosition(boxX, boxY);
     bg.setFillColor(sf::Color(24, 26, 32, static_cast<sf::Uint8>(245.f * alpha)));
     bg.setOutlineColor(sf::Color(55, 60, 75, static_cast<sf::Uint8>(200.f * alpha)));
     bg.setOutlineThickness(1.f);
     window.draw(bg);
-
-    // Left emerald accent bar
     sf::RectangleShape bar({4.f, boxH});
     bar.setPosition(boxX, boxY);
     bar.setFillColor(sf::Color(46, 204, 113, a));
     window.draw(bar);
-
-    // Status dot
     sf::CircleShape dot(4.f);
     dot.setPosition(boxX + 14.f, boxY + (boxH - 8.f) / 2.f);
     dot.setFillColor(sf::Color(46, 204, 113, a));
     window.draw(dot);
-
-    // Text
     text.setFillColor(sf::Color(240, 242, 245, a));
     text.setPosition(boxX + 28.f, boxY + (boxH - th) / 2.f - 3.f);
     window.draw(text);

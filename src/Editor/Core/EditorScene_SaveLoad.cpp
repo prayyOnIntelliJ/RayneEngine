@@ -303,8 +303,6 @@ void EditorScene::LoadFromJson(const std::string &path)
     }
 
     UpdateWorldTransforms();
-
-    // Auto-sync all template instances present in this loaded scene with their template asset files on disk
     std::unordered_set<std::string> loadedTemplates;
     for (const auto &obj : m_Objects)
     {
@@ -604,6 +602,35 @@ json EditorScene::SerializeObject(const EditorObject &obj) const
             {"endColor", {obj.particleEndColor.r, obj.particleEndColor.g, obj.particleEndColor.b}}
         };
     }
+
+    if (obj.entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(obj.entity))
+    {
+        auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(obj.entity);
+        json aJson;
+        aJson["columns"] = anim.columns;
+        aJson["rows"] = anim.rows;
+        aJson["frameWidth"] = anim.frameWidth;
+        aJson["frameHeight"] = anim.frameHeight;
+        aJson["currentClip"] = anim.currentClip;
+        aJson["currentFrame"] = anim.currentFrame;
+        aJson["speed"] = anim.playbackSpeed;
+        aJson["isPlaying"] = anim.isPlaying;
+
+        json clipsArr = json::array();
+        for (const auto &c : anim.clips)
+        {
+            clipsArr.push_back({
+                {"name", c.name},
+                {"start", c.startFrame},
+                {"count", c.frameCount},
+                {"fps", c.fps},
+                {"loop", c.loop}
+            });
+        }
+        aJson["clips"] = clipsArr;
+        j["animation"] = aJson;
+    }
+
     return j;
 }
 
@@ -891,6 +918,43 @@ void EditorScene::DeserializeObject(const json &j)
         obj.particleStartColor = pec.startColor;
         obj.particleEndColor = pec.endColor;
         m_Registry.AddComponent(obj.entity, pec);
+    }
+
+    if (j.contains("animation") && j["animation"].is_object())
+    {
+        const auto &aj = j["animation"];
+        SpriteAnimationComponent anim;
+        anim.columns = aj.value("columns", 1);
+        anim.rows = aj.value("rows", 1);
+        anim.frameWidth = aj.value("frameWidth", 0);
+        anim.frameHeight = aj.value("frameHeight", 0);
+        anim.currentClip = aj.value("currentClip", "default");
+        anim.currentFrame = aj.value("currentFrame", 0);
+        anim.playbackSpeed = aj.value("speed", 1.0f);
+        anim.isPlaying = aj.value("isPlaying", true);
+
+        if (aj.contains("clips") && aj["clips"].is_array() && !aj["clips"].empty())
+        {
+            anim.clips.clear();
+            for (const auto &cj : aj["clips"])
+            {
+                AnimationClip clip;
+                clip.name = cj.value("name", "default");
+                clip.startFrame = cj.value("start", 0);
+                clip.frameCount = cj.value("count", 1);
+                clip.fps = cj.value("fps", 10.0f);
+                clip.loop = cj.value("loop", true);
+                anim.clips.push_back(clip);
+            }
+        }
+        else
+        {
+            float fps = aj.value("fps", 10.0f);
+            bool loop = aj.value("loop", true);
+            anim.clips.clear();
+            anim.clips.push_back(AnimationClip{"default", 0, anim.columns * anim.rows, fps, loop});
+        }
+        m_Registry.AddComponent(obj.entity, anim);
     }
 
     m_Registry.AddComponent(obj.entity, HierarchyComponent{});

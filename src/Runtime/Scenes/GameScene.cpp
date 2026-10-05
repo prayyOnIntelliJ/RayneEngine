@@ -561,6 +561,10 @@ void GameScene::Update(float deltaTime)
         }
         HierarchySystem::UpdateWorldTransforms(m_Registry);
 
+        m_Registry.ForEach<SpriteAnimationComponent>([effectiveDt](Entity, SpriteAnimationComponent &anim) {
+            anim.Update(effectiveDt);
+        });
+
         m_Registry.ForEach<TransformComponent, ParticleEmitterComponent>(
             [effectiveDt](Entity, TransformComponent &t, ParticleEmitterComponent &pec) {
                 if (!pec.emitting) return;
@@ -646,13 +650,20 @@ void GameScene::Render(sf::RenderWindow &window)
         if (m_Registry.HasComponent<SpriteComponent>(e))
         {
             auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
+            sf::FloatRect texRect;
+            if (m_Registry.HasComponent<SpriteAnimationComponent>(e))
+            {
+                auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(e);
+                texRect = anim.GetCurrentTextureRect(sc.texture ? sc.texture->getSize() : sf::Vector2u(0, 0));
+            }
             m_SpriteBatch.Draw(sc.texture.get(),
                                sf::Vector2f(t.worldX, t.worldY),
                                sc.size,
                                t.worldRotation,
                                sf::Vector2f(t.worldScaleX, t.worldScaleY),
                                sf::Vector2f(0.f, 0.f),
-                               sf::Color::White);
+                               sf::Color::White,
+                               texRect);
         } else
         {
             // Flush any batched sprites before rendering primitive shapes to preserve zIndex ordering

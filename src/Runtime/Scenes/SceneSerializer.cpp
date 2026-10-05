@@ -75,6 +75,43 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             registry.AddComponent(entity, SpriteComponent(sp, size));
         }
 
+        if (j.contains("animation") && j["animation"].is_object())
+        {
+            const auto &aj = j["animation"];
+            SpriteAnimationComponent anim;
+            anim.columns = aj.value("columns", 1);
+            anim.rows = aj.value("rows", 1);
+            anim.frameWidth = aj.value("frameWidth", 0);
+            anim.frameHeight = aj.value("frameHeight", 0);
+            anim.currentClip = aj.value("currentClip", "default");
+            anim.currentFrame = aj.value("currentFrame", 0);
+            anim.playbackSpeed = aj.value("speed", 1.0f);
+            anim.isPlaying = aj.value("isPlaying", true);
+
+            if (aj.contains("clips") && aj["clips"].is_array() && !aj["clips"].empty())
+            {
+                anim.clips.clear();
+                for (const auto &cj : aj["clips"])
+                {
+                    AnimationClip clip;
+                    clip.name = cj.value("name", "default");
+                    clip.startFrame = cj.value("start", 0);
+                    clip.frameCount = cj.value("count", 1);
+                    clip.fps = cj.value("fps", 10.0f);
+                    clip.loop = cj.value("loop", true);
+                    anim.clips.push_back(clip);
+                }
+            }
+            else
+            {
+                float fps = aj.value("fps", 10.0f);
+                bool loop = aj.value("loop", true);
+                anim.clips.clear();
+                anim.clips.push_back(AnimationClip{"default", 0, anim.columns * anim.rows, fps, loop});
+            }
+            registry.AddComponent(entity, anim);
+        }
+
         if (j.contains("tag")) { registry.AddComponent(entity, TagComponent{j["tag"].get<std::string>()}); }
 
         if (j.contains("velocity") && j["velocity"].is_object())
@@ -382,6 +419,43 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             std::filesystem::path p(sp);
             if (!p.is_absolute()) { sp = (std::filesystem::path(ASSET_PATH) / p).string(); }
             registry.AddComponent(entity, SpriteComponent(sp, size));
+        }
+
+        if (j.contains("animation") && j["animation"].is_object())
+        {
+            const auto &aj = j["animation"];
+            SpriteAnimationComponent anim;
+            anim.columns = aj.value("columns", 1);
+            anim.rows = aj.value("rows", 1);
+            anim.frameWidth = aj.value("frameWidth", 0);
+            anim.frameHeight = aj.value("frameHeight", 0);
+            anim.currentClip = aj.value("currentClip", "default");
+            anim.currentFrame = aj.value("currentFrame", 0);
+            anim.playbackSpeed = aj.value("speed", 1.0f);
+            anim.isPlaying = aj.value("isPlaying", true);
+
+            if (aj.contains("clips") && aj["clips"].is_array() && !aj["clips"].empty())
+            {
+                anim.clips.clear();
+                for (const auto &cj : aj["clips"])
+                {
+                    AnimationClip clip;
+                    clip.name = cj.value("name", "default");
+                    clip.startFrame = cj.value("start", 0);
+                    clip.frameCount = cj.value("count", 1);
+                    clip.fps = cj.value("fps", 10.0f);
+                    clip.loop = cj.value("loop", true);
+                    anim.clips.push_back(clip);
+                }
+            }
+            else
+            {
+                float fps = aj.value("fps", 10.0f);
+                bool loop = aj.value("loop", true);
+                anim.clips.clear();
+                anim.clips.push_back(AnimationClip{"default", 0, anim.columns * anim.rows, fps, loop});
+            }
+            registry.AddComponent(entity, anim);
         }
 
         if (j.contains("tag")) { registry.AddComponent(entity, TagComponent{j["tag"].get<std::string>()}); }

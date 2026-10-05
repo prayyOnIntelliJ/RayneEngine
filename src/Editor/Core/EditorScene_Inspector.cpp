@@ -663,6 +663,56 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
 
     y += 8.f;
 
+    if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+    {
+        auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity);
+        y = DrawSectionHeader(window, "SPRITE ANIMATION", sf::Color(255, 180, 100), panelX, y);
+
+        std::string colDisplay = (m_ActiveField == EditField::AnimColumns && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::AnimColumns ? "|" : std::to_string(anim.columns));
+        y = DrawEditableRow(window, "Columns", colDisplay, "edit_anim_columns", panelX, y);
+
+        std::string rowDisplay = (m_ActiveField == EditField::AnimRows && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::AnimRows ? "|" : std::to_string(anim.rows));
+        y = DrawEditableRow(window, "Rows", rowDisplay, "edit_anim_rows", panelX, y);
+
+        const AnimationClip *clip = anim.GetClip(anim.currentClip);
+        float currentFps = clip ? clip->fps : 10.0f;
+        std::string fpsDisplay = (m_ActiveField == EditField::AnimFPS && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::AnimFPS ? "|" : FormatFloat(currentFps, 1));
+        y = DrawEditableRow(window, "FPS", fpsDisplay, "edit_anim_fps", panelX, y);
+
+        bool currentLoop = clip ? clip->loop : true;
+        y = DrawCheckboxRow(window, "Loop", currentLoop, "toggle_anim_loop", panelX, y);
+
+        std::string spdDisplay = (m_ActiveField == EditField::AnimSpeed && !m_ActiveInputText.empty())
+                                     ? m_ActiveInputText + "|"
+                                     : (m_ActiveField == EditField::AnimSpeed ? "|" : FormatFloat(anim.playbackSpeed, 2));
+        y = DrawEditableRow(window, "Speed", spdDisplay, "edit_anim_speed", panelX, y);
+
+        std::string clipDisplay = (m_ActiveField == EditField::AnimClipName && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::AnimClipName ? "|" : anim.currentClip);
+        y = DrawEditableRow(window, "Clip", clipDisplay, "edit_anim_clip", panelX, y);
+
+        int maxFrames = clip ? clip->frameCount : (anim.columns * anim.rows);
+        std::string frameInfo = std::to_string(anim.currentFrame + 1) + " / " + std::to_string(std::max(1, maxFrames));
+        y = DrawRow(window, "Frame", frameInfo, panelX, y);
+
+        y = DrawActionButton(window, anim.isPlaying ? "Pause" : "Play", "toggle_anim_play", panelX, y,
+                             anim.isPlaying ? C_ACCENT_DIM : C_SUCCESS_DIM, anim.isPlaying ? C_ACCENT : C_SUCCESS);
+        y = DrawActionButton(window, "Remove Animation", "remove_animation", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    }
+    else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Sprite Animation", "add_animation", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
     if (target->entity != 0 && m_Registry.HasComponent<VelocityComponent>(target->entity))
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(target->entity);
@@ -1467,6 +1517,12 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
             m_ActiveTooltip = "Toggle collider geometry between Box and Circle";
         else if (action == "toggle_collision_type" || label.find("Contact Type") != std::string::npos)
             m_ActiveTooltip = "Solid: movable physical response; Static: immovable world obstacle";
+        else if (action == "add_animation" || label == "+ Sprite Animation")
+            m_ActiveTooltip = "Attach SpriteAnimationComponent for sprite-sheet flipbook animations";
+        else if (action == "remove_animation" || label == "Remove Animation")
+            m_ActiveTooltip = "Remove SpriteAnimationComponent from this entity";
+        else if (action == "toggle_anim_play")
+            m_ActiveTooltip = "Start or pause preview playback of sprite animation";
         else if (action == "add_collision" || label == "+ Collision")
             m_ActiveTooltip = "Attach CollisionComponent for 2D collision detection and triggers";
         else if (action == "remove_collision" || label == "Remove Collision")
@@ -2333,6 +2389,68 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         } else if (btn.action == "change_sprite" && target)
         {
             std::cout << "[INFO] [Inspector] Drag an image from the Content Browser to change sprite.\n";
+        } else if (btn.action == "add_animation" && target)
+        {
+            if (target->entity != 0)
+            {
+                m_Registry.AddComponent(target->entity, SpriteAnimationComponent{4, 1, 10.0f, true});
+                std::cout << "[INFO] [Inspector] SpriteAnimationComponent added to " << target->id << "\n";
+                SetDirty(true);
+            }
+        } else if (btn.action == "remove_animation" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+            {
+                m_Registry.RemoveComponent<SpriteAnimationComponent>(target->entity);
+                std::cout << "[INFO] [Inspector] SpriteAnimationComponent removed from " << target->id << "\n";
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_anim_play" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+            {
+                auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity);
+                anim.isPlaying = !anim.isPlaying;
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_anim_loop" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+            {
+                auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity);
+                AnimationClip *c = anim.GetClip(anim.currentClip);
+                if (c) c->loop = !c->loop;
+                SetDirty(true);
+            }
+        } else if (btn.action == "edit_anim_columns" && target)
+        {
+            m_ActiveField = EditField::AnimColumns;
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<SpriteAnimationComponent>(target->entity).columns);
+        } else if (btn.action == "edit_anim_rows" && target)
+        {
+            m_ActiveField = EditField::AnimRows;
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<SpriteAnimationComponent>(target->entity).rows);
+        } else if (btn.action == "edit_anim_fps" && target)
+        {
+            m_ActiveField = EditField::AnimFPS;
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+            {
+                auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity);
+                const AnimationClip *c = anim.GetClip(anim.currentClip);
+                m_ActiveInputText = FormatFloat(c ? c->fps : 10.0f, 1);
+            }
+        } else if (btn.action == "edit_anim_speed" && target)
+        {
+            m_ActiveField = EditField::AnimSpeed;
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+                m_ActiveInputText = FormatFloat(m_Registry.GetComponent<SpriteAnimationComponent>(target->entity).playbackSpeed, 2);
+        } else if (btn.action == "edit_anim_clip" && target)
+        {
+            m_ActiveField = EditField::AnimClipName;
+            if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
+                m_ActiveInputText = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity).currentClip;
         } else if (btn.action == "edit_template" && target && !target->templatePath.empty())
         {
             EnterTemplateEditMode(target->templatePath);
@@ -2764,6 +2882,66 @@ void EditorScene::CommitActiveField()
                     m_Registry.GetComponent<ParticleEmitterComponent>(inputTarget->entity).gravityY = inputTarget->
                             particleGravityY;
             } catch (...) {}
+        } else if (m_ActiveField == EditField::AnimColumns)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(inputTarget->entity))
+                {
+                    auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(inputTarget->entity);
+                    anim.columns = std::max(1, std::stoi(m_ActiveInputText));
+                    if (anim.clips.size() == 1 && anim.clips[0].name == "default")
+                        anim.clips[0].frameCount = anim.columns * anim.rows;
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AnimRows)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(inputTarget->entity))
+                {
+                    auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(inputTarget->entity);
+                    anim.rows = std::max(1, std::stoi(m_ActiveInputText));
+                    if (anim.clips.size() == 1 && anim.clips[0].name == "default")
+                        anim.clips[0].frameCount = anim.columns * anim.rows;
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AnimFPS)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(inputTarget->entity))
+                {
+                    auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(inputTarget->entity);
+                    float val = std::max(0.01f, std::stof(m_ActiveInputText));
+                    AnimationClip *clip = anim.GetClip(anim.currentClip);
+                    if (clip) clip->fps = val;
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AnimSpeed)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(inputTarget->entity))
+                {
+                    auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(inputTarget->entity);
+                    anim.playbackSpeed = std::max(0.0f, std::stof(m_ActiveInputText));
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::AnimClipName)
+        {
+            if (inputTarget->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(inputTarget->entity))
+            {
+                auto &anim = m_Registry.GetComponent<SpriteAnimationComponent>(inputTarget->entity);
+                if (!m_ActiveInputText.empty())
+                {
+                    if (!anim.GetClip(m_ActiveInputText))
+                    {
+                        anim.clips.push_back(AnimationClip{m_ActiveInputText, 0, anim.columns * anim.rows, 10.0f, true});
+                    }
+                    anim.Play(m_ActiveInputText);
+                }
+            }
         }
         SetDirty(true);
     }

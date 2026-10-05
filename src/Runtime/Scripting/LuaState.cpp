@@ -294,6 +294,95 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
 
     s_Lua.set_function("HasSprite", [&](const Entity e) -> bool { return registry.HasComponent<SpriteComponent>(e); });
 
+    s_Lua.set_function("AddAnimation", [&](const Entity e, sol::optional<int> cols, sol::optional<int> rows, sol::optional<float> fps, sol::optional<bool> loop) {
+        registry.AddComponent(e, SpriteAnimationComponent{cols.value_or(4), rows.value_or(1), fps.value_or(10.0f), loop.value_or(true)});
+    });
+
+    s_Lua.set_function("RemoveAnimation", [&](const Entity e) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+            registry.RemoveComponent<SpriteAnimationComponent>(e);
+    });
+
+    s_Lua.set_function("HasAnimation", [&](const Entity e) -> bool {
+        return registry.HasComponent<SpriteAnimationComponent>(e);
+    });
+
+    s_Lua.set_function("PlayAnimation", [&](const Entity e, sol::optional<std::string> clipName, sol::optional<bool> loop) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            int loopOverride = loop.has_value() ? (loop.value() ? 1 : 0) : -1;
+            registry.GetComponent<SpriteAnimationComponent>(e).Play(clipName.value_or(""), loopOverride);
+        }
+    });
+
+    s_Lua.set_function("StopAnimation", [&](const Entity e) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).Stop();
+        }
+    });
+
+    s_Lua.set_function("PauseAnimation", [&](const Entity e) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).Pause();
+        }
+    });
+
+    s_Lua.set_function("ResumeAnimation", [&](const Entity e) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).Resume();
+        }
+    });
+
+    s_Lua.set_function("SetAnimationSpeed", [&](const Entity e, float speed) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).SetPlaybackSpeed(speed);
+        }
+    });
+
+    s_Lua.set_function("SetAnimationFrame", [&](const Entity e, int frame) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).SetFrame(frame);
+        }
+    });
+
+    s_Lua.set_function("GetCurrentClip", [&](const Entity e) -> std::string {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            return registry.GetComponent<SpriteAnimationComponent>(e).currentClip;
+        }
+        return "";
+    });
+
+    s_Lua.set_function("GetCurrentAnimationFrame", [&](const Entity e) -> int {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            return registry.GetComponent<SpriteAnimationComponent>(e).currentFrame;
+        }
+        return 0;
+    });
+
+    s_Lua.set_function("IsAnimationPlaying", [&](const Entity e) -> bool {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            return registry.GetComponent<SpriteAnimationComponent>(e).isPlaying;
+        }
+        return false;
+    });
+
+    s_Lua.set_function("AddAnimationClip", [&](const Entity e, const std::string &name, int startFrame, int frameCount, sol::optional<float> fps, sol::optional<bool> loop) {
+        if (registry.HasComponent<SpriteAnimationComponent>(e))
+        {
+            registry.GetComponent<SpriteAnimationComponent>(e).AddOrUpdateClip(AnimationClip{
+                name, startFrame, frameCount, fps.value_or(10.0f), loop.value_or(true)
+            });
+        }
+    });
+
     s_Lua.set_function("AddCollision", [&](const Entity e, sol::optional<int> channel) {
         registry.AddComponent(e, CollisionComponent{channel.value_or(0)});
     });
@@ -990,6 +1079,68 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
             SetVelocity = function(self, dx, dy)
                 local id = self.id
                 if id and id ~= 0 then SetVelocity(id, dx, dy) end
+            end,
+            HasAnimation = function(self)
+                local id = self.id
+                return id ~= nil and id ~= 0 and HasAnimation(id)
+            end,
+            PlayAnimation = function(self, clipName, loop)
+                local id = self.id
+                if id and id ~= 0 then PlayAnimation(id, clipName, loop) end
+            end,
+            StopAnimation = function(self)
+                local id = self.id
+                if id and id ~= 0 then StopAnimation(id) end
+            end,
+            PauseAnimation = function(self)
+                local id = self.id
+                if id and id ~= 0 then PauseAnimation(id) end
+            end,
+            ResumeAnimation = function(self)
+                local id = self.id
+                if id and id ~= 0 then ResumeAnimation(id) end
+            end,
+            SetAnimationSpeed = function(self, speed)
+                local id = self.id
+                if id and id ~= 0 then SetAnimationSpeed(id, speed) end
+            end,
+            SetAnimationFrame = function(self, frame)
+                local id = self.id
+                if id and id ~= 0 then SetAnimationFrame(id, frame) end
+            end,
+            GetCurrentClip = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetCurrentClip(id) end
+                return ""
+            end,
+            GetCurrentFrame = function(self)
+                local id = self.id
+                if id and id ~= 0 then return GetCurrentAnimationFrame(id) end
+                return 0
+            end,
+            IsAnimationPlaying = function(self)
+                local id = self.id
+                if id and id ~= 0 then return IsAnimationPlaying(id) end
+                return false
+            end,
+            AddAnimationClip = function(self, name, startFrame, frameCount, fps, loop)
+                local id = self.id
+                if id and id ~= 0 then AddAnimationClip(id, name, startFrame, frameCount, fps, loop) end
+            end,
+            GetAnimation = function(self)
+                local ent = self
+                return {
+                    Play = function(s, clip, loop) ent:PlayAnimation(clip, loop) end,
+                    Stop = function(s) ent:StopAnimation() end,
+                    Pause = function(s) ent:PauseAnimation() end,
+                    Resume = function(s) ent:ResumeAnimation() end,
+                    SetSpeed = function(s, spd) ent:SetAnimationSpeed(spd) end,
+                    SetFrame = function(s, f) ent:SetAnimationFrame(f) end,
+                    GetClip = function(s) return ent:GetCurrentClip() end,
+                    GetFrame = function(s) return ent:GetCurrentFrame() end,
+                    IsPlaying = function(s) return ent:IsAnimationPlaying() end,
+                    AddClip = function(s, name, start, count, fps, loop) ent:AddAnimationClip(name, start, count, fps, loop) end
+                }
             end
         }
 
@@ -997,6 +1148,9 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
             -- 1. Check built-in methods
             if EntityMethods[key] then
                 return EntityMethods[key]
+            end
+            if key == "anim" or key == "animation" then
+                return t:GetAnimation()
             end
 
             -- 2. Resolve entity ID if needed
