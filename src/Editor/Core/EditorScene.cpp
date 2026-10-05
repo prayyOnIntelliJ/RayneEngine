@@ -1218,7 +1218,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
                 if (target && target->entity != 0 && !m_Registry.HasComponent<ScriptComponent>(target->entity))
                 {
-                    auto &sc = m_Registry.AddComponent(target->entity, ScriptComponent(LuaState::GetLua(), drag.path));
+                    auto &sc = m_Registry.AddComponent(target->entity, ScriptComponent(LuaState::GetLua(), drag.path, target->entity));
                     sc.SetEntity(target->entity);
                     target->scriptPath = drag.path;
 
@@ -1713,6 +1713,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         json j = SerializeObject(*m_ContextObject);
                         std::string newId = NextId();
                         j["id"] = newId;
+                        j.erase("entity");
                         j["x"] = j.value("x", 0.f) + 20.f;
                         j["y"] = j.value("y", 0.f) + 20.f;
                         DeserializeObject(j);
@@ -3608,7 +3609,7 @@ void EditorScene::HandleAssetMoved(const std::string &oldPath, const std::string
                 if (!obj.scriptPath.empty())
                 {
                     std::string resolved = ResourceManager::ResolveAssetPath(obj.scriptPath);
-                    auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved));
+                    auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved, obj.entity));
                     sc.SetEntity(obj.entity);
                     SyncExportedScriptProperties(obj, sc);
                 }
@@ -4465,6 +4466,7 @@ void EditorScene::PasteClipboard()
         json j = item;
         std::string newId = NextId();
         j["id"] = newId;
+        j.erase("entity");
         j["x"] = j.value("x", 0.f) + m_GridSize;
         j["y"] = j.value("y", 0.f) + m_GridSize;
 
@@ -5086,6 +5088,7 @@ EditorObject *EditorScene::InstantiateTemplateOnCanvas(const std::string &templa
         json j = data["objects"][i];
         std::string newId = newIds[i];
         j["id"] = newId;
+        j.erase("entity");
 
         std::string oldParent = j.value("parent", "");
         if (i == 0 || oldParent.empty())
@@ -5258,7 +5261,7 @@ void EditorScene::SyncTemplateInstances(const std::string &templatePath)
                         if (!sPath.empty())
                         {
                             std::string resolved = ResourceManager::ResolveAssetPath(sPath);
-                            m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved));
+                            m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), resolved, obj.entity));
                         }
                     }
                 }

@@ -1,10 +1,15 @@
 #include "../Scripting/ScriptComponent.h"
 #include "../Resources/ResourceManager.h"
 
-ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path)
-    : m_Lua(&lua), m_Path(ResourceManager::ResolveAssetPath(path))
+ScriptComponent::ScriptComponent(sol::state &lua, const std::string &path, Entity entity)
+    : m_Lua(&lua), m_Path(ResourceManager::ResolveAssetPath(path)), m_Entity(entity)
 {
     m_Env = sol::environment(*m_Lua, sol::create, m_Lua->globals());
+    if (m_Entity != 0)
+    {
+        m_Env["self"] = m_Entity;
+        m_Env["self_entity"] = m_Entity;
+    }
     Reload();
     std::error_code ec;
     if (std::filesystem::exists(m_Path, ec))
@@ -29,7 +34,11 @@ bool ScriptComponent::Reload()
     }
 
     sol::environment newEnv(*m_Lua, sol::create, m_Lua->globals());
-    if (m_Entity != 0) { newEnv["self"] = m_Entity; }
+    if (m_Entity != 0)
+    {
+        newEnv["self"] = m_Entity;
+        newEnv["self_entity"] = m_Entity;
+    }
 
     sol::protected_function scriptFunc = loadResult;
     sol::set_environment(newEnv, scriptFunc);
@@ -46,6 +55,11 @@ bool ScriptComponent::Reload()
     m_LastWriteTime = std::filesystem::last_write_time(m_Path, ec);
     m_LastAttemptedWriteTime = m_LastWriteTime;
     m_Env = newEnv;
+    if (m_Entity != 0)
+    {
+        m_Env["self"] = m_Entity;
+        m_Env["self_entity"] = m_Entity;
+    }
 
     std::cout << "[INFO] [Script] Successfully compiled and attached script: " << m_Path << "\n";
 
@@ -91,7 +105,9 @@ void ScriptComponent::OnCreate() const
 {
     if (m_OnCreate.valid())
     {
-        auto res = m_OnCreate(m_Env["self"].get_or(0));
+        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+        if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
+        auto res = m_OnCreate(e);
         if (!res.valid())
         {
             sol::error err = res;
@@ -104,7 +120,9 @@ void ScriptComponent::OnUpdate(float dt) const
 {
     if (m_OnUpdate.valid())
     {
-        auto res = m_OnUpdate(m_Env["self"].get_or(0), dt);
+        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+        if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
+        auto res = m_OnUpdate(e, dt);
         if (!res.valid())
         {
             sol::error err = res;
@@ -117,7 +135,9 @@ void ScriptComponent::OnCollision(Entity other) const
 {
     if (m_OnCollision.valid())
     {
-        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+        if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
+        auto res = m_OnCollision(e, other);
         if (!res.valid())
         {
             sol::error err = res;
@@ -128,9 +148,11 @@ void ScriptComponent::OnCollision(Entity other) const
 
 void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normalY) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnCollisionEnter.valid())
     {
-        auto res = m_OnCollisionEnter(m_Env["self"].get_or(0), other, normalX, normalY);
+        auto res = m_OnCollisionEnter(e, other, normalX, normalY);
         if (!res.valid())
         {
             sol::error err = res;
@@ -139,7 +161,7 @@ void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normal
     }
     else if (m_OnCollision.valid())
     {
-        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        auto res = m_OnCollision(e, other);
         if (!res.valid())
         {
             sol::error err = res;
@@ -150,9 +172,11 @@ void ScriptComponent::OnCollisionEnter(Entity other, float normalX, float normal
 
 void ScriptComponent::OnTriggerEnter(Entity other) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnTriggerEnter.valid())
     {
-        auto res = m_OnTriggerEnter(m_Env["self"].get_or(0), other);
+        auto res = m_OnTriggerEnter(e, other);
         if (!res.valid())
         {
             sol::error err = res;
@@ -161,7 +185,7 @@ void ScriptComponent::OnTriggerEnter(Entity other) const
     }
     else if (m_OnCollision.valid())
     {
-        auto res = m_OnCollision(m_Env["self"].get_or(0), other);
+        auto res = m_OnCollision(e, other);
         if (!res.valid())
         {
             sol::error err = res;
@@ -174,7 +198,9 @@ void ScriptComponent::OnDestroy() const
 {
     if (m_OnDestroy.valid())
     {
-        auto res = m_OnDestroy(m_Env["self"].get_or(0));
+        Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+        if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
+        auto res = m_OnDestroy(e);
         if (!res.valid())
         {
             sol::error err = res;
@@ -426,9 +452,11 @@ void ScriptComponent::OnUIFocus(const std::string &elementId, bool focused) cons
 
 void ScriptComponent::OnInputReceived(const sol::table &eventTable) const
 {
+    Entity e = (m_Entity != 0) ? m_Entity : m_Env["self"].get_or(0);
+    if (e != 0) { const_cast<sol::environment&>(m_Env)["self"] = e; const_cast<sol::environment&>(m_Env)["self_entity"] = e; }
     if (m_OnInputReceived.valid())
     {
-        auto res = m_OnInputReceived(m_Env["self"].get_or(0), eventTable);
+        auto res = m_OnInputReceived(e, eventTable);
         if (!res.valid())
         {
             sol::error err = res;
@@ -436,7 +464,7 @@ void ScriptComponent::OnInputReceived(const sol::table &eventTable) const
         }
     } else if (m_OnInputReceiced.valid())
     {
-        auto res = m_OnInputReceiced(m_Env["self"].get_or(0), eventTable);
+        auto res = m_OnInputReceiced(e, eventTable);
         if (!res.valid())
         {
             sol::error err = res;
@@ -468,7 +496,11 @@ void ScriptComponent::OnInputReceived(const sol::table &eventTable) const
 void ScriptComponent::SetEntity(Entity e)
 {
     m_Entity = e;
-    m_Env["self"] = e;
+    if (m_Env.valid())
+    {
+        m_Env["self"] = e;
+        m_Env["self_entity"] = e;
+    }
 }
 
 std::vector<ScriptComponent::Property> ScriptComponent::GetExportedProperties()

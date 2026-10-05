@@ -1038,7 +1038,23 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
                 name = "",
                 id = 0
             }
-            if type(nameOrId) == "string" then
+            if nameOrId == nil then
+                if self_entity and self_entity ~= 0 then
+                    t.id = self_entity
+                    local n = GetName(self_entity)
+                    if n and n ~= "" then t.name = n else
+                        local tg = GetTag(self_entity)
+                        if tg and tg ~= "" then t.name = tg end
+                    end
+                elseif self and type(self) == "number" and self ~= 0 then
+                    t.id = self
+                    local n = GetName(self)
+                    if n and n ~= "" then t.name = n else
+                        local tg = GetTag(self)
+                        if tg and tg ~= "" then t.name = tg end
+                    end
+                end
+            elseif type(nameOrId) == "string" then
                 t.name = nameOrId
                 local found = FindEntity(nameOrId)
                 if found and found ~= 0 then t.id = found end
@@ -1060,6 +1076,14 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
         end
 
         _G.GetEntity = _G.Entity
+
+        _G.GetSelf = function()
+            return self_entity or (type(self) == "number" and self or 0)
+        end
+
+        _G.GetSelfEntity = function()
+            return _G.Entity()
+        end
     )lua");
 }
 

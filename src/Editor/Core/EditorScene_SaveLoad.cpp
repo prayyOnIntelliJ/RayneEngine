@@ -77,6 +77,8 @@ void EditorScene::LoadFromJson(const std::string &path)
     for (auto &obj: m_Objects)
         if (obj.entity != 0)
             m_Registry.DestroyEntity(obj.entity);
+    m_Registry.Clear();
+    m_Registry.SetEntityCounter(1);
 
     m_Objects.clear();
     ClearSelection();
@@ -151,7 +153,8 @@ void EditorScene::LoadFromJson(const std::string &path)
             obj.circleShape.setFillColor(obj.color);
         }
 
-        obj.entity = m_Registry.CreateEntity();
+        Entity desiredId = j.value("entity", static_cast<Entity>(0));
+        obj.entity = m_Registry.CreateEntity(desiredId);
 
         TransformComponent t;
         t.x = j["x"];
@@ -195,7 +198,7 @@ void EditorScene::LoadFromJson(const std::string &path)
             std::string sp = j["script"].get<std::string>();
             std::filesystem::path p(sp);
             if (!p.is_absolute()) { sp = (std::filesystem::path(ASSET_PATH) / p).string(); }
-            auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
+            auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp, obj.entity));
             sc.SetEntity(obj.entity);
             obj.scriptPath = sp;
             for (const auto &prop: sc.GetExportedProperties()) { obj.scriptProperties[prop.name] = prop; }
@@ -345,6 +348,7 @@ void EditorScene::RestoreSnapshot()
         if (obj.entity != 0)
             m_Registry.DestroyEntity(obj.entity);
     m_Registry.Clear();
+    m_Registry.SetEntityCounter(1);
 
     m_Objects.clear();
     ClearSelection();
@@ -360,11 +364,14 @@ void EditorScene::RestoreSnapshot()
         if (!currentUI.empty()) { UIManager::Get().Load(currentUI); }
     }
 
-    m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
-
     if (m_PlayModeSnapshot.contains("objects") && m_PlayModeSnapshot["objects"].is_array())
     {
         for (auto &j: m_PlayModeSnapshot["objects"]) { DeserializeObject(j); }
+    }
+
+    if (m_SnapshotEntityCounter > m_Registry.GetEntityCounter())
+    {
+        m_Registry.SetEntityCounter(m_SnapshotEntityCounter);
     }
 
     UpdateWorldTransforms();
@@ -377,6 +384,7 @@ json EditorScene::SerializeObject(const EditorObject &obj) const
 {
     json j;
     j["id"] = obj.id;
+    j["entity"] = obj.entity;
     j["tag"] = obj.tag;
     j["parent"] = obj.parentId;
     std::string typeStr = "rectangle";
@@ -656,7 +664,8 @@ void EditorScene::DeserializeObject(const json &j)
         obj.circleShape.setFillColor(obj.color);
     }
 
-    obj.entity = m_Registry.CreateEntity();
+    Entity desiredId = j.value("entity", static_cast<Entity>(0));
+    obj.entity = m_Registry.CreateEntity(desiredId);
 
     TransformComponent t;
     t.x = j["x"];
@@ -700,7 +709,7 @@ void EditorScene::DeserializeObject(const json &j)
         std::string sp = j["script"].get<std::string>();
         std::filesystem::path p(sp);
         if (!p.is_absolute()) { sp = (std::filesystem::path(ASSET_PATH) / p).string(); }
-        auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp));
+        auto &sc = m_Registry.AddComponent(obj.entity, ScriptComponent(LuaState::GetLua(), sp, obj.entity));
         sc.SetEntity(obj.entity);
         obj.scriptPath = sp;
         for (const auto &prop: sc.GetExportedProperties()) { obj.scriptProperties[prop.name] = prop; }

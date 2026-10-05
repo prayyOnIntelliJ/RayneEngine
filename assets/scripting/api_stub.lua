@@ -861,7 +861,15 @@ function Entity(nameOrId) end
 function GetEntity(nameOrId) end
 
 ---@type Entity
-self_entity = nil -- The ID of the current Entity
+self_entity = 0 -- The integer ID of the current Entity.
+
+---Returns the integer ID of the current Entity (equivalent to self_entity).
+---@return Entity
+function GetSelf() end
+
+---Returns an EntityHandle for the current Entity (equivalent to Entity(self_entity) or Entity()).
+---@return EntityHandle
+function GetSelfEntity() end
 
 --- RESOURCE MANAGEMENT ---
 

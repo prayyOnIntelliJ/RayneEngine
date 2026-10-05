@@ -2339,7 +2339,7 @@ void EditorScene::CommitActiveField()
             }
             check.close();
             auto &sc = m_Registry.AddComponent(inputTarget->entity,
-                                               ScriptComponent(LuaState::GetLua(), fullPath));
+                                               ScriptComponent(LuaState::GetLua(), fullPath, inputTarget->entity));
             sc.SetEntity(inputTarget->entity);
             inputTarget->scriptPath = fullPath;
 

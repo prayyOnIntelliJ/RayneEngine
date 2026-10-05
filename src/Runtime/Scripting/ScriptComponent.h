@@ -10,7 +10,8 @@
 class ScriptComponent
 {
 public:
-    ScriptComponent(sol::state &lua, const std::string &path);
+    ScriptComponent(sol::state &lua, const std::string &path, Entity entity = 0);
+    Entity GetEntity() const { return m_Entity; }
 
     void OnCreate() const;
 

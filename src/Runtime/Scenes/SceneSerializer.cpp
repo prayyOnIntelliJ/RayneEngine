@@ -21,6 +21,7 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     }
 
     registry.Clear();
+    registry.SetEntityCounter(1);
 
     std::unordered_map<std::string, Entity> idToEntity;
     std::vector<std::pair<Entity, std::string> > parentLinks;
@@ -28,7 +29,8 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     json data = json::parse(file);
     for (auto &j: data["objects"])
     {
-        Entity entity = registry.CreateEntity();
+        Entity desiredId = j.value("entity", static_cast<Entity>(0));
+        Entity entity = registry.CreateEntity(desiredId);
         std::string objId = j.value("id", "");
         if (!objId.empty())
         {
@@ -87,7 +89,7 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             std::string sp = j["script"].get<std::string>();
             std::filesystem::path p(sp);
             if (!p.is_absolute()) { sp = (std::filesystem::path(ASSET_PATH) / p).string(); }
-            auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp));
+            auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp, entity));
             sc.SetEntity(entity);
 
             if (j.contains("scriptProperties"))
@@ -396,7 +398,7 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
             std::string sp = j["script"].get<std::string>();
             std::filesystem::path p(sp);
             if (!p.is_absolute()) { sp = (std::filesystem::path(ASSET_PATH) / p).string(); }
-            auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp));
+            auto &sc = registry.AddComponent(entity, ScriptComponent(LuaState::GetLua(), sp, entity));
             sc.SetEntity(entity);
 
             if (j.contains("scriptProperties"))

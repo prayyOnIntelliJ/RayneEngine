@@ -15,14 +15,27 @@ private:
     std::vector<Entity> m_EntitiesToAdd;
 
 public:
-    Entity CreateEntity();
+    Entity CreateEntity(Entity desiredId = 0);
 
     Entity GetEntityCounter() const { return m_EntityCounter; }
     void SetEntityCounter(Entity counter) { m_EntityCounter = counter; }
 
+    bool IsEntityAlive(Entity entity) const
+    {
+        for (auto const &[type, pool]: m_ComponentPools)
+        {
+            if (pool->Has(entity)) return true;
+        }
+        return false;
+    }
+
     void DestroyEntity(Entity entity) { for (auto const &[type, pool]: m_ComponentPools) { pool->Remove(entity); } }
 
-    void Clear() { for (auto const &[type, pool]: m_ComponentPools) { pool->Clear(); } }
+    void Clear()
+    {
+        for (auto const &[type, pool]: m_ComponentPools) { pool->Clear(); }
+        m_EntityCounter = 1;
+    }
 
     template<typename T>
     T &AddComponent(Entity entity, T component) { return GetPool<T>()->Add(entity, component); }
@@ -69,6 +82,21 @@ private:
     }
 };
 
-inline Entity Registry::CreateEntity() { return m_EntityCounter++; }
+inline Entity Registry::CreateEntity(Entity desiredId)
+{
+    if (desiredId != 0 && !IsEntityAlive(desiredId))
+    {
+        if (desiredId >= m_EntityCounter)
+        {
+            m_EntityCounter = desiredId + 1;
+        }
+        return desiredId;
+    }
+    while (IsEntityAlive(m_EntityCounter))
+    {
+        m_EntityCounter++;
+    }
+    return m_EntityCounter++;
+}
 
 #endif
