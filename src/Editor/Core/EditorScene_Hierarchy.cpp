@@ -78,21 +78,45 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
             {
                 sf::RectangleShape rowBg({HierarchyWidth, rowHeight});
                 rowBg.setPosition(panelX, y);
-                if (isDropTarget)
+                if (isDropTarget && m_HierarchyDropMode == HierarchyDropMode::Inside)
                 {
                     rowBg.setFillColor(sf::Color(80, 120, 240, 140));
                     rowBg.setOutlineColor(C_ACCENT_BRIGHT);
                     rowBg.setOutlineThickness(1.5f);
-                } else { rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_BG_ELEVATED); }
+                } else
+                {
+                    rowBg.setFillColor(isSelected ? C_ACCENT_DIM : C_BG_ELEVATED);
+                    rowBg.setOutlineColor(sf::Color::Transparent);
+                    rowBg.setOutlineThickness(0.f);
+                }
                 window.draw(rowBg);
 
-                if (isSelected && !isDropTarget)
+                if (isSelected && (!isDropTarget || m_HierarchyDropMode != HierarchyDropMode::Inside))
                 {
                     sf::RectangleShape indicator({2.f, rowHeight});
                     indicator.setPosition(panelX, y);
                     indicator.setFillColor(C_ACCENT);
                     window.draw(indicator);
                 }
+            }
+
+            if (isDropTarget && (m_HierarchyDropMode == HierarchyDropMode::Above || m_HierarchyDropMode == HierarchyDropMode::Below))
+            {
+                float lineY = (m_HierarchyDropMode == HierarchyDropMode::Above) ? y : (y + rowHeight);
+                float lineLeft = panelX + indent + 8.f;
+                float lineW = HierarchyWidth - (indent + 12.f);
+
+                sf::RectangleShape insertLine({lineW, 2.f});
+                insertLine.setOrigin(0.f, 1.f);
+                insertLine.setPosition(lineLeft, lineY);
+                insertLine.setFillColor(sf::Color(100, 180, 255));
+                window.draw(insertLine);
+
+                sf::CircleShape insertDot(3.5f);
+                insertDot.setOrigin(3.5f, 3.5f);
+                insertDot.setPosition(lineLeft, lineY);
+                insertDot.setFillColor(sf::Color(100, 180, 255));
+                window.draw(insertDot);
             }
 
             auto children = GetChildren(obj->id);
@@ -186,18 +210,30 @@ void EditorScene::DrawHierarchy(sf::RenderWindow &window)
 
     if (m_HierarchyDragging && !m_HierarchyDragSourceId.empty())
     {
-        sf::RectangleShape ghost({130.f, 22.f});
-        ghost.setPosition(m_MouseScreenPos.x + 12.f, m_MouseScreenPos.y + 12.f);
-        ghost.setFillColor(sf::Color(35, 38, 46, 230));
-        ghost.setOutlineColor(C_ACCENT_BRIGHT);
-        ghost.setOutlineThickness(1.5f);
-        window.draw(ghost);
+        std::string actionDesc = m_HierarchyDragSourceId;
+        if (m_HierarchyDropMode == HierarchyDropMode::Above && !m_HierarchyDragTargetId.empty())
+            actionDesc += " [Above " + m_HierarchyDragTargetId + "]";
+        else if (m_HierarchyDropMode == HierarchyDropMode::Below && !m_HierarchyDragTargetId.empty())
+            actionDesc += " [Below " + m_HierarchyDragTargetId + "]";
+        else if (m_HierarchyDropMode == HierarchyDropMode::Inside && !m_HierarchyDragTargetId.empty())
+            actionDesc += " [Inside " + m_HierarchyDragTargetId + "]";
+        else if (m_HierarchyDropMode == HierarchyDropMode::Root)
+            actionDesc += " [To Root]";
 
         sf::Text gt;
         gt.setFont(*m_Font);
         gt.setCharacterSize(11);
         gt.setFillColor(sf::Color::White);
-        gt.setString(m_HierarchyDragSourceId);
+        gt.setString(actionDesc);
+
+        float ghostW = std::max(130.f, gt.getLocalBounds().width + 20.f);
+        sf::RectangleShape ghost({ghostW, 22.f});
+        ghost.setPosition(m_MouseScreenPos.x + 12.f, m_MouseScreenPos.y + 12.f);
+        ghost.setFillColor(sf::Color(35, 38, 46, 235));
+        ghost.setOutlineColor(C_ACCENT_BRIGHT);
+        ghost.setOutlineThickness(1.5f);
+        window.draw(ghost);
+
         gt.setPosition(m_MouseScreenPos.x + 18.f, m_MouseScreenPos.y + 15.f);
         window.draw(gt);
     }

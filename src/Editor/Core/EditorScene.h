@@ -33,6 +33,7 @@ class EditorScene : public Scene
 {
     friend class EditorCommand;
     friend class ObjectStateCommand;
+    friend class ReorderObjectsCommand;
     friend class HierarchyPanel;
     friend class InspectorPanel;
     friend class MenuBarPanel;
@@ -130,12 +131,22 @@ private:
     std::vector<InspectorButton> m_InspectorButtons;
     std::vector<std::pair<sf::FloatRect, EditorObject *> > m_HierarchyHitboxes;
     std::vector<std::pair<sf::FloatRect, std::string> > m_HierarchyFoldHitboxes;
+    enum class HierarchyDropMode
+    {
+        None,
+        Above,
+        Inside,
+        Below,
+        Root
+    };
+
     std::set<std::string> m_HierarchyCollapsed;
     bool m_HierarchyDragging = false;
     bool m_HierarchyPotentialDrag = false;
     sf::Vector2f m_HierarchyDragStartPos;
     std::string m_HierarchyDragSourceId;
     std::string m_HierarchyDragTargetId;
+    HierarchyDropMode m_HierarchyDropMode = HierarchyDropMode::None;
     sf::FloatRect m_HierarchyRootDropZone;
 
     bool m_ShowDeleteModal = false;
@@ -158,8 +169,12 @@ private:
     bool IsDescendantOf(const std::string &childId, const std::string &ancestorId) const;
 
     std::vector<EditorObject *> GetChildren(const std::string &parentId);
+    std::vector<std::string> GetSubtreeIds(const std::string &rootId);
+    std::vector<std::string> GetObjectOrder() const;
+    void ApplyObjectOrder(const std::vector<std::string> &order);
+    void MoveObjectInHierarchy(const std::string &sourceId, const std::string &targetId, HierarchyDropMode mode);
 
-    void SetParent(const std::string &childId, const std::string &newParentId, bool keepWorldTransform = true);
+    void SetParent(const std::string &childId, const std::string &newParentId, bool keepWorldTransform = true, bool recordUndo = true);
 
     void SaveAsTemplate(EditorObject *obj, const std::string &name = "");
 

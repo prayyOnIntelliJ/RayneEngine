@@ -45,4 +45,18 @@ public:
     }
 };
 
+class ReorderObjectsCommand : public EditorCommand
+{
+public:
+    std::vector<std::string> beforeOrder;
+    std::vector<std::string> afterOrder;
+
+    ReorderObjectsCommand(std::vector<std::string> before, std::vector<std::string> after)
+        : beforeOrder(std::move(before)), afterOrder(std::move(after)) {}
+
+    void Execute(EditorScene *scene) override;
+
+    void Undo(EditorScene *scene) override;
+};
+
 #endif

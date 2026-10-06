@@ -911,6 +911,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
         if (m_HierarchyDragging)
         {
             m_HierarchyDragTargetId.clear();
+            m_HierarchyDropMode = HierarchyDropMode::None;
             for (auto &[rect, obj]: m_HierarchyHitboxes)
             {
                 if (rect.contains(m_MouseScreenPos))
@@ -918,9 +919,26 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     if (obj && obj->id != m_HierarchyDragSourceId && !IsDescendantOf(obj->id, m_HierarchyDragSourceId))
                     {
                         m_HierarchyDragTargetId = obj->id;
+                        float relY = m_MouseScreenPos.y - rect.top;
+                        if (relY < 7.5f)
+                        {
+                            m_HierarchyDropMode = HierarchyDropMode::Above;
+                        }
+                        else if (relY > rect.height - 7.5f)
+                        {
+                            m_HierarchyDropMode = HierarchyDropMode::Below;
+                        }
+                        else
+                        {
+                            m_HierarchyDropMode = HierarchyDropMode::Inside;
+                        }
                     }
                     break;
                 }
+            }
+            if (m_HierarchyDragTargetId.empty() && m_HierarchyRootDropZone.contains(m_MouseScreenPos))
+            {
+                m_HierarchyDropMode = HierarchyDropMode::Root;
             }
         }
 
@@ -1688,17 +1706,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
             }
             if (!droppedOnEntityProp)
             {
-                if (!m_HierarchyDragTargetId.empty())
+                if (!m_HierarchyDragTargetId.empty() || m_HierarchyDropMode == HierarchyDropMode::Root)
                 {
-                    SetParent(m_HierarchyDragSourceId, m_HierarchyDragTargetId, true);
-                } else if (m_HierarchyRootDropZone.contains(m_MouseScreenPos))
-                {
-                    SetParent(m_HierarchyDragSourceId, "", true);
+                    MoveObjectInHierarchy(m_HierarchyDragSourceId, m_HierarchyDragTargetId, m_HierarchyDropMode);
                 }
             }
             m_HierarchyDragging = false;
             m_HierarchyDragSourceId.clear();
             m_HierarchyDragTargetId.clear();
+            m_HierarchyDropMode = HierarchyDropMode::None;
         }
         m_HierarchyPotentialDrag = false;
 
@@ -4963,7 +4979,7 @@ std::vector<EditorObject *> EditorScene::GetChildren(const std::string &parentId
     return ch;
 }
 
-void EditorScene::SetParent(const std::string &childId, const std::string &newParentId, bool keepWorldTransform)
+void EditorScene::SetParent(const std::string &childId, const std::string &newParentId, bool keepWorldTransform, bool recordUndo)
 {
     if (childId.empty() || childId == newParentId) return;
     auto *child = ObjectById(childId);
@@ -5013,7 +5029,7 @@ void EditorScene::SetParent(const std::string &childId, const std::string &newPa
     UpdateWorldTransforms();
 
     json after = SerializeObject(*child);
-    if (before != after)
+    if (recordUndo && before != after)
     {
         m_UndoStack.push_back(std::make_shared<ObjectStateCommand>(child->id, before, after));
         m_RedoStack.clear();
@@ -5072,6 +5088,197 @@ void ObjectStateCommand::Undo(EditorScene *scene)
     {
         auto *obj = scene->ObjectById(objectId);
         if (obj) { scene->ApplyState(*obj, beforeState); } else { scene->DeserializeObject(beforeState); }
+    }
+}
+
+void ReorderObjectsCommand::Execute(EditorScene *scene)
+{
+    scene->ApplyObjectOrder(afterOrder);
+}
+
+void ReorderObjectsCommand::Undo(EditorScene *scene)
+{
+    scene->ApplyObjectOrder(beforeOrder);
+}
+
+std::vector<std::string> EditorScene::GetSubtreeIds(const std::string &rootId)
+{
+    std::vector<std::string> result;
+    result.push_back(rootId);
+    auto children = GetChildren(rootId);
+    for (auto *child : children)
+    {
+        auto sub = GetSubtreeIds(child->id);
+        result.insert(result.end(), sub.begin(), sub.end());
+    }
+    return result;
+}
+
+std::vector<std::string> EditorScene::GetObjectOrder() const
+{
+    std::vector<std::string> order;
+    order.reserve(m_Objects.size());
+    for (const auto &obj : m_Objects)
+    {
+        order.push_back(obj.id);
+    }
+    return order;
+}
+
+void EditorScene::ApplyObjectOrder(const std::vector<std::string> &order)
+{
+    std::string selectedId = m_Selected ? m_Selected->id : "";
+    std::vector<std::string> multiSelectedIds;
+    multiSelectedIds.reserve(m_SelectedObjects.size());
+    for (auto *obj : m_SelectedObjects)
+    {
+        if (obj) multiSelectedIds.push_back(obj->id);
+    }
+
+    std::unordered_map<std::string, EditorObject> objMap;
+    objMap.reserve(m_Objects.size());
+    for (auto &obj : m_Objects)
+    {
+        objMap.emplace(obj.id, std::move(obj));
+    }
+
+    std::list<EditorObject> newObjects;
+
+    for (const auto &id : order)
+    {
+        auto it = objMap.find(id);
+        if (it != objMap.end())
+        {
+            newObjects.push_back(std::move(it->second));
+            objMap.erase(it);
+        }
+    }
+
+    for (auto &kv : objMap)
+    {
+        newObjects.push_back(std::move(kv.second));
+    }
+
+    m_Objects = std::move(newObjects);
+
+    m_Selected = selectedId.empty() ? nullptr : ObjectById(selectedId);
+    m_SelectedObjects.clear();
+    for (const auto &id : multiSelectedIds)
+    {
+        auto *obj = ObjectById(id);
+        if (obj)
+        {
+            m_SelectedObjects.push_back(obj);
+            obj->selected = true;
+        }
+    }
+
+    SetDirty(true);
+}
+
+void EditorScene::MoveObjectInHierarchy(const std::string &sourceId, const std::string &targetId, HierarchyDropMode mode)
+{
+    if (sourceId.empty() || mode == HierarchyDropMode::None) return;
+
+    auto *sourceObj = ObjectById(sourceId);
+    if (!sourceObj) return;
+
+    if (mode == HierarchyDropMode::Inside)
+    {
+        SetParent(sourceId, targetId, true, true);
+        return;
+    }
+
+    if (mode == HierarchyDropMode::Root)
+    {
+        if (!sourceObj->parentId.empty())
+        {
+            SetParent(sourceId, "", true, true);
+        }
+        return;
+    }
+
+    if (targetId.empty() || sourceId == targetId) return;
+    auto *targetObj = ObjectById(targetId);
+    if (!targetObj) return;
+
+    if (IsDescendantOf(targetId, sourceId)) return;
+
+    std::shared_ptr<ObjectStateCommand> parentCmd = nullptr;
+    if (sourceObj->parentId != targetObj->parentId)
+    {
+        json before = SerializeObject(*sourceObj);
+        SetParent(sourceId, targetObj->parentId, true, false);
+        json after = SerializeObject(*sourceObj);
+        if (before != after)
+        {
+            parentCmd = std::make_shared<ObjectStateCommand>(sourceId, before, after);
+        }
+    }
+
+    std::vector<std::string> beforeOrder = GetObjectOrder();
+
+    std::vector<std::string> movingIds = GetSubtreeIds(sourceId);
+    std::unordered_set<std::string> movingSet(movingIds.begin(), movingIds.end());
+
+    std::vector<std::string> remainingOrder;
+    remainingOrder.reserve(beforeOrder.size());
+    for (const auto &id : beforeOrder)
+    {
+        if (movingSet.find(id) == movingSet.end())
+        {
+            remainingOrder.push_back(id);
+        }
+    }
+
+    size_t targetIndexInRemaining = remainingOrder.size();
+    for (size_t i = 0; i < remainingOrder.size(); ++i)
+    {
+        if (remainingOrder[i] == targetId)
+        {
+            targetIndexInRemaining = i;
+            break;
+        }
+    }
+
+    if (targetIndexInRemaining > remainingOrder.size())
+    {
+        return;
+    }
+
+    size_t insertIndex = (mode == HierarchyDropMode::Above) ? targetIndexInRemaining : (targetIndexInRemaining + 1);
+
+    std::vector<std::string> afterOrder;
+    afterOrder.reserve(beforeOrder.size());
+
+    afterOrder.insert(afterOrder.end(), remainingOrder.begin(), remainingOrder.begin() + insertIndex);
+    afterOrder.insert(afterOrder.end(), movingIds.begin(), movingIds.end());
+    afterOrder.insert(afterOrder.end(), remainingOrder.begin() + insertIndex, remainingOrder.end());
+
+    if (beforeOrder != afterOrder)
+    {
+        ApplyObjectOrder(afterOrder);
+        auto reorderCmd = std::make_shared<ReorderObjectsCommand>(beforeOrder, afterOrder);
+
+        if (parentCmd)
+        {
+            auto macroCmd = std::make_shared<MacroCommand>();
+            macroCmd->commands.push_back(parentCmd);
+            macroCmd->commands.push_back(reorderCmd);
+            m_UndoStack.push_back(macroCmd);
+        }
+        else
+        {
+            m_UndoStack.push_back(reorderCmd);
+        }
+        m_RedoStack.clear();
+        SetDirty(true);
+    }
+    else if (parentCmd)
+    {
+        m_UndoStack.push_back(parentCmd);
+        m_RedoStack.clear();
+        SetDirty(true);
     }
 }
 
