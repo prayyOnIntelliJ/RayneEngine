@@ -366,6 +366,7 @@ void GameScene::OnExit()
         g_App->SetPaused(false);
         g_App->SetTimeScale(1.0f);
         g_App->SetCursorVisible(true);
+        g_App->ClearScreenLogs();
     }
     UIManager::Get().ClearClickedButton();
 

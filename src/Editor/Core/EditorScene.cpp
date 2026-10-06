@@ -133,6 +133,7 @@ void EditorScene::OnEnter()
 
     AudioManager::Get().StopAllSounds();
     AudioManager::Get().StopMusic();
+    if (g_App) g_App->ClearScreenLogs();
 
     std::cout << "[INFO] [EditorScene] Activated Editor Layout\n";
     UpdateBounds();

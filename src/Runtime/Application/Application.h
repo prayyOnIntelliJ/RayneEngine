@@ -88,6 +88,7 @@ public:
     };
 
     void LogToScreen(const std::string &msg, float duration = 3.5f, sf::Color color = sf::Color(45, 212, 191));
+    void ClearScreenLogs();
 
     float GetFPS() const { return m_CurrentFPS; }
     float GetDeltaTime() const { return m_CurrentDeltaTime; }

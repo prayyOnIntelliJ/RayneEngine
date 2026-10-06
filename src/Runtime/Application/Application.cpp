@@ -331,6 +331,11 @@ void Application::LogToScreen(const std::string &msg, float duration, sf::Color 
 #endif
 }
 
+void Application::ClearScreenLogs()
+{
+    m_ScreenLogs.clear();
+}
+
 void Application::RenderScreenLogs()
 {
     if (m_ScreenLogs.empty()) return;
