@@ -1064,8 +1064,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                             {
                                 m_SelectedElement->texturePath = relPath;
                                 m_SelectedElement->texture = tex;
-                                if (m_SelectedElement->type == UIElementType::Button && m_SelectedElement->normalColor
-                                    == sf::Color(100, 100, 100))
+                                if (m_SelectedElement->type == UIElementType::Button && (m_SelectedElement->normalColor == sf::Color(100, 100, 100) || m_SelectedElement->normalColor == C_ACCENT))
                                 {
                                     m_SelectedElement->normalColor = sf::Color::White;
                                     m_SelectedElement->hoverColor = sf::Color(230, 230, 230);
@@ -1094,7 +1093,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                         {
                             m_SelectedElement->texturePath = relPath;
                             m_SelectedElement->texture = tex;
-                            if (m_SelectedElement->normalColor == sf::Color(100, 100, 100))
+                            if (m_SelectedElement->normalColor == sf::Color(100, 100, 100) || m_SelectedElement->normalColor == C_ACCENT)
                             {
                                 m_SelectedElement->normalColor = sf::Color::White;
                                 m_SelectedElement->hoverColor = sf::Color(230, 230, 230);
@@ -1612,8 +1611,8 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
         {
             m_SelectedElement->texturePath = m_ActiveInputText;
             m_SelectedElement->texture = LoadTextureRobust(m_ActiveInputText);
-            if (m_SelectedElement->type == UIElementType::Button && m_SelectedElement->normalColor ==
-                sf::Color(100, 100, 100))
+            if (m_SelectedElement->type == UIElementType::Button &&
+                (m_SelectedElement->normalColor == sf::Color(100, 100, 100) || m_SelectedElement->normalColor == C_ACCENT))
             {
                 m_SelectedElement->normalColor = sf::Color::White;
                 m_SelectedElement->hoverColor = sf::Color(230, 230, 230);
@@ -1829,27 +1828,250 @@ void UIEditorScene::DrawPalette(sf::RenderWindow &window)
     border.setPosition(m_PaletteBounds.left + PaletteWidth - 1.f, m_PaletteBounds.top);
     window.draw(border);
 
-    float y = m_PaletteBounds.top + 10.f;
-    DrawSectionHeader(window, "PALETTE", C_ACCENT, m_PaletteBounds.left, y, PaletteWidth);
-    y += 30.f;
+    float y = m_PaletteBounds.top + 12.f;
 
-    auto drawAddBtn = [&](const std::string &label, const std::string &action) {
-        sf::FloatRect r(m_PaletteBounds.left + 10.f, y, PaletteWidth - 20.f, 28.f);
-        DrawActionButton(window, "+ " + label, action, r.left, r.top, C_BG_ELEVATED, C_BORDER);
-        m_PaletteHitboxes.push_back({r, action});
-        y += 34.f;
+    // Header
+    {
+        sf::Text title;
+        title.setFont(*m_Font);
+        title.setCharacterSize(13);
+        title.setStyle(sf::Text::Bold);
+        title.setFillColor(C_TEXT_PRIMARY);
+        title.setString("Elements");
+        title.setPosition(m_PaletteBounds.left + 14.f, y);
+        window.draw(title);
+
+        sf::Text sub;
+        sub.setFont(*m_Font);
+        sub.setCharacterSize(10);
+        sub.setFillColor(C_TEXT_MUTED);
+        sub.setString("Click to add to canvas");
+        sub.setPosition(m_PaletteBounds.left + 14.f, y + 18.f);
+        window.draw(sub);
+        y += 40.f;
+
+        sf::RectangleShape sep({PaletteWidth - 28.f, 1.f});
+        sep.setFillColor(C_BORDER);
+        sep.setPosition(m_PaletteBounds.left + 14.f, y);
+        window.draw(sep);
+        y += 8.f;
+    }
+
+    const bool mouseDown = sf::Mouse::isButtonPressed(sf::Mouse::Left);
+
+    auto thickLine = [&](sf::Vector2f a, sf::Vector2f b, float thickness, sf::Color c) {
+        sf::Vector2f d = b - a;
+        float len = std::sqrt(d.x * d.x + d.y * d.y);
+        sf::RectangleShape line({len, thickness});
+        line.setOrigin(0.f, thickness / 2.f);
+        line.setPosition(a);
+        line.setRotation(std::atan2(d.y, d.x) * 180.f / 3.14159265f);
+        line.setFillColor(c);
+        window.draw(line);
     };
 
-    drawAddBtn("Panel", "add_panel");
-    drawAddBtn("Text", "add_text");
-    drawAddBtn("Button", "add_button");
-    drawAddBtn("Image", "add_image");
-    drawAddBtn("Checkbox", "add_checkbox");
-    drawAddBtn("Slider", "add_slider");
-    drawAddBtn("Progress Bar", "add_progressbar");
-    drawAddBtn("Text Input", "add_textinput");
-    drawAddBtn("Vertical Box", "add_verticalbox");
-    drawAddBtn("Horizontal Box", "add_horizontalbox");
+    auto rect = [&](float x, float yy, float w, float h, sf::Color fill, sf::Color outline = sf::Color::Transparent,
+                    float thick = 0.f) {
+        sf::RectangleShape r({w, h});
+        r.setPosition(x, yy);
+        r.setFillColor(fill);
+        r.setOutlineColor(outline);
+        r.setOutlineThickness(thick);
+        window.draw(r);
+    };
+
+    // Draws a small vector icon for each element type inside a 28x28 tile at (ix, iy)
+    auto drawIcon = [&](const std::string &action, float ix, float iy, sf::Color c) {
+        const float cx = ix + 14.f, cy = iy + 14.f;
+        sf::Color soft(c.r, c.g, c.b, 110);
+        if (action == "add_panel")
+        {
+            rect(ix + 6.f, iy + 7.f, 16.f, 14.f, sf::Color::Transparent, c, 1.5f);
+            rect(ix + 6.f, iy + 7.f, 16.f, 4.f, c);
+        } else if (action == "add_verticalbox")
+        {
+            for (int i = 0; i < 3; ++i) rect(ix + 7.f, iy + 7.f + i * 5.5f, 14.f, 3.5f, i == 0 ? c : soft);
+        } else if (action == "add_horizontalbox")
+        {
+            for (int i = 0; i < 3; ++i) rect(ix + 7.f + i * 5.5f, iy + 7.f, 3.5f, 14.f, i == 0 ? c : soft);
+        } else if (action == "add_text")
+        {
+            sf::Text t;
+            t.setFont(*m_Font);
+            t.setCharacterSize(17);
+            t.setStyle(sf::Text::Bold);
+            t.setFillColor(c);
+            t.setString("T");
+            sf::FloatRect b = t.getLocalBounds();
+            t.setPosition(cx - b.width / 2.f - b.left, cy - b.height / 2.f - b.top);
+            window.draw(t);
+        } else if (action == "add_image")
+        {
+            rect(ix + 6.f, iy + 7.f, 16.f, 14.f, sf::Color::Transparent, c, 1.5f);
+            sf::ConvexShape mountain(3);
+            mountain.setPoint(0, {ix + 7.f, iy + 20.f});
+            mountain.setPoint(1, {ix + 13.f, iy + 12.f});
+            mountain.setPoint(2, {ix + 19.f, iy + 20.f});
+            mountain.setFillColor(soft);
+            window.draw(mountain);
+            sf::CircleShape sun(2.f);
+            sun.setPosition(ix + 16.f, iy + 9.5f);
+            sun.setFillColor(c);
+            window.draw(sun);
+        } else if (action == "add_button")
+        {
+            DrawPill(window, {ix + 4.f, iy + 9.f, 20.f, 10.f}, c, c);
+            rect(ix + 9.f, iy + 13.25f, 10.f, 1.5f, sf::Color(255, 255, 255, 210));
+        } else if (action == "add_checkbox")
+        {
+            rect(ix + 7.f, iy + 7.f, 14.f, 14.f, sf::Color::Transparent, c, 1.5f);
+            thickLine({ix + 10.f, iy + 14.f}, {ix + 13.f, iy + 17.5f}, 2.f, c);
+            thickLine({ix + 12.5f, iy + 17.5f}, {ix + 18.5f, iy + 10.5f}, 2.f, c);
+        } else if (action == "add_slider")
+        {
+            rect(ix + 5.f, cy - 1.f, 18.f, 2.f, soft);
+            rect(ix + 5.f, cy - 1.f, 9.f, 2.f, c);
+            sf::CircleShape knob(3.5f);
+            knob.setOrigin(3.5f, 3.5f);
+            knob.setPosition(ix + 14.f, cy);
+            knob.setFillColor(c);
+            window.draw(knob);
+        } else if (action == "add_textinput")
+        {
+            rect(ix + 5.f, iy + 9.f, 18.f, 10.f, sf::Color::Transparent, c, 1.5f);
+            rect(ix + 8.f, iy + 11.f, 1.5f, 6.f, c);
+        } else if (action == "add_progressbar")
+        {
+            rect(ix + 5.f, iy + 11.f, 18.f, 6.f, sf::Color::Transparent, soft, 1.f);
+            rect(ix + 5.f, iy + 11.f, 11.f, 6.f, c);
+        }
+    };
+
+    struct PaletteItem
+    {
+        const char *label;
+        const char *subtitle;
+        const char *action;
+    };
+    struct PaletteCategory
+    {
+        const char *name;
+        sf::Color accent;
+        std::vector<PaletteItem> items;
+    };
+
+    const std::vector<PaletteCategory> categories = {
+        {
+            "LAYOUT", C_ACCENT, {
+                {"Panel", "Background container", "add_panel"},
+                {"Vertical Box", "Stacks children vertically", "add_verticalbox"},
+                {"Horizontal Box", "Stacks children in a row", "add_horizontalbox"},
+            }
+        },
+        {
+            "BASIC", sf::Color(56, 189, 248), {
+                {"Text", "Static label", "add_text"},
+                {"Image", "Texture / sprite", "add_image"},
+                {"Button", "Clickable action", "add_button"},
+            }
+        },
+        {
+            "INPUT", C_SUCCESS, {
+                {"Checkbox", "On / off toggle", "add_checkbox"},
+                {"Slider", "Value in a range", "add_slider"},
+                {"Text Input", "Editable text field", "add_textinput"},
+            }
+        },
+        {
+            "DISPLAY", C_WARNING, {
+                {"Progress Bar", "Health, loading, ...", "add_progressbar"},
+            }
+        },
+    };
+
+    const float cardX = m_PaletteBounds.left + 10.f;
+    const float cardW = PaletteWidth - 20.f;
+    const float cardH = 38.f;
+    const float paletteBottom = m_PaletteBounds.top + m_PaletteBounds.height - 6.f;
+
+    for (const auto &cat: categories)
+    {
+        if (y + 22.f > paletteBottom) break;
+
+        // Category header: colored dot + label
+        sf::CircleShape dot(2.5f);
+        dot.setFillColor(cat.accent);
+        dot.setPosition(cardX + 4.f, y + 6.f);
+        window.draw(dot);
+
+        sf::Text catText;
+        catText.setFont(*m_Font);
+        catText.setCharacterSize(9);
+        catText.setStyle(sf::Text::Bold);
+        catText.setLetterSpacing(1.6f);
+        catText.setFillColor(C_TEXT_MUTED);
+        catText.setString(cat.name);
+        catText.setPosition(cardX + 13.f, y + 2.f);
+        window.draw(catText);
+        y += 20.f;
+
+        for (const auto &item: cat.items)
+        {
+            if (y + cardH > paletteBottom) break;
+
+            sf::FloatRect r(cardX, y, cardW, cardH);
+            const bool hov = r.contains(m_MouseScreenPos) && m_ActiveDropdown.empty();
+            const bool pressed = hov && mouseDown;
+
+            sf::Color fill = pressed
+                                 ? sf::Color(cat.accent.r / 5, cat.accent.g / 5, cat.accent.b / 5 + 10)
+                                 : (hov ? C_BG_ELEVATED : sf::Color(30, 33, 39));
+            sf::Color outline = hov ? sf::Color(cat.accent.r, cat.accent.g, cat.accent.b, 170) : C_BORDER;
+            DrawPill(window, r, fill, outline);
+
+            if (hov)
+            {
+                rect(r.left + 1.f, r.top + 8.f, 2.f, r.height - 16.f, cat.accent);
+                m_ActiveTooltip = std::string("Add ") + item.label + " - " + item.subtitle;
+            }
+
+            // Icon tile
+            const float tileX = r.left + 6.f;
+            const float tileY = r.top + 5.f;
+            sf::Color tileFill(cat.accent.r, cat.accent.g, cat.accent.b, hov ? 55 : 32);
+            DrawPill(window, {tileX, tileY, 28.f, 28.f}, tileFill, sf::Color(cat.accent.r, cat.accent.g, cat.accent.b, 0));
+            drawIcon(item.action, tileX, tileY + (pressed ? 1.f : 0.f), cat.accent);
+
+            // Labels
+            sf::Text label;
+            label.setFont(*m_Font);
+            label.setCharacterSize(12);
+            label.setFillColor(hov ? C_TEXT_PRIMARY : sf::Color(214, 217, 222));
+            label.setString(item.label);
+            label.setPosition(tileX + 36.f, r.top + 5.f);
+            window.draw(label);
+
+            sf::Text sub;
+            sub.setFont(*m_Font);
+            sub.setCharacterSize(9);
+            sub.setFillColor(hov ? C_TEXT_SECONDARY : C_TEXT_MUTED);
+            sub.setString(item.subtitle);
+            sub.setPosition(tileX + 36.f, r.top + 21.f);
+            window.draw(sub);
+
+            // "+" affordance on hover
+            if (hov)
+            {
+                const float px = r.left + r.width - 16.f, py = r.top + r.height / 2.f;
+                rect(px - 4.f, py - 0.75f, 8.f, 1.5f, cat.accent);
+                rect(px - 0.75f, py - 4.f, 1.5f, 8.f, cat.accent);
+            }
+
+            m_PaletteHitboxes.push_back({r, item.action});
+            y += cardH + 5.f;
+        }
+        y += 8.f;
+    }
 }
 
 void UIEditorScene::DrawHierarchy(sf::RenderWindow &window)
@@ -2902,12 +3124,31 @@ void UIEditorScene::DrawCanvas(sf::RenderWindow &window)
 
     if (m_SelectedElement)
     {
+        // Smooth accent outline with subtle glow
+        sf::RectangleShape glow(m_SelectedElement->size);
+        glow.setPosition(m_SelectedElement->worldPosition);
+        glow.setFillColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 20));
+        glow.setOutlineColor(sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 100));
+        glow.setOutlineThickness(3.f);
+        window.draw(glow);
+
         sf::RectangleShape outline(m_SelectedElement->size);
         outline.setPosition(m_SelectedElement->worldPosition);
         outline.setFillColor(sf::Color::Transparent);
-        outline.setOutlineColor(sf::Color(255, 220, 60));
-        outline.setOutlineThickness(2.f);
+        outline.setOutlineColor(C_ACCENT_BRIGHT);
+        outline.setOutlineThickness(1.5f);
         window.draw(outline);
+
+        // Size badge in top-left corner
+        std::string sizeStr = std::to_string((int)m_SelectedElement->size.x) + " x " + std::to_string((int)m_SelectedElement->size.y);
+        sf::Text sizeBadge(sizeStr, *m_Font, 10);
+        sizeBadge.setFillColor(sf::Color::White);
+        sf::FloatRect sb = sizeBadge.getLocalBounds();
+        sf::FloatRect pillR(m_SelectedElement->worldPosition.x, m_SelectedElement->worldPosition.y - 18.f, sb.width + 10.f, 15.f);
+        if (pillR.top < 0.f) pillR.top = m_SelectedElement->worldPosition.y + 4.f;
+        DrawPill(window, pillR, sf::Color(20, 22, 28, 220), sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 180));
+        sizeBadge.setPosition(pillR.left + 5.f, pillR.top + 1.f);
+        window.draw(sizeBadge);
 
         DrawResizeHandles(window);
     }
@@ -2918,7 +3159,7 @@ void UIEditorScene::DrawResizeHandles(sf::RenderWindow &window)
     if (!m_SelectedElement) return;
 
     const sf::FloatRect bounds(m_SelectedElement->worldPosition, m_SelectedElement->size);
-    const float hw = 4.f;
+    const float hw = 4.5f;
 
     sf::Vector2f positions[8] = {
         {bounds.left - hw, bounds.top - hw},
@@ -2931,15 +3172,10 @@ void UIEditorScene::DrawResizeHandles(sf::RenderWindow &window)
         {bounds.left + bounds.width - hw, bounds.top + bounds.height - hw}
     };
 
-    sf::RectangleShape handle({hw * 2.f, hw * 2.f});
-    handle.setFillColor(sf::Color(80, 165, 255, 240));
-    handle.setOutlineColor(sf::Color(25, 30, 45, 255));
-    handle.setOutlineThickness(1.f);
-
     for (const auto &pos: positions)
     {
-        handle.setPosition(pos);
-        window.draw(handle);
+        sf::FloatRect hr(pos.x, pos.y, hw * 2.f, hw * 2.f);
+        DrawPill(window, hr, sf::Color(255, 255, 255, 245), C_ACCENT);
     }
 }
 
@@ -3032,7 +3268,9 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             m_SelectedElement->size = {300.f, 200.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 150.f, m_CanvasSize.y / 2.f - 100.f};
-            m_SelectedElement->color = sf::Color(35, 35, 55, 230);
+            m_SelectedElement->color = sf::Color(24, 27, 35, 235);
+            m_SelectedElement->outlineColor = sf::Color(60, 66, 82);
+            m_SelectedElement->outlineThickness = 1.f;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3047,6 +3285,7 @@ void UIEditorScene::HandleAction(const std::string &action)
             m_SelectedElement->size = {200.f, 40.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 20.f};
             m_SelectedElement->characterSize = 24;
+            m_SelectedElement->textColor = sf::Color(236, 238, 242);
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3060,6 +3299,13 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             m_SelectedElement->size = {180.f, 50.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 90.f, m_CanvasSize.y / 2.f - 25.f};
+            m_SelectedElement->normalColor = C_ACCENT;
+            m_SelectedElement->hoverColor = C_ACCENT_HOV;
+            m_SelectedElement->pressedColor = C_ACCENT_ACT;
+            m_SelectedElement->textColor = sf::Color::White;
+            m_SelectedElement->borderColor = sf::Color(255, 255, 255, 40);
+            m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->characterSize = 18;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3085,8 +3331,14 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_SelectedElement = UIManager::Get().CreateElement(NextId(UIElementType::Checkbox), UIElementType::Checkbox);
         if (m_SelectedElement)
         {
-            m_SelectedElement->size = {40.f, 40.f};
-            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 20.f, m_CanvasSize.y / 2.f - 20.f};
+            m_SelectedElement->size = {32.f, 32.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 16.f, m_CanvasSize.y / 2.f - 16.f};
+            m_SelectedElement->normalColor = sf::Color(30, 34, 42);
+            m_SelectedElement->hoverColor = sf::Color(40, 45, 56);
+            m_SelectedElement->pressedColor = sf::Color(24, 27, 34);
+            m_SelectedElement->borderColor = sf::Color(88, 95, 115);
+            m_SelectedElement->borderThickness = 2.f;
+            m_SelectedElement->textColor = C_ACCENT;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3098,10 +3350,10 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_SelectedElement = UIManager::Get().CreateElement(NextId(UIElementType::Slider), UIElementType::Slider);
         if (m_SelectedElement)
         {
-            m_SelectedElement->size = {200.f, 20.f};
-            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 10.f};
-            m_SelectedElement->color = sf::Color(80, 80, 90);
-            m_SelectedElement->normalColor = sf::Color(200, 200, 210);
+            m_SelectedElement->size = {240.f, 14.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 120.f, m_CanvasSize.y / 2.f - 7.f};
+            m_SelectedElement->color = sf::Color(44, 48, 60);
+            m_SelectedElement->normalColor = sf::Color(236, 238, 245);
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3114,9 +3366,9 @@ void UIEditorScene::HandleAction(const std::string &action)
                                                            UIElementType::ProgressBar);
         if (m_SelectedElement)
         {
-            m_SelectedElement->size = {200.f, 30.f};
-            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 15.f};
-            m_SelectedElement->color = sf::Color(50, 50, 60);
+            m_SelectedElement->size = {240.f, 18.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 120.f, m_CanvasSize.y / 2.f - 9.f};
+            m_SelectedElement->color = sf::Color(36, 40, 50);
             m_SelectedElement->normalColor = C_SUCCESS;
             m_SelectedElement->progressValue = 0.5f;
             m_SelectedElement->zIndex = maxZ + 1;
@@ -3130,12 +3382,14 @@ void UIEditorScene::HandleAction(const std::string &action)
         m_SelectedElement = UIManager::Get().CreateElement(NextId(UIElementType::TextInput), UIElementType::TextInput);
         if (m_SelectedElement)
         {
-            m_SelectedElement->size = {200.f, 40.f};
-            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 100.f, m_CanvasSize.y / 2.f - 20.f};
-            m_SelectedElement->normalColor = C_BG_INPUT;
-            m_SelectedElement->pressedColor = sf::Color(30, 35, 42);
-            m_SelectedElement->borderColor = C_BORDER;
+            m_SelectedElement->size = {240.f, 42.f};
+            m_SelectedElement->position = {m_CanvasSize.x / 2.f - 120.f, m_CanvasSize.y / 2.f - 21.f};
+            m_SelectedElement->normalColor = sf::Color(22, 25, 31);
+            m_SelectedElement->hoverColor = sf::Color(28, 32, 40);
+            m_SelectedElement->pressedColor = sf::Color(30, 34, 44);
+            m_SelectedElement->borderColor = sf::Color(70, 76, 94);
             m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->textColor = sf::Color(230, 232, 238);
             m_SelectedElement->characterSize = 18;
             m_SelectedElement->textAlign = TextAlign::Left;
             m_SelectedElement->zIndex = maxZ + 1;
@@ -3152,11 +3406,11 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             m_SelectedElement->size = {220.f, 260.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 110.f, m_CanvasSize.y / 2.f - 130.f};
-            m_SelectedElement->color = sf::Color(30, 32, 40, 180);
-            m_SelectedElement->borderColor = C_ACCENT;
-            m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->color = sf::Color(24, 27, 35, 190);
+            m_SelectedElement->outlineColor = sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 130);
+            m_SelectedElement->outlineThickness = 1.f;
             m_SelectedElement->layoutSpacing = 8.f;
-            m_SelectedElement->layoutPadding = 10.f;
+            m_SelectedElement->layoutPadding = 12.f;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3171,11 +3425,11 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             m_SelectedElement->size = {300.f, 80.f};
             m_SelectedElement->position = {m_CanvasSize.x / 2.f - 150.f, m_CanvasSize.y / 2.f - 40.f};
-            m_SelectedElement->color = sf::Color(30, 32, 40, 180);
-            m_SelectedElement->borderColor = C_ACCENT;
-            m_SelectedElement->borderThickness = 1.f;
+            m_SelectedElement->color = sf::Color(24, 27, 35, 190);
+            m_SelectedElement->outlineColor = sf::Color(C_ACCENT.r, C_ACCENT.g, C_ACCENT.b, 130);
+            m_SelectedElement->outlineThickness = 1.f;
             m_SelectedElement->layoutSpacing = 8.f;
-            m_SelectedElement->layoutPadding = 10.f;
+            m_SelectedElement->layoutPadding = 12.f;
             m_SelectedElement->zIndex = maxZ + 1;
             m_SelectedElement->UpdateDrawables();
             SelectElement(m_SelectedElement);
@@ -3590,8 +3844,8 @@ void UIEditorScene::HandleAction(const std::string &action)
             {
                 m_SelectedElement->texturePath = picked;
                 m_SelectedElement->texture = LoadTextureRobust(picked);
-                if (m_SelectedElement->type == UIElementType::Button && m_SelectedElement->normalColor ==
-                    sf::Color(100, 100, 100))
+                if (m_SelectedElement->type == UIElementType::Button &&
+                    (m_SelectedElement->normalColor == sf::Color(100, 100, 100) || m_SelectedElement->normalColor == C_ACCENT))
                 {
                     m_SelectedElement->normalColor = sf::Color::White;
                     m_SelectedElement->hoverColor = sf::Color(230, 230, 230);
