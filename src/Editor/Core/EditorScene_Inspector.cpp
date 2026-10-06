@@ -974,6 +974,14 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
     {
         auto &col = m_Registry.GetComponent<CollisionComponent>(target->entity);
         y = DrawSectionHeader(window, "COLLISION", C_TEXT_SECONDARY, panelX, y);
+
+        bool isColEditing = (m_GizmoTool == GizmoTool::Collider);
+        std::string editBtnLabel = isColEditing ? "[ACTIVE] Edit Collider Handles (C)" : "Edit Collider Handles (C)";
+        sf::Color editBtnFill = isColEditing ? sf::Color(30, 80, 50) : C_BG_ELEVATED;
+        sf::Color editBtnBorder = isColEditing ? sf::Color(74, 222, 128) : C_BORDER_LIGHT;
+        y = DrawActionButton(window, editBtnLabel, "toggle_gizmo_tool", panelX, y, editBtnFill, editBtnBorder);
+        y += 2.f;
+
         std::string chanDisplay = (m_ActiveField == EditField::CollisionChannel && !m_ActiveInputText.empty())
                                       ? m_ActiveInputText + "|"
                                       : (m_ActiveField == EditField::CollisionChannel
@@ -2784,6 +2792,10 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
         {
             target->templatePath.clear();
             SetDirty(true);
+            UpdateStatusText();
+        } else if (btn.action == "toggle_gizmo_tool")
+        {
+            m_GizmoTool = (m_GizmoTool == GizmoTool::Transform) ? GizmoTool::Collider : GizmoTool::Transform;
             UpdateStatusText();
         }
         break;

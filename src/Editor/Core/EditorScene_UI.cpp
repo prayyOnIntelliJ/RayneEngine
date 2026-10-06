@@ -122,6 +122,17 @@ void EditorScene::DrawToolbar(sf::RenderWindow &window)
         cx += gr.width + 8.f;
     }
 
+    drawSep(cx);
+    cx += 12.f; {
+        bool isColMode = (m_GizmoTool == GizmoTool::Collider);
+        std::string modeLabel = isColMode ? "Edit Collider" : "Resize Gizmo";
+        float modeW = isColMode ? 96.f : 96.f;
+        const sf::FloatRect colModeRect(cx, ty + 4.f, modeW, ToolbarHeight - 8.f);
+        drawBtn(colModeRect, modeLabel, isColMode, sf::Color(74, 222, 128), sf::Color(74, 222, 128));
+        m_ToolbarHitboxes.push_back({colModeRect, "toggle_gizmo_tool"});
+        cx += colModeRect.width + 8.f;
+    }
+
     if (m_EditingTemplate)
     {
         drawSep(cx);

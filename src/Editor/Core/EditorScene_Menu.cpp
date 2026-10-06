@@ -126,6 +126,10 @@ void EditorScene::HandleMenuAction(const std::string &action)
     {
         m_SnapToGrid = !m_SnapToGrid;
         UpdateStatusText();
+    } else if (action == "toggle_gizmo_tool")
+    {
+        m_GizmoTool = (m_GizmoTool == GizmoTool::Transform) ? GizmoTool::Collider : GizmoTool::Transform;
+        UpdateStatusText();
     } else if (action == "center_camera") { m_camera.setCenter(0.f, 0.f); } else if (action == "run")
     {
         TryLaunchPlayMode();

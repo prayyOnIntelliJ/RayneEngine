@@ -612,6 +612,13 @@ private:
 
     bool GetRotateHandle(sf::Vector2f worldPos) const;
 
+    enum class GizmoTool
+    {
+        Transform,
+        Collider
+    };
+    GizmoTool m_GizmoTool = GizmoTool::Transform;
+
     bool m_ResizingCollider = false;
     int m_ColliderHandle = -1;
     sf::Vector2f m_ColliderMouseStart{0.f, 0.f};

@@ -2115,7 +2115,7 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 }
             }
 
-            if (m_ColliderGizmoActive && m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
+            if (m_GizmoTool == GizmoTool::Collider && m_ColliderGizmoActive && m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
             {
                 const int colHandle = GetColliderHandle(pos);
                 if (colHandle >= 0)
@@ -2135,28 +2135,31 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 }
             }
 
-            const int handle = GetResizeHandle(pos);
-            if (handle >= 0)
+            if (m_GizmoTool == GizmoTool::Transform)
             {
-                m_Resizing = true;
-                m_DragBeforeStates.clear();
-                m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
-                m_ResizeHandle = handle;
-                m_ResizeMouseStart = pos;
-                m_ResizeObjOrigin = m_Selected->shape.getPosition();
-                m_ResizeObjSize = m_Selected->shape.getSize();
-                UpdateStatusText();
-                return;
-            }
-            if (GetRotateHandle(pos))
-            {
-                m_Rotating = true;
-                m_DragBeforeStates.clear();
-                m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
-                sf::Vector2f pivot = m_Selected->shape.getPosition();
-                m_RotateMouseAngleStart = std::atan2(pos.y - pivot.y, pos.x - pivot.x) * 180.f / 3.14159265f;
-                m_RotateObjAngleStart = m_Selected->rotation;
-                return;
+                const int handle = GetResizeHandle(pos);
+                if (handle >= 0)
+                {
+                    m_Resizing = true;
+                    m_DragBeforeStates.clear();
+                    m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
+                    m_ResizeHandle = handle;
+                    m_ResizeMouseStart = pos;
+                    m_ResizeObjOrigin = m_Selected->shape.getPosition();
+                    m_ResizeObjSize = m_Selected->shape.getSize();
+                    UpdateStatusText();
+                    return;
+                }
+                if (GetRotateHandle(pos))
+                {
+                    m_Rotating = true;
+                    m_DragBeforeStates.clear();
+                    m_DragBeforeStates[m_Selected->id] = SerializeObject(*m_Selected);
+                    sf::Vector2f pivot = m_Selected->shape.getPosition();
+                    m_RotateMouseAngleStart = std::atan2(pos.y - pivot.y, pos.x - pivot.x) * 180.f / 3.14159265f;
+                    m_RotateObjAngleStart = m_Selected->rotation;
+                    return;
+                }
             }
         }
 
@@ -2299,6 +2302,13 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 UpdateStatusText();
                 std::cout << "[INFO] [EditorScene] Switched to Select / Pointer mode (no object in hand)\n";
             }
+        }
+
+        if (event.key.code == sf::Keyboard::C && !ctrl && m_ActiveField == EditField::None)
+        {
+            m_GizmoTool = (m_GizmoTool == GizmoTool::Transform) ? GizmoTool::Collider : GizmoTool::Transform;
+            UpdateStatusText();
+            std::cout << "[INFO] [EditorScene] Switched Gizmo Mode: " << (m_GizmoTool == GizmoTool::Collider ? "Collider Handles" : "Resize / Transform") << "\n";
         }
 
         if (event.key.code == sf::Keyboard::F5) { TryLaunchPlayMode(); }
@@ -2970,9 +2980,9 @@ void EditorScene::Render(sf::RenderWindow &window)
     if (canPlace)
     {
         sf::Vector2f wPos = MouseWorldPos();
-        if (m_Selected && GetResizeHandle(wPos) >= 0) canPlace = false;
-        else if (m_Selected && GetRotateHandle(wPos)) canPlace = false;
-        else if (m_Selected && m_ColliderGizmoActive && GetColliderHandle(wPos) >= 0) canPlace = false;
+        if (m_Selected && m_GizmoTool == GizmoTool::Transform && GetResizeHandle(wPos) >= 0) canPlace = false;
+        else if (m_Selected && m_GizmoTool == GizmoTool::Transform && GetRotateHandle(wPos)) canPlace = false;
+        else if (m_Selected && m_GizmoTool == GizmoTool::Collider && m_ColliderGizmoActive && GetColliderHandle(wPos) >= 0) canPlace = false;
         else if (ObjectAt(wPos) != nullptr) canPlace = false;
     }
 
@@ -4519,49 +4529,54 @@ void EditorScene::DrawGizmos(sf::RenderWindow &window)
     static const sf::Color C_SCALE_EDGE = sf::Color(120, 195, 255, 240);
     static const sf::Color C_SCALE_OUTL = sf::Color(25, 30, 45, 255);
 
-    for (int i = 0; i < 8; ++i)
+    if (m_GizmoTool == GizmoTool::Transform)
     {
-        const sf::Vector2f hp = HandlePos(m_Selected, i);
-        const bool isCorner = (i == 0 || i == 2 || i == 5 || i == 7);
+        for (int i = 0; i < 8; ++i)
+        {
+            const sf::Vector2f hp = HandlePos(m_Selected, i);
+            const bool isCorner = (i == 0 || i == 2 || i == 5 || i == 7);
 
-        sf::RectangleShape handle({hw * 2.f, hw * 2.f});
-        handle.setOrigin(hw, hw);
-        handle.setPosition(hp);
-        handle.setRotation(m_Selected->rotation);
-        handle.setFillColor(isCorner ? C_SCALE_FILL : C_SCALE_EDGE);
-        handle.setOutlineColor(C_SCALE_OUTL);
-        handle.setOutlineThickness(std::max(1.f, hw * 0.25f));
-        window.draw(handle);
+            sf::RectangleShape handle({hw * 2.f, hw * 2.f});
+            handle.setOrigin(hw, hw);
+            handle.setPosition(hp);
+            handle.setRotation(m_Selected->rotation);
+            handle.setFillColor(isCorner ? C_SCALE_FILL : C_SCALE_EDGE);
+            handle.setOutlineColor(C_SCALE_OUTL);
+            handle.setOutlineThickness(std::max(1.f, hw * 0.25f));
+            window.draw(handle);
+        }
+
+        static const sf::Color C_ROT_LINE = sf::Color(80, 220, 140, 180);
+        sf::VertexArray line(sf::Lines, 2);
+        line[0] = {topMid, C_ROT_LINE};
+        line[1] = {m_RotateHandlePos, C_ROT_LINE};
+        window.draw(line);
+
+        static const sf::Color C_ROT_FILL = sf::Color(60, 210, 120, 230);
+        static const sf::Color C_ROT_OUTL = sf::Color(30, 160, 80, 255);
+        const float rotR = hw * 1.4f;
+
+        sf::CircleShape rotHandle(rotR);
+        rotHandle.setOrigin(rotR, rotR);
+        rotHandle.setPosition(m_RotateHandlePos);
+        rotHandle.setFillColor(m_Rotating ? sf::Color(100, 255, 160, 245) : C_ROT_FILL);
+        rotHandle.setOutlineColor(C_ROT_OUTL);
+        rotHandle.setOutlineThickness(hw * 0.3f);
+        window.draw(rotHandle);
+
+        const float a = rotR * 0.55f;
+        sf::VertexArray arc(sf::LinesStrip, 5);
+        arc[0] = {{m_RotateHandlePos.x - a, m_RotateHandlePos.y}, sf::Color(255, 255, 255, 200)};
+        arc[1] = {{m_RotateHandlePos.x - a * 0.5f, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
+        arc[2] = {{m_RotateHandlePos.x, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
+        arc[3] = {{m_RotateHandlePos.x + a * 0.5f, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
+        arc[4] = {{m_RotateHandlePos.x + a, m_RotateHandlePos.y}, sf::Color(255, 255, 255, 200)};
+        window.draw(arc);
     }
-
-    static const sf::Color C_ROT_LINE = sf::Color(80, 220, 140, 180);
-    sf::VertexArray line(sf::Lines, 2);
-    line[0] = {topMid, C_ROT_LINE};
-    line[1] = {m_RotateHandlePos, C_ROT_LINE};
-    window.draw(line);
-
-    static const sf::Color C_ROT_FILL = sf::Color(60, 210, 120, 230);
-    static const sf::Color C_ROT_OUTL = sf::Color(30, 160, 80, 255);
-    const float rotR = hw * 1.4f;
-
-    sf::CircleShape rotHandle(rotR);
-    rotHandle.setOrigin(rotR, rotR);
-    rotHandle.setPosition(m_RotateHandlePos);
-    rotHandle.setFillColor(m_Rotating ? sf::Color(100, 255, 160, 245) : C_ROT_FILL);
-    rotHandle.setOutlineColor(C_ROT_OUTL);
-    rotHandle.setOutlineThickness(hw * 0.3f);
-    window.draw(rotHandle);
-
-    const float a = rotR * 0.55f;
-    sf::VertexArray arc(sf::LinesStrip, 5);
-    arc[0] = {{m_RotateHandlePos.x - a, m_RotateHandlePos.y}, sf::Color(255, 255, 255, 200)};
-    arc[1] = {{m_RotateHandlePos.x - a * 0.5f, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
-    arc[2] = {{m_RotateHandlePos.x, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
-    arc[3] = {{m_RotateHandlePos.x + a * 0.5f, m_RotateHandlePos.y - a}, sf::Color(255, 255, 255, 200)};
-    arc[4] = {{m_RotateHandlePos.x + a, m_RotateHandlePos.y}, sf::Color(255, 255, 255, 200)};
-    window.draw(arc);
-
-    DrawColliderGizmos(window);
+    else if (m_GizmoTool == GizmoTool::Collider)
+    {
+        DrawColliderGizmos(window);
+    }
 }
 
 bool EditorScene::GetRotateHandle(sf::Vector2f worldPos) const
@@ -4687,28 +4702,29 @@ void EditorScene::DrawColliderGizmos(sf::RenderWindow &window)
 
         if (i == centerIdx)
         {
-            // Center handle: diamond with dark inner dot for moving offset
-            sf::CircleShape centerHandle(hr * 1.15f, 4);
-            centerHandle.setOrigin(hr * 1.15f, hr * 1.15f);
+            // Center offset handle: diamond with dark inner dot
+            sf::CircleShape centerHandle(hr * 1.3f, 4);
+            centerHandle.setOrigin(hr * 1.3f, hr * 1.3f);
             centerHandle.setPosition(hp);
             centerHandle.setRotation(m_Selected->rotation + 45.f);
             centerHandle.setFillColor(isDraggingThis ? C_COL_ACTIVE : C_COL_CENTER);
             centerHandle.setOutlineColor(C_COL_OUTL);
-            centerHandle.setOutlineThickness(std::max(1.f, hr * 0.25f));
+            centerHandle.setOutlineThickness(std::max(1.f, hr * 0.28f));
             window.draw(centerHandle);
 
-            sf::CircleShape dot(std::max(1.5f, hr * 0.35f));
-            dot.setOrigin(std::max(1.5f, hr * 0.35f), std::max(1.5f, hr * 0.35f));
+            sf::CircleShape dot(std::max(1.5f, hr * 0.4f));
+            dot.setOrigin(std::max(1.5f, hr * 0.4f), std::max(1.5f, hr * 0.4f));
             dot.setPosition(hp);
             dot.setFillColor(sf::Color(15, 35, 20));
             window.draw(dot);
         }
         else
         {
-            // Perimeter / corner handle: green circle
-            sf::CircleShape handle(hr);
-            handle.setOrigin(hr, hr);
+            // Perimeter / corner handles: rotated 4-sided diamond handles
+            sf::CircleShape handle(hr * 1.15f, 4);
+            handle.setOrigin(hr * 1.15f, hr * 1.15f);
             handle.setPosition(hp);
+            handle.setRotation(m_Selected->rotation + 45.f);
             handle.setFillColor(isDraggingThis ? C_COL_ACTIVE : C_COL_HANDLE);
             handle.setOutlineColor(C_COL_OUTL);
             handle.setOutlineThickness(std::max(1.f, hr * 0.25f));
