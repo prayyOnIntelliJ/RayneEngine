@@ -186,6 +186,8 @@ private:
     std::string m_ActiveDropdown;
     sf::FloatRect m_DropdownRect;
     std::string m_DropdownTarget;
+    float m_DropdownScrollOffset = 0.f;
+    float m_DropdownMaxScroll = 0.f;
 
     struct ButtonHitbox
     {

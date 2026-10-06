@@ -238,7 +238,7 @@ struct DropdownOption
 
 static const std::vector<DropdownOption> UTILITY_ACTIONS = {
     {"None", "", ActionParamType::None, ""},
-    {"Load Scene", "LoadScene", ActionParamType::String, "scenes/level1.json"},
+    {"Load Scene", "LoadScene", ActionParamType::String, "scenes/game.json"},
     {"Restart Scene", "Restart", ActionParamType::None, ""},
     {"Quit Game", "Quit", ActionParamType::None, ""},
     {"Play Sound", "PlaySound", ActionParamType::String, "audio/click.wav"},
@@ -515,6 +515,13 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
 
     if (event.type == sf::Event::MouseWheelScrolled)
     {
+        if (!m_ActiveDropdown.empty() && m_DropdownRect.contains(m_MouseScreenPos))
+        {
+            m_DropdownScrollOffset -= event.mouseWheelScroll.delta * 24.f;
+            m_DropdownScrollOffset = std::max(0.f, std::min(m_DropdownScrollOffset, m_DropdownMaxScroll));
+            return;
+        }
+
         if (m_BrowserBounds.contains(m_MouseScreenPos))
         {
             if (m_ContentBrowser) m_ContentBrowser->HandleEvent(event, m_MouseScreenPos);
@@ -573,15 +580,16 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                                 scriptOptions.push_back({s, s});
                         }
 
-                        float y = m_DropdownRect.top + 4.f;
+                        float y = m_DropdownRect.top + 4.f - m_DropdownScrollOffset;
                         for (const auto &opt: scriptOptions)
                         {
                             sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
-                            if (r.contains(m_MouseScreenPos))
+                            if (m_DropdownRect.contains(m_MouseScreenPos) && r.contains(m_MouseScreenPos))
                             {
                                 if (opt.first == "__browse__") { HandleAction("browse_script_dialog"); } else
                                 {
                                     m_SelectedElement->scriptPath = opt.first;
+                                    SetDirty(true);
                                 }
                                 break;
                             }
@@ -589,20 +597,22 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                         }
                     } else
                     {
-                        float y = m_DropdownRect.top + 4.f;
+                        float y = m_DropdownRect.top + 4.f - m_DropdownScrollOffset;
                         for (const auto &opt: UTILITY_ACTIONS)
                         {
                             sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
-                            if (r.contains(m_MouseScreenPos))
+                            if (m_DropdownRect.contains(m_MouseScreenPos) && r.contains(m_MouseScreenPos))
                             {
                                 if (m_ActiveDropdown == "onclick")
                                 {
                                     m_SelectedElement->onClickAction = opt.code;
                                     m_SelectedElement->onClickParam = opt.defaultParam;
+                                    SetDirty(true);
                                 } else if (m_ActiveDropdown == "onhover")
                                 {
                                     m_SelectedElement->onHoverAction = opt.code;
                                     m_SelectedElement->onHoverParam = opt.defaultParam;
+                                    SetDirty(true);
                                 }
                                 break;
                             }
@@ -611,6 +621,7 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                     }
                 }
                 m_ActiveDropdown = "";
+                m_DropdownScrollOffset = 0.f;
                 return;
             }
 
@@ -944,7 +955,66 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
             std::filesystem::path pt(drag.path);
             std::filesystem::path root = std::filesystem::absolute(ASSET_PATH, ec);
             std::string relPath = std::filesystem::proximate(pt, root, ec).generic_string();
-            if (ec) relPath = drag.path;
+            if (ec || relPath.empty()) relPath = drag.path;
+            for (char &c: relPath) if (c == '\\') c = '/';
+            if (relPath.rfind("assets/", 0) == 0) relPath = relPath.substr(7);
+            else if (relPath.find("/assets/") != std::string::npos)
+            {
+                relPath = relPath.substr(relPath.find("/assets/") + 8);
+            }
+
+            bool droppedOnParam = false;
+            if (m_InspectorBounds.contains(m_MouseScreenPos) && m_SelectedElement)
+            {
+                for (const auto &hb: m_InspectorHitboxes)
+                {
+                    if (hb.bounds.contains(m_MouseScreenPos))
+                    {
+                        if (hb.action == "edit_clickparam" || hb.action == "dropdown_onclick")
+                        {
+                            m_SelectedElement->onClickParam = relPath;
+                            if (m_ActiveField == EditField::OnClickParam) m_ActiveInputText = relPath;
+                            if (drag.type == AssetType::Scene || relPath.ends_with(".json"))
+                            {
+                                m_SelectedElement->onClickAction = "LoadScene";
+                            }
+                            else if (drag.type == AssetType::Audio || relPath.ends_with(".wav") || relPath.ends_with(".ogg") || relPath.ends_with(".mp3"))
+                            {
+                                m_SelectedElement->onClickAction = "PlaySound";
+                            }
+                            droppedOnParam = true;
+                            break;
+                        }
+                        else if (hb.action == "edit_hoverparam" || hb.action == "dropdown_onhover")
+                        {
+                            m_SelectedElement->onHoverParam = relPath;
+                            if (m_ActiveField == EditField::OnHoverParam) m_ActiveInputText = relPath;
+                            if (drag.type == AssetType::Audio || relPath.ends_with(".wav") || relPath.ends_with(".ogg") || relPath.ends_with(".mp3"))
+                            {
+                                m_SelectedElement->onHoverAction = "PlaySound";
+                            }
+                            droppedOnParam = true;
+                            break;
+                        }
+                        else if (hb.action == "browse_scripts" || hb.action == "edit_scriptpath")
+                        {
+                            if (drag.type == AssetType::Script || relPath.ends_with(".lua"))
+                            {
+                                m_SelectedElement->scriptPath = relPath;
+                                if (m_ActiveField == EditField::ScriptPath) m_ActiveInputText = relPath;
+                                droppedOnParam = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (droppedOnParam)
+            {
+                SetDirty(true);
+                return;
+            }
 
             if (drag.type == AssetType::Image)
             {
@@ -1148,6 +1218,25 @@ void UIEditorScene::HandleEvent(const sf::Event &event)
                 {
                     m_SelectedElement->font = f;
                     m_SelectedElement->UpdateDrawables();
+                }
+            } else if (m_InspectorBounds.contains(m_MouseScreenPos) && m_SelectedElement)
+            {
+                if (drag.type == AssetType::Scene || relPath.ends_with(".json"))
+                {
+                    m_SelectedElement->onClickAction = "LoadScene";
+                    m_SelectedElement->onClickParam = relPath;
+                    if (m_ActiveField == EditField::OnClickParam) m_ActiveInputText = relPath;
+                }
+                else if (drag.type == AssetType::Audio || relPath.ends_with(".wav") || relPath.ends_with(".ogg") || relPath.ends_with(".mp3"))
+                {
+                    m_SelectedElement->onClickAction = "PlaySound";
+                    m_SelectedElement->onClickParam = relPath;
+                    if (m_ActiveField == EditField::OnClickParam) m_ActiveInputText = relPath;
+                }
+                else if (drag.type == AssetType::Script || relPath.ends_with(".lua"))
+                {
+                    m_SelectedElement->scriptPath = relPath;
+                    if (m_ActiveField == EditField::ScriptPath) m_ActiveInputText = relPath;
                 }
             }
             SetDirty(true);
@@ -2708,6 +2797,7 @@ void UIEditorScene::DrawInspector(sf::RenderWindow &window)
                                         : (m_ActiveField == EditField::OnHoverParam
                                                ? "|"
                                                : m_SelectedElement->onHoverParam);
+            y = DrawEditableRow(window, "  Param", hpDisplay, "edit_hoverparam", px, y);
         }
     }
 
@@ -3358,8 +3448,20 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             if (hb.action == "dropdown_onclick")
             {
-                m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width,
-                                               UTILITY_ACTIONS.size() * 24.f + 8.f);
+                float totalContentH = UTILITY_ACTIONS.size() * 24.f + 8.f;
+                float finalH = std::min(260.f, totalContentH);
+                float availableBelow = static_cast<float>(m_Window.getSize().y) - (hb.bounds.top + hb.bounds.height) - 10.f;
+                if (availableBelow < 150.f && hb.bounds.top > 200.f)
+                {
+                    m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top - finalH, hb.bounds.width, finalH);
+                }
+                else
+                {
+                    finalH = std::min(finalH, std::max(120.f, availableBelow));
+                    m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width, finalH);
+                }
+                m_DropdownScrollOffset = 0.f;
+                m_DropdownMaxScroll = std::max(0.f, totalContentH - m_DropdownRect.height);
                 break;
             }
         }
@@ -3370,8 +3472,20 @@ void UIEditorScene::HandleAction(const std::string &action)
         {
             if (hb.action == "dropdown_onhover")
             {
-                m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width,
-                                               UTILITY_ACTIONS.size() * 24.f + 8.f);
+                float totalContentH = UTILITY_ACTIONS.size() * 24.f + 8.f;
+                float finalH = std::min(260.f, totalContentH);
+                float availableBelow = static_cast<float>(m_Window.getSize().y) - (hb.bounds.top + hb.bounds.height) - 10.f;
+                if (availableBelow < 150.f && hb.bounds.top > 200.f)
+                {
+                    m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top - finalH, hb.bounds.width, finalH);
+                }
+                else
+                {
+                    finalH = std::min(finalH, std::max(120.f, availableBelow));
+                    m_DropdownRect = sf::FloatRect(hb.bounds.left, hb.bounds.top + hb.bounds.height, hb.bounds.width, finalH);
+                }
+                m_DropdownScrollOffset = 0.f;
+                m_DropdownMaxScroll = std::max(0.f, totalContentH - m_DropdownRect.height);
                 break;
             }
         }
@@ -3407,10 +3521,13 @@ void UIEditorScene::HandleAction(const std::string &action)
             if (hb.action == "browse_scripts")
             {
                 auto scripts = GetAvailableScripts();
-                float dropH = (scripts.size() + 3) * 24.f + 8.f;
+                float dropTotalH = (scripts.size() + 3) * 24.f + 8.f;
+                float dropH = std::min(dropTotalH, 240.f);
                 float dropW = InspectorWidth - 28.f;
                 m_DropdownRect = sf::FloatRect(m_InspectorBounds.left + 14.f, hb.bounds.top + hb.bounds.height + 2.f,
-                                               dropW, std::min(dropH, 240.f));
+                                               dropW, dropH);
+                m_DropdownScrollOffset = 0.f;
+                m_DropdownMaxScroll = std::max(0.f, dropTotalH - dropH);
                 break;
             }
         }
@@ -4088,8 +4205,22 @@ float UIEditorScene::DrawEditableRow(sf::RenderWindow &window, const std::string
     const sf::FloatRect fieldRect(valX, valY, valW, 20.f);
     const bool hovered = fieldRect.contains(m_MouseScreenPos);
 
-    sf::Color fieldFill = hovered ? C_BG_ELEVATED : C_BG_INPUT;
-    sf::Color fieldBorder = hovered ? C_ACCENT : C_BORDER;
+    bool isDragHover = false;
+    if (m_ContentBrowser && m_ContentBrowser->HasDraggedAsset())
+    {
+        if (fieldRect.contains(m_MouseScreenPos) || rowRect.contains(m_MouseScreenPos))
+        {
+            if (action == "edit_clickparam" || action == "edit_hoverparam" ||
+                action == "dropdown_onclick" || action == "dropdown_onhover" ||
+                action == "browse_scripts")
+            {
+                isDragHover = true;
+            }
+        }
+    }
+
+    sf::Color fieldFill = isDragHover ? C_ACCENT_DIM : (hovered ? C_BG_ELEVATED : C_BG_INPUT);
+    sf::Color fieldBorder = isDragHover ? C_ACCENT_BRIGHT : (hovered ? C_ACCENT : C_BORDER);
 
     sf::RectangleShape field({fieldRect.width, fieldRect.height});
     field.setPosition(fieldRect.left, fieldRect.top);
@@ -4454,37 +4585,64 @@ void UIEditorScene::DrawDropdownOverlay(sf::RenderWindow &window)
                 scriptOptions.push_back({s, s});
         }
 
-        float totalH = std::min(static_cast<float>(scriptOptions.size() * 24.f + 8.f), 260.f);
-        sf::RectangleShape bg({m_DropdownRect.width, totalH});
+        sf::RectangleShape bg({m_DropdownRect.width, m_DropdownRect.height});
         bg.setFillColor(C_BG_ELEVATED);
         bg.setOutlineColor(C_BORDER_LIGHT);
         bg.setOutlineThickness(1.f);
         bg.setPosition(m_DropdownRect.left, m_DropdownRect.top);
         window.draw(bg);
 
-        float y = m_DropdownRect.top + 4.f;
+        float y = m_DropdownRect.top + 4.f - m_DropdownScrollOffset;
         for (const auto &opt: scriptOptions)
         {
-            if (y + 24.f > m_DropdownRect.top + totalH) break;
-            sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
-            bool hov = r.contains(m_MouseScreenPos);
-            if (hov)
+            if (y + 24.f > m_DropdownRect.top && y < m_DropdownRect.top + m_DropdownRect.height)
             {
-                sf::RectangleShape hbg({m_DropdownRect.width - 4.f, 22.f});
-                hbg.setFillColor(C_ACCENT_DIM);
-                hbg.setPosition(m_DropdownRect.left + 2.f, y + 1.f);
-                window.draw(hbg);
+                sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width - (m_DropdownMaxScroll > 0.f ? 10.f : 0.f), 24.f);
+                bool hov = m_DropdownRect.contains(m_MouseScreenPos) && r.contains(m_MouseScreenPos);
+                float itemTop = std::max(y + 1.f, m_DropdownRect.top + 1.f);
+                float itemBottom = std::min(y + 23.f, m_DropdownRect.top + m_DropdownRect.height - 1.f);
+
+                if (hov && itemBottom > itemTop)
+                {
+                    sf::RectangleShape hbg({m_DropdownRect.width - (m_DropdownMaxScroll > 0.f ? 12.f : 4.f), itemBottom - itemTop});
+                    hbg.setFillColor(C_ACCENT_DIM);
+                    hbg.setPosition(m_DropdownRect.left + 2.f, itemTop);
+                    window.draw(hbg);
+                }
+
+                if (y >= m_DropdownRect.top - 2.f && y + 16.f <= m_DropdownRect.top + m_DropdownRect.height + 2.f)
+                {
+                    sf::Text t;
+                    t.setFont(*m_Font);
+                    t.setCharacterSize(11);
+                    t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+                    std::string label = opt.second;
+                    if (label.length() > 36) label = "..." + label.substr(label.length() - 33);
+                    t.setString(label);
+                    t.setPosition(m_DropdownRect.left + 8.f, y + 5.f);
+                    window.draw(t);
+                }
             }
-            sf::Text t;
-            t.setFont(*m_Font);
-            t.setCharacterSize(11);
-            t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-            std::string label = opt.second;
-            if (label.length() > 36) label = "..." + label.substr(label.length() - 33);
-            t.setString(label);
-            t.setPosition(m_DropdownRect.left + 8.f, y + 5.f);
-            window.draw(t);
             y += 24.f;
+        }
+
+        if (m_DropdownMaxScroll > 0.f)
+        {
+            float trackH = m_DropdownRect.height - 6.f;
+            float totalH = scriptOptions.size() * 24.f + 8.f;
+            float thumbH = std::max(20.f, trackH * (m_DropdownRect.height / totalH));
+            float scrollFrac = (m_DropdownMaxScroll > 0.001f) ? (m_DropdownScrollOffset / m_DropdownMaxScroll) : 0.f;
+            float thumbY = m_DropdownRect.top + 3.f + scrollFrac * (trackH - thumbH);
+
+            sf::RectangleShape scrollbarTrack({5.f, trackH});
+            scrollbarTrack.setFillColor(sf::Color(30, 32, 40, 150));
+            scrollbarTrack.setPosition(m_DropdownRect.left + m_DropdownRect.width - 8.f, m_DropdownRect.top + 3.f);
+            window.draw(scrollbarTrack);
+
+            sf::RectangleShape scrollbarThumb({5.f, thumbH});
+            scrollbarThumb.setFillColor(sf::Color(100, 105, 125, 200));
+            scrollbarThumb.setPosition(m_DropdownRect.left + m_DropdownRect.width - 8.f, thumbY);
+            window.draw(scrollbarThumb);
         }
         return;
     }
@@ -4496,29 +4654,55 @@ void UIEditorScene::DrawDropdownOverlay(sf::RenderWindow &window)
     bg.setPosition(m_DropdownRect.left, m_DropdownRect.top);
     window.draw(bg);
 
-    float y = m_DropdownRect.top + 4.f;
+    float y = m_DropdownRect.top + 4.f - m_DropdownScrollOffset;
     for (const auto &opt: UTILITY_ACTIONS)
     {
-        sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width, 24.f);
-        bool hov = r.contains(m_MouseScreenPos);
-
-        if (hov)
+        if (y + 24.f > m_DropdownRect.top && y < m_DropdownRect.top + m_DropdownRect.height)
         {
-            sf::RectangleShape hbg({m_DropdownRect.width - 4.f, 22.f});
-            hbg.setFillColor(C_ACCENT_DIM);
-            hbg.setPosition(m_DropdownRect.left + 2.f, y + 1.f);
-            window.draw(hbg);
+            sf::FloatRect r(m_DropdownRect.left, y, m_DropdownRect.width - (m_DropdownMaxScroll > 0.f ? 10.f : 0.f), 24.f);
+            bool hov = m_DropdownRect.contains(m_MouseScreenPos) && r.contains(m_MouseScreenPos);
+            float itemTop = std::max(y + 1.f, m_DropdownRect.top + 1.f);
+            float itemBottom = std::min(y + 23.f, m_DropdownRect.top + m_DropdownRect.height - 1.f);
+
+            if (hov && itemBottom > itemTop)
+            {
+                sf::RectangleShape hbg({m_DropdownRect.width - (m_DropdownMaxScroll > 0.f ? 12.f : 4.f), itemBottom - itemTop});
+                hbg.setFillColor(C_ACCENT_DIM);
+                hbg.setPosition(m_DropdownRect.left + 2.f, itemTop);
+                window.draw(hbg);
+            }
+
+            if (y >= m_DropdownRect.top - 2.f && y + 16.f <= m_DropdownRect.top + m_DropdownRect.height + 2.f)
+            {
+                sf::Text t;
+                t.setFont(*m_Font);
+                t.setCharacterSize(12);
+                t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
+                t.setString(opt.label);
+                t.setPosition(m_DropdownRect.left + 8.f, y + 4.f);
+                window.draw(t);
+            }
         }
-
-        sf::Text t;
-        t.setFont(*m_Font);
-        t.setCharacterSize(12);
-        t.setFillColor(hov ? C_TEXT_PRIMARY : C_TEXT_SECONDARY);
-        t.setString(opt.label);
-        t.setPosition(m_DropdownRect.left + 8.f, y + 4.f);
-        window.draw(t);
-
         y += 24.f;
+    }
+
+    if (m_DropdownMaxScroll > 0.f)
+    {
+        float trackH = m_DropdownRect.height - 6.f;
+        float totalH = UTILITY_ACTIONS.size() * 24.f + 8.f;
+        float thumbH = std::max(20.f, trackH * (m_DropdownRect.height / totalH));
+        float scrollFrac = (m_DropdownMaxScroll > 0.001f) ? (m_DropdownScrollOffset / m_DropdownMaxScroll) : 0.f;
+        float thumbY = m_DropdownRect.top + 3.f + scrollFrac * (trackH - thumbH);
+
+        sf::RectangleShape scrollbarTrack({5.f, trackH});
+        scrollbarTrack.setFillColor(sf::Color(30, 32, 40, 150));
+        scrollbarTrack.setPosition(m_DropdownRect.left + m_DropdownRect.width - 8.f, m_DropdownRect.top + 3.f);
+        window.draw(scrollbarTrack);
+
+        sf::RectangleShape scrollbarThumb({5.f, thumbH});
+        scrollbarThumb.setFillColor(sf::Color(100, 105, 125, 200));
+        scrollbarThumb.setPosition(m_DropdownRect.left + m_DropdownRect.width - 8.f, thumbY);
+        window.draw(scrollbarThumb);
     }
 }
 

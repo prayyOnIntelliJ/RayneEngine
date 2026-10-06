@@ -58,6 +58,8 @@ public:
 
     void LoadScene(const std::string &sceneName) { LoadGameScene(sceneName); }
 
+    void QueueLoadScene(const std::string &sceneName);
+
     void SetPaused(bool paused);
 
     bool IsPaused() const { return m_IsPaused; }
@@ -108,6 +110,12 @@ private:
     void SetEvents();
 
     void RunSplashSequence();
+
+    void ExecuteLoadGameScene(const std::string &sceneName);
+
+    bool m_IsUpdating = false;
+    bool m_HasPendingSceneLoad = false;
+    std::string m_PendingSceneName;
 
     std::string m_ProjectName = "RayneEngine";
     std::string m_ProjectVersion = "1.0.0";

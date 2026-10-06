@@ -493,33 +493,40 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
             {
                 if (el->isPressed && el->isHovered)
                 {
-                    m_LastClickedButton = el->id;
-                    if (el->type == UIElementType::Checkbox)
+                    std::string clickedId = el->id;
+                    std::string clickAct = el->onClickAction;
+                    std::string clickPar = el->onClickParam;
+                    std::string scriptMeth = el->scriptMethod;
+                    UIElementType elemType = el->type;
+
+                    m_LastClickedButton = clickedId;
+                    if (elemType == UIElementType::Checkbox)
                     {
                         el->isChecked = !el->isChecked;
-                        EventManager::Get().FireCheckboxChange(el->id, el->isChecked);
+                        EventManager::Get().FireCheckboxChange(clickedId, el->isChecked);
                         try
                         {
                             sol::state &lua = LuaState::GetLua();
-                            if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
-                                lua[el->scriptMethod](el->isChecked);
+                            if (!scriptMeth.empty() && lua[scriptMeth].is<sol::protected_function>())
+                                lua[scriptMeth](el->isChecked);
                             if (lua["OnCheckboxChanged"].is<sol::protected_function>())
-                                lua["OnCheckboxChanged"](el->id, el->isChecked);
+                                lua["OnCheckboxChanged"](clickedId, el->isChecked);
                             sol::object uiObj = lua["UI"];
                             if (uiObj.is<sol::table>() && uiObj.as<sol::table>()["OnCheckboxChanged"].is<
                                     sol::protected_function>())
-                                uiObj.as<sol::table>()["OnCheckboxChanged"](el->id, el->isChecked);
+                                uiObj.as<sol::table>()["OnCheckboxChanged"](clickedId, el->isChecked);
                         } catch (...) {}
                     }
-                    executeAction(el->onClickAction, el->onClickParam, el->id, "Click");
-                    EventManager::Get().FireButtonClick(el->id);
+                    el->isPressed = false;
+                    executeAction(clickAct, clickPar, clickedId, "Click");
+                    EventManager::Get().FireButtonClick(clickedId);
                     try
                     {
                         sol::state &lua = LuaState::GetLua();
-                        if (!el->scriptMethod.empty() && lua[el->scriptMethod].is<sol::protected_function>())
-                            lua[el->scriptMethod]();
+                        if (!scriptMeth.empty() && lua[scriptMeth].is<sol::protected_function>())
+                            lua[scriptMeth]();
                         if (lua["OnButtonClicked"].is<sol::protected_function>())
-                            lua["OnButtonClicked"](el->id);
+                            lua["OnButtonClicked"](clickedId);
                         sol::object uiObj = lua["UI"];
                         if (uiObj.is<sol::table>())
                         {
@@ -527,7 +534,7 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
                             if (cb.is<sol::protected_function>())
                             {
                                 sol::protected_function pfn = cb.as<sol::protected_function>();
-                                auto res = pfn(el->id);
+                                auto res = pfn(clickedId);
                                 if (!res.valid())
                                 {
                                     sol::error err = res;
@@ -540,7 +547,10 @@ void UIManager::Update(float dt, sf::Vector2f mousePos, bool mouseClicked, bool 
                         std::cerr << "[ERROR] [UI] Button click callback exception: " << e.what() << "\n";
                     }
                 }
-                el->isPressed = false;
+                else
+                {
+                    el->isPressed = false;
+                }
             }
 
             if (el->type == UIElementType::TextInput && el->isFocused)

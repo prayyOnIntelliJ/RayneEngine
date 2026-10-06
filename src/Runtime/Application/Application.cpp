@@ -385,6 +385,7 @@ void Application::RenderScreenLogs()
 
 void Application::Update(float deltaTime)
 {
+    m_IsUpdating = true;
     for (auto it = m_ScreenLogs.begin(); it != m_ScreenLogs.end();)
     {
         it->remainingTime -= deltaTime;
@@ -395,6 +396,13 @@ void Application::Update(float deltaTime)
     }
 
     m_SceneManager.Update(deltaTime);
+    m_IsUpdating = false;
+
+    if (m_HasPendingSceneLoad)
+    {
+        m_HasPendingSceneLoad = false;
+        ExecuteLoadGameScene(m_PendingSceneName);
+    }
 }
 
 void Application::Render()
@@ -522,6 +530,12 @@ void Application::Quit()
 #endif
 }
 
+void Application::QueueLoadScene(const std::string &sceneName)
+{
+    m_PendingSceneName = sceneName;
+    m_HasPendingSceneLoad = true;
+}
+
 void Application::RestartCurrentScene()
 {
     std::cout << "[INFO] [Application] Restarting current scene: " << m_CurrentSceneName << "...\n";
@@ -529,6 +543,18 @@ void Application::RestartCurrentScene()
 }
 
 void Application::LoadGameScene(const std::string &sceneName)
+{
+    if (m_IsUpdating)
+    {
+        QueueLoadScene(sceneName);
+    }
+    else
+    {
+        ExecuteLoadGameScene(sceneName);
+    }
+}
+
+void Application::ExecuteLoadGameScene(const std::string &sceneName)
 {
     if (sceneName.empty()) return;
 
@@ -539,39 +565,68 @@ void Application::LoadGameScene(const std::string &sceneName)
     if (cleanName.size() >= 5 && cleanName.substr(cleanName.size() - 5) == ".json")
         cleanName = cleanName.substr(0, cleanName.size() - 5);
 
+    std::string scenePath = ResourceManager::ResolveAssetPath("scenes/" + cleanName + ".json");
+    if (!std::filesystem::exists(scenePath))
+    {
+        std::string directPath = ResourceManager::ResolveAssetPath(sceneName);
+        if (std::filesystem::exists(directPath))
+            scenePath = directPath;
+    }
+
+    if (!std::filesystem::exists(scenePath))
+    {
+        std::cerr << "[ERROR] [Application] Cannot load game scene: file not found: " << scenePath << " (input: " << sceneName << ")\n";
+        return;
+    }
+
     m_CurrentSceneName = cleanName;
     m_IsPaused = false;
     m_TimeScale = 1.0f;
 
-    std::cout << "[INFO] [Application] Loading game scene: '" << cleanName << "'...\n";
+    std::cout << "[INFO] [Application] Loading game scene: '" << cleanName << "' from " << scenePath << "...\n";
 
-    m_Registry.Clear();
-    TimerManager::Get().Clear();
-    TweenManager::Get().Clear();
-    EventManager::Get().Clear();
-
-    EventManager::Get().SubscribeCollision([this](CollisionEvent e) {
-        if (m_Registry.HasComponent<ScriptComponent>(e.a))
-            m_Registry.GetComponent<ScriptComponent>(e.a).OnCollision(e.b);
-
-        if (m_Registry.HasComponent<ScriptComponent>(e.b))
-            m_Registry.GetComponent<ScriptComponent>(e.b).OnCollision(e.a);
-    });
-
-    std::string scenePath = ResourceManager::ResolveAssetPath("scenes/" + cleanName + ".json");
-    if (std::filesystem::exists(scenePath)) { SceneSerializer::LoadIntoRegistry(m_Registry, scenePath); } else
+    Scene *gameScene = m_SceneManager.GetScene("game");
+    if (m_SceneManager.CurrentName() == "game" && gameScene)
     {
-        std::cout << "[WARN] [Application] Scene file not found: " << scenePath << "\n";
+        gameScene->OnExit();
+    }
+    else
+    {
+        m_Registry.Clear();
+        TimerManager::Get().Clear();
+        TweenManager::Get().Clear();
+        EventManager::Get().Clear();
     }
 
+    SceneSerializer::LoadIntoRegistry(m_Registry, scenePath);
+
     std::string uiPath = ResourceManager::ResolveAssetPath("scenes/" + cleanName + "_ui.json");
+    if (!std::filesystem::exists(uiPath))
+    {
+        std::string directUi = ResourceManager::ResolveAssetPath(cleanName + "_ui.json");
+        if (std::filesystem::exists(directUi))
+            uiPath = directUi;
+    }
+
     UIManager::Get().SetCurrentUIPath(uiPath);
-    if (std::filesystem::exists(uiPath)) { UIManager::Get().Load(uiPath); } else
+    if (std::filesystem::exists(uiPath))
+    {
+        UIManager::Get().Load(uiPath);
+    }
+    else
     {
         UIManager::Get().GetElements().clear();
     }
 
-    m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+    if (m_SceneManager.CurrentName() == "game" && gameScene)
+    {
+        gameScene->OnEnter();
+    }
+    else
+    {
+        m_Registry.ForEach<ScriptComponent>([](Entity, ScriptComponent &sc) { sc.OnCreate(); });
+    }
+
     std::cout << "[INFO] [Application] Game scene '" << cleanName << "' loaded and initialized successfully.\n";
 }
 

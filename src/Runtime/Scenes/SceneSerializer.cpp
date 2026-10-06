@@ -26,8 +26,16 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     std::unordered_map<std::string, Entity> idToEntity;
     std::vector<std::pair<Entity, std::string> > parentLinks;
 
-    json data = json::parse(file);
-    for (auto &j: data["objects"])
+    try
+    {
+        json data = json::parse(file);
+        if (!data.contains("objects") || !data["objects"].is_array())
+        {
+            std::cerr << "[WARN] [SceneSerializer] Scene file does not contain valid 'objects' array: " << path << "\n";
+            return;
+        }
+
+        for (auto &j: data["objects"])
     {
         Entity desiredId = j.value("entity", static_cast<Entity>(0));
         Entity entity = registry.CreateEntity(desiredId);
@@ -337,6 +345,11 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
     HierarchySystem::UpdateWorldTransforms(registry);
     std::cout << "[INFO] [SceneSerializer] Scene '" << path << "' loaded successfully (" << data["objects"].size() <<
             " objects).\n";
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "[ERROR] [SceneSerializer] Failed to load scene file " << path << ": " << e.what() << "\n";
+    }
 }
 
 Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::string &templatePath, float x, float y,
