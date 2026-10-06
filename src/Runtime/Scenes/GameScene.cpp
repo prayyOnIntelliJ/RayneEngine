@@ -647,7 +647,27 @@ void GameScene::Render(sf::RenderWindow &window)
         if (!r.visibleInGame)
             continue;
 
-        if (m_Registry.HasComponent<SpriteComponent>(e))
+        if (m_Registry.HasComponent<TilemapComponent>(e))
+        {
+            m_SpriteBatch.End(window);
+            m_SpriteBatch.Begin();
+
+            auto &tm = m_Registry.GetComponent<TilemapComponent>(e);
+            if (!tm.tilesetPath.empty())
+            {
+                auto tex = ResourceManager::Get().GetTexture(tm.tilesetPath);
+                if (tex)
+                {
+                    tm.BuildVertices(*tex);
+                    sf::RenderStates states;
+                    states.transform.translate(t.worldX, t.worldY);
+                    states.transform.rotate(t.worldRotation);
+                    states.transform.scale(t.worldScaleX, t.worldScaleY);
+                    states.texture = tex.get();
+                    window.draw(tm.vertexArray, states);
+                }
+            }
+        } else if (m_Registry.HasComponent<SpriteComponent>(e))
         {
             auto &sc = m_Registry.GetComponent<SpriteComponent>(e);
             sf::FloatRect texRect;

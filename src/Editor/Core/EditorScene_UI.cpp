@@ -222,6 +222,10 @@ void EditorScene::InitSpotlightItems()
         {
             "add_particle_emitter", "Particle Emitter", "Media & FX", "Real-time 2D particle simulation effect",
             ObjectType::ParticleEmitter
+        },
+        {
+            "add_tilemap", "Tilemap", "Gameplay", "Grid-based tilemap with batched vertex rendering & collisions",
+            ObjectType::Tilemap
         }
     };
     FilterSpotlightItems();
@@ -473,6 +477,14 @@ void EditorScene::DrawSpotlightItemIcon(sf::RenderWindow &window, ObjectType typ
             p.setRotation(45.f);
             p.setFillColor(sf::Color(255, 160, 40));
             window.draw(p);
+            break;
+        }
+        case ObjectType::Tilemap: {
+            sf::RectangleShape r({half * 1.5f, half * 1.5f});
+            r.setOrigin(half * 0.75f, half * 0.75f);
+            r.setPosition(center);
+            r.setFillColor(sf::Color(80, 200, 140));
+            window.draw(r);
             break;
         }
         default:
@@ -871,7 +883,9 @@ void EditorScene::UpdateStatusText()
 {
     std::string s = "Objects: " + std::to_string(m_Objects.size());
     s += "  Grid: " + std::string(m_SnapToGrid ? "ON" : "OFF");
-    if (m_PlacementActive)
+    if (m_TileBrushActive)
+        s += "  |  [Tile Brush: " + (m_TileBrushSelectedTile >= 0 ? "Tile " + std::to_string(m_TileBrushSelectedTile) : "Eraser") + "]";
+    else if (m_PlacementActive)
         s += "  |  [Holding: " + GetObjectTypeName(m_PlacementType) + " (Esc/R-Click to drop)]";
     else
         s += "  |  [Pointer]";

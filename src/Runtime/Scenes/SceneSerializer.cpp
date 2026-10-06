@@ -287,6 +287,31 @@ void SceneSerializer::LoadIntoRegistry(Registry &registry, const std::string &pa
             }
             registry.AddComponent(entity, pec);
         }
+
+        if (j.contains("tilemap") && j["tilemap"].is_object())
+        {
+            TilemapComponent tm;
+            tm.tilesetPath = j["tilemap"].value("tileset", "");
+            tm.tileWidth = j["tilemap"].value("tileW", 32);
+            tm.tileHeight = j["tilemap"].value("tileH", 32);
+            tm.mapWidth = j["tilemap"].value("mapW", 20);
+            tm.mapHeight = j["tilemap"].value("mapH", 15);
+            tm.generateCollisions = j["tilemap"].value("collision", true);
+            tm.collisionChannel = j["tilemap"].value("channel", 0);
+            if (j["tilemap"].contains("tiles") && j["tilemap"]["tiles"].is_array())
+            {
+                tm.tiles = j["tilemap"]["tiles"].get<std::vector<int>>();
+                if ((int) tm.tiles.size() != tm.mapWidth * tm.mapHeight)
+                    tm.tiles.resize(tm.mapWidth * tm.mapHeight, -1);
+            }
+            else
+            {
+                tm.tiles.assign(tm.mapWidth * tm.mapHeight, -1);
+            }
+            tm.dirtyVertices = true;
+            tm.dirtyColliders = true;
+            registry.AddComponent(entity, tm);
+        }
     }
 
     for (const auto &link: parentLinks)
@@ -638,6 +663,31 @@ Entity SceneSerializer::InstantiateTemplate(Registry &registry, const std::strin
                                          j["particleEmitter"]["endColor"][2]);
             }
             registry.AddComponent(entity, pec);
+        }
+
+        if (j.contains("tilemap") && j["tilemap"].is_object())
+        {
+            TilemapComponent tm;
+            tm.tilesetPath = j["tilemap"].value("tileset", "");
+            tm.tileWidth = j["tilemap"].value("tileW", 32);
+            tm.tileHeight = j["tilemap"].value("tileH", 32);
+            tm.mapWidth = j["tilemap"].value("mapW", 20);
+            tm.mapHeight = j["tilemap"].value("mapH", 15);
+            tm.generateCollisions = j["tilemap"].value("collision", true);
+            tm.collisionChannel = j["tilemap"].value("channel", 0);
+            if (j["tilemap"].contains("tiles") && j["tilemap"]["tiles"].is_array())
+            {
+                tm.tiles = j["tilemap"]["tiles"].get<std::vector<int>>();
+                if ((int) tm.tiles.size() != tm.mapWidth * tm.mapHeight)
+                    tm.tiles.resize(tm.mapWidth * tm.mapHeight, -1);
+            }
+            else
+            {
+                tm.tiles.assign(tm.mapWidth * tm.mapHeight, -1);
+            }
+            tm.dirtyVertices = true;
+            tm.dirtyColliders = true;
+            registry.AddComponent(entity, tm);
         }
 
         registry.AddComponent(entity, HierarchyComponent{});

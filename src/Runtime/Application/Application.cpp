@@ -12,6 +12,7 @@
 #include <shellapi.h>
 
 #include "../ECS/Components.h"
+#include "../ECS/PhysicsSystem.h"
 #include "../Profiler/Profiler.h"
 #include "../Input/InputManager.h"
 
@@ -103,6 +104,7 @@ Application::Application()
             {
                 initialScene = initialScene.substr(0, initialScene.length() - 5);
             }
+            PhysicsSystem::LoadCollisionSettings(j);
         } catch (...) {}
     }
 

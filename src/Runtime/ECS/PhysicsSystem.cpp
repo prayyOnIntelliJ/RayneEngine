@@ -13,6 +13,28 @@ sf::Vector2f PhysicsSystem::s_Gravity = sf::Vector2f(0.f, 980.f);
 float PhysicsSystem::s_FixedDeltaTime = 1.0f / 60.0f;
 float PhysicsSystem::s_Accumulator = 0.0f;
 
+bool PhysicsSystem::s_CollisionMatrix[PhysicsSystem::MAX_CHANNELS][PhysicsSystem::MAX_CHANNELS] = {
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true},
+    {true, true, true, true, true, true, true, true}
+};
+
+std::string PhysicsSystem::s_ChannelNames[PhysicsSystem::MAX_CHANNELS] = {
+    "Default",
+    "Player",
+    "Enemy",
+    "Projectile",
+    "World",
+    "Trigger",
+    "Collectible",
+    "Hazard"
+};
+
 struct PairHash
 {
     size_t operator()(const std::pair<Entity, Entity> &p) const
@@ -186,7 +208,7 @@ RaycastResult PhysicsSystem::Raycast(Registry &registry, float startX, float sta
 
     registry.ForEach<TransformComponent, CollisionComponent>(
         [&](Entity e, TransformComponent &t, CollisionComponent &col) {
-            if (channel != -1 && col.channel != channel) return;
+            if (channel != -1 && !CanCollide(channel, col.channel)) return;
 
             float baseW = 0.0f, baseH = 0.0f;
             if (registry.HasComponent<RenderComponent>(e))
@@ -223,6 +245,37 @@ RaycastResult PhysicsSystem::Raycast(Registry &registry, float startX, float sta
                     closest.normalY = hit_ny;
                     closest.pointX = startX + dirX * hit_t;
                     closest.pointY = startY + dirY * hit_t;
+                }
+            }
+        });
+
+    registry.ForEach<TransformComponent, TilemapComponent>(
+        [&](Entity e, TransformComponent &t, TilemapComponent &tm) {
+            if (!tm.generateCollisions) return;
+            if (channel != -1 && !CanCollide(channel, tm.collisionChannel)) return;
+
+            const auto &boxes = tm.GetCollisionBoxes();
+            for (const auto &box : boxes)
+            {
+                float effW = box.width * t.worldScaleX;
+                float effH = box.height * t.worldScaleY;
+                float boxX = t.worldX + box.left * t.worldScaleX;
+                float boxY = t.worldY + box.top * t.worldScaleY;
+
+                float hit_t = 0.0f;
+                float hit_nx = 0.0f, hit_ny = 0.0f;
+                if (RayAABB(startX, startY, dirX, dirY, closest.distance, boxX, boxY, effW, effH, hit_t, hit_nx, hit_ny))
+                {
+                    if (hit_t < closest.distance)
+                    {
+                        closest.hit = true;
+                        closest.entity = e;
+                        closest.distance = hit_t;
+                        closest.normalX = hit_nx;
+                        closest.normalY = hit_ny;
+                        closest.pointX = startX + dirX * hit_t;
+                        closest.pointY = startY + dirY * hit_t;
+                    }
                 }
             }
         });
@@ -330,6 +383,28 @@ void PhysicsSystem::FixedUpdate(Registry &registry, float fixedDt)
             colliders.push_back(info);
         });
 
+    registry.ForEach<TransformComponent, TilemapComponent>(
+        [&](Entity e, TransformComponent &t, TilemapComponent &tm) {
+            if (!tm.generateCollisions) return;
+            const auto &boxes = tm.GetCollisionBoxes();
+            for (const auto &box : boxes)
+            {
+                ColliderInfo info;
+                info.entity = e;
+                info.shape = ColliderShape::Box;
+                info.type = CollisionType::Solid;
+                info.channel = tm.collisionChannel;
+                info.isTrigger = false;
+                float halfW = box.width * 0.5f * std::abs(t.worldScaleX);
+                float halfH = box.height * 0.5f * std::abs(t.worldScaleY);
+                info.center = sf::Vector2f(t.worldX + (box.left + box.width * 0.5f) * t.worldScaleX,
+                                           t.worldY + (box.top + box.height * 0.5f) * t.worldScaleY);
+                info.halfSize = sf::Vector2f(halfW, halfH);
+                info.radius = std::max(halfW, halfH);
+                colliders.push_back(info);
+            }
+        });
+
     std::unordered_set<std::pair<Entity, Entity>, PairHash> currentCollisions;
 
     for (size_t i = 0; i < colliders.size(); ++i)
@@ -339,7 +414,7 @@ void PhysicsSystem::FixedUpdate(Registry &registry, float fixedDt)
             auto &a = colliders[i];
             auto &b = colliders[j];
 
-            if (a.channel != b.channel) continue;
+            if (!CanCollide(a.channel, b.channel)) continue;
 
             sf::Vector2f normal(0.f, 0.f);
             float penetration = 0.0f;
@@ -571,6 +646,116 @@ void PhysicsSystem::Reset()
     s_ActiveCollisions.clear();
 }
 
+bool PhysicsSystem::CanCollide(int channelA, int channelB)
+{
+    if (channelA < 0 || channelA >= MAX_CHANNELS || channelB < 0 || channelB >= MAX_CHANNELS)
+    {
+        return true;
+    }
+    return s_CollisionMatrix[channelA][channelB];
+}
+
+void PhysicsSystem::SetCanCollide(int channelA, int channelB, bool canCollide)
+{
+    if (channelA >= 0 && channelA < MAX_CHANNELS && channelB >= 0 && channelB < MAX_CHANNELS)
+    {
+        s_CollisionMatrix[channelA][channelB] = canCollide;
+        s_CollisionMatrix[channelB][channelA] = canCollide;
+    }
+}
+
+const std::string &PhysicsSystem::GetChannelName(int channel)
+{
+    static const std::string s_Unknown = "Unknown";
+    if (channel >= 0 && channel < MAX_CHANNELS)
+    {
+        return s_ChannelNames[channel];
+    }
+    return s_Unknown;
+}
+
+void PhysicsSystem::SetChannelName(int channel, const std::string &name)
+{
+    if (channel >= 0 && channel < MAX_CHANNELS)
+    {
+        s_ChannelNames[channel] = name;
+    }
+}
+
+void PhysicsSystem::ResetCollisionMatrix()
+{
+    for (int i = 0; i < MAX_CHANNELS; ++i)
+    {
+        for (int j = 0; j < MAX_CHANNELS; ++j)
+        {
+            s_CollisionMatrix[i][j] = true;
+        }
+    }
+    s_ChannelNames[0] = "Default";
+    s_ChannelNames[1] = "Player";
+    s_ChannelNames[2] = "Enemy";
+    s_ChannelNames[3] = "Projectile";
+    s_ChannelNames[4] = "World";
+    s_ChannelNames[5] = "Trigger";
+    s_ChannelNames[6] = "Collectible";
+    s_ChannelNames[7] = "Hazard";
+}
+
+void PhysicsSystem::LoadCollisionSettings(const nlohmann::json &j)
+{
+    if (j.contains("collisionChannels") && j["collisionChannels"].is_array())
+    {
+        const auto &arr = j["collisionChannels"];
+        for (size_t i = 0; i < arr.size() && i < MAX_CHANNELS; ++i)
+        {
+            if (arr[i].is_string())
+            {
+                s_ChannelNames[i] = arr[i].get<std::string>();
+            }
+        }
+    }
+    if (j.contains("collisionMatrix") && j["collisionMatrix"].is_array())
+    {
+        const auto &mat = j["collisionMatrix"];
+        for (size_t r = 0; r < mat.size() && r < MAX_CHANNELS; ++r)
+        {
+            if (mat[r].is_array())
+            {
+                const auto &row = mat[r];
+                for (size_t c = 0; c < row.size() && c < MAX_CHANNELS; ++c)
+                {
+                    if (row[c].is_boolean())
+                    {
+                        s_CollisionMatrix[r][c] = row[c].get<bool>();
+                    }
+                }
+            }
+        }
+    }
+}
+
+void PhysicsSystem::SaveCollisionSettings(nlohmann::json &j)
+{
+    nlohmann::json chArr = nlohmann::json::array();
+    for (int i = 0; i < MAX_CHANNELS; ++i)
+    {
+        chArr.push_back(s_ChannelNames[i]);
+    }
+    j["collisionChannels"] = chArr;
+
+    nlohmann::json matArr = nlohmann::json::array();
+    for (int r = 0; r < MAX_CHANNELS; ++r)
+    {
+        nlohmann::json rowArr = nlohmann::json::array();
+        for (int c = 0; c < MAX_CHANNELS; ++c)
+        {
+            rowArr.push_back(s_CollisionMatrix[r][c]);
+        }
+        matArr.push_back(rowArr);
+    }
+    j["collisionMatrix"] = matArr;
+}
+
 void PhysicsSystem::RegisterLua(sol::state &lua, Registry &registry)
 {
     lua.new_usertype<RaycastResult>("RaycastResult",
@@ -639,6 +824,11 @@ void PhysicsSystem::RegisterLua(sol::state &lua, Registry &registry)
     physicsTable.set_function("SetFixedTimestep", [](float dt) { SetFixedTimestep(dt); });
 
     physicsTable.set_function("GetFixedTimestep", []() -> float { return GetFixedTimestep(); });
+
+    physicsTable.set_function("CanCollide", [](int a, int b) -> bool { return CanCollide(a, b); });
+    physicsTable.set_function("SetCanCollide", [](int a, int b, bool enable) { SetCanCollide(a, b, enable); });
+    physicsTable.set_function("GetChannelName", [](int ch) -> std::string { return GetChannelName(ch); });
+    physicsTable.set_function("SetChannelName", [](int ch, const std::string &name) { SetChannelName(ch, name); });
 
     lua.set_function("AddRigidbody",
                      [&registry](Entity e, sol::optional<int> bodyType, sol::optional<float> mass,

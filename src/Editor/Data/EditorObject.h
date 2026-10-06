@@ -22,7 +22,7 @@ enum class ObjectType
     None = 0,
     Rectangle, Circle, Triangle, Pentagon, Hexagon, Sprite, Camera,
     Empty, SpawnPoint, TriggerZone, PhysicsBox, PhysicsBall, StaticPlatform,
-    WorldText, AudioSource, ParticleEmitter
+    WorldText, AudioSource, ParticleEmitter, Tilemap
 };
 
 inline std::string GetObjectTypeName(ObjectType type)
@@ -45,6 +45,7 @@ inline std::string GetObjectTypeName(ObjectType type)
         case ObjectType::WorldText: return "Text";
         case ObjectType::AudioSource: return "Audio";
         case ObjectType::ParticleEmitter: return "Particles";
+        case ObjectType::Tilemap: return "Tilemap";
         default: return "None";
     }
 }

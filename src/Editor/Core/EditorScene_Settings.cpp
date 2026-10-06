@@ -932,6 +932,7 @@ void EditorScene::LoadProjectSettings()
             }
             m_ProjectMasterVolume = j.value("MasterVolume", 100.f);
             m_ProjectMusicVolume = j.value("MusicVolume", 100.f);
+            PhysicsSystem::LoadCollisionSettings(j);
         } catch (...) { std::cout << "[ERROR] Failed to load project settings\n"; }
     }
 
@@ -968,6 +969,7 @@ void EditorScene::SaveProjectSettings()
         j["ClearColor"] = ColorToHex(m_ProjectClearColor);
         j["MasterVolume"] = m_ProjectMasterVolume;
         j["MusicVolume"] = m_ProjectMusicVolume;
+        PhysicsSystem::SaveCollisionSettings(j);
 
         std::ofstream f(path);
         f << j.dump(4);
@@ -1043,6 +1045,14 @@ void EditorScene::CommitActiveProjectSettingsField()
             float v = std::stof(m_ProjectSettingsInputText);
             m_ProjectMusicVolume = std::clamp(v, 0.f, 100.f);
         } catch (...) {}
+    } else if (m_ActiveProjectSettingsField >= ProjectSettingsField::ChannelName0 &&
+               m_ActiveProjectSettingsField <= ProjectSettingsField::ChannelName7)
+    {
+        int chIdx = (int) m_ActiveProjectSettingsField - (int) ProjectSettingsField::ChannelName0;
+        if (!m_ProjectSettingsInputText.empty())
+        {
+            PhysicsSystem::SetChannelName(chIdx, m_ProjectSettingsInputText);
+        }
     }
 
     m_ActiveProjectSettingsField = ProjectSettingsField::None;
@@ -1149,8 +1159,8 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window)
 {
     if (!m_ShowProjectSettings) return;
 
-    const float w = 540.f;
-    const float h = 420.f;
+    const float w = 700.f;
+    const float h = 520.f;
     const float x = (window.getSize().x - w) / 2.f;
     const float y = (window.getSize().y - h) / 2.f;
 
@@ -1186,7 +1196,7 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window)
     m_ProjectSettingsButtons.push_back({closeBtn.getGlobalBounds(), "close_proj_settings"});
 
     float tabY = y + 50.f;
-    std::vector<std::string> tabs = {"General", "Display & Graphics", "Audio"};
+    std::vector<std::string> tabs = {"General", "Display & Graphics", "Audio", "Collision Matrix"};
     float tabX = x + 20.f;
     for (int i = 0; i < (int) tabs.size(); ++i)
     {
@@ -1243,6 +1253,104 @@ void EditorScene::DrawProjectSettingsWindow(sf::RenderWindow &window)
         currY += DrawProjectSettingsInputField(window, "Music Volume (0-100)",
                                                std::to_string((int) m_ProjectMusicVolume),
                                                ProjectSettingsField::MusicVolume, x + 20.f, currY, x + w);
+    } else if (m_ProjectSettingsTab == 3)
+    {
+        sf::Text sub("Click cells to toggle layer collisions. Matrix is symmetric. Rename layers on the right:", *m_Font, 11);
+        sub.setPosition(x + 20.f, currY);
+        sub.setFillColor(C_TEXT_MUTED);
+        window.draw(sub);
+        currY += 22.f;
+
+        const float matX = x + 130.f;
+        const float matY = currY + 22.f;
+        const float cellW = 28.f;
+        const float cellH = 26.f;
+        const float boxSz = 20.f;
+
+        // Column headers (0..7)
+        for (int c = 0; c < PhysicsSystem::MAX_CHANNELS; ++c)
+        {
+            sf::Text chNum(std::to_string(c), *m_Font, 10);
+            chNum.setFillColor(C_TEXT_MUTED);
+            chNum.setPosition(matX + c * cellW + 6.f, matY - 18.f);
+            window.draw(chNum);
+        }
+
+        // Rows and cells
+        for (int r = 0; r < PhysicsSystem::MAX_CHANNELS; ++r)
+        {
+            std::string rLabel = std::to_string(r) + ": " + PhysicsSystem::GetChannelName(r);
+            if (rLabel.length() > 14) rLabel = rLabel.substr(0, 13) + ".";
+            sf::Text rowTxt(rLabel, *m_Font, 11);
+            rowTxt.setPosition(x + 20.f, matY + r * cellH + 3.f);
+            rowTxt.setFillColor(C_TEXT_SECONDARY);
+            window.draw(rowTxt);
+
+            for (int c = 0; c < PhysicsSystem::MAX_CHANNELS; ++c)
+            {
+                float cx = matX + c * cellW;
+                float cy = matY + r * cellH;
+                sf::FloatRect cellBounds(cx, cy, boxSz, boxSz);
+                bool canCol = PhysicsSystem::CanCollide(r, c);
+                bool hov = cellBounds.contains(m_MouseScreenPos);
+
+                sf::RectangleShape cellBox(sf::Vector2f(boxSz, boxSz));
+                cellBox.setPosition(cx, cy);
+                cellBox.setFillColor(canCol ? (r == c ? C_ACCENT : C_ACCENT_DIM) : C_BG_INPUT);
+                cellBox.setOutlineColor(hov ? C_ACCENT_BRIGHT : (canCol ? C_ACCENT : C_BORDER));
+                cellBox.setOutlineThickness(1.f);
+                window.draw(cellBox);
+
+                if (canCol)
+                {
+                    sf::RectangleShape mark(sf::Vector2f(8.f, 8.f));
+                    mark.setPosition(cx + 6.f, cy + 6.f);
+                    mark.setFillColor(sf::Color::White);
+                    window.draw(mark);
+                }
+
+                m_ProjectSettingsButtons.push_back({cellBounds, "col_toggle_" + std::to_string(r) + "_" + std::to_string(c)});
+            }
+        }
+
+        // Quick buttons below matrix
+        float qbY = matY + PhysicsSystem::MAX_CHANNELS * cellH + 12.f;
+        auto drawQuickBtn = [&](const std::string &lbl, const std::string &action, float bx) -> float {
+            sf::Text bt(lbl, *m_Font, 11);
+            float bw = bt.getLocalBounds().width + 16.f;
+            sf::RectangleShape bbox(sf::Vector2f(bw, 22.f));
+            bbox.setPosition(bx, qbY);
+            bbox.setFillColor(C_BG_ELEVATED);
+            bbox.setOutlineColor(C_BORDER);
+            bbox.setOutlineThickness(1.f);
+            window.draw(bbox);
+            bt.setPosition(bx + 8.f, qbY + 3.f);
+            bt.setFillColor(C_TEXT_SECONDARY);
+            window.draw(bt);
+            m_ProjectSettingsButtons.push_back({{bx, qbY, bw, 22.f}, action});
+            return bw + 6.f;
+        };
+
+        float qbX = x + 20.f;
+        qbX += drawQuickBtn("All On", "col_all_on", qbX);
+        qbX += drawQuickBtn("All Off", "col_all_off", qbX);
+        drawQuickBtn("Reset Defaults", "col_reset", qbX);
+
+        // Right column: layer names
+        float rightX = x + 380.f;
+        float rightY = currY + 6.f;
+        sf::Text rt("Layer Names:", *m_Font, 12);
+        rt.setPosition(rightX, rightY);
+        rt.setFillColor(C_TEXT_PRIMARY);
+        window.draw(rt);
+        rightY += 20.f;
+
+        for (int i = 0; i < PhysicsSystem::MAX_CHANNELS; ++i)
+        {
+            rightY += DrawProjectSettingsInputField(window, "Layer " + std::to_string(i), PhysicsSystem::GetChannelName(i),
+                                                    static_cast<ProjectSettingsField>((int) ProjectSettingsField::ChannelName0 + i),
+                                                    rightX, rightY, x + w - 20.f);
+        }
     }
 
     float btnW = 110.f;
@@ -1287,6 +1395,37 @@ void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos)
             {
                 CommitActiveProjectSettingsField();
                 m_ProjectSettingsTab = std::stoi(btn.action.substr(9));
+            } else if (btn.action.find("col_toggle_") == 0)
+            {
+                CommitActiveProjectSettingsField();
+                std::string rest = btn.action.substr(11);
+                size_t us = rest.find('_');
+                if (us != std::string::npos)
+                {
+                    int r = std::stoi(rest.substr(0, us));
+                    int c = std::stoi(rest.substr(us + 1));
+                    PhysicsSystem::SetCanCollide(r, c, !PhysicsSystem::CanCollide(r, c));
+                    SaveProjectSettings();
+                }
+            } else if (btn.action == "col_all_on")
+            {
+                CommitActiveProjectSettingsField();
+                for (int r = 0; r < PhysicsSystem::MAX_CHANNELS; ++r)
+                    for (int c = 0; c < PhysicsSystem::MAX_CHANNELS; ++c)
+                        PhysicsSystem::SetCanCollide(r, c, true);
+                SaveProjectSettings();
+            } else if (btn.action == "col_all_off")
+            {
+                CommitActiveProjectSettingsField();
+                for (int r = 0; r < PhysicsSystem::MAX_CHANNELS; ++r)
+                    for (int c = 0; c < PhysicsSystem::MAX_CHANNELS; ++c)
+                        PhysicsSystem::SetCanCollide(r, c, false);
+                SaveProjectSettings();
+            } else if (btn.action == "col_reset")
+            {
+                CommitActiveProjectSettingsField();
+                PhysicsSystem::ResetCollisionMatrix();
+                SaveProjectSettings();
             } else if (btn.action.find("edit_proj_") == 0)
             {
                 CommitActiveProjectSettingsField();
@@ -1313,6 +1452,12 @@ void EditorScene::HandleProjectSettingsClick(sf::Vector2f pos)
                     m_ProjectSettingsInputText = std::to_string((int) m_ProjectMasterVolume);
                 else if (m_ActiveProjectSettingsField == ProjectSettingsField::MusicVolume)
                     m_ProjectSettingsInputText = std::to_string((int) m_ProjectMusicVolume);
+                else if (m_ActiveProjectSettingsField >= ProjectSettingsField::ChannelName0 &&
+                         m_ActiveProjectSettingsField <= ProjectSettingsField::ChannelName7)
+                {
+                    int chIdx = (int) m_ActiveProjectSettingsField - (int) ProjectSettingsField::ChannelName0;
+                    m_ProjectSettingsInputText = PhysicsSystem::GetChannelName(chIdx);
+                }
             }
             return;
         }

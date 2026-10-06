@@ -10,6 +10,7 @@
 #include <ctime>
 
 #include "../../Runtime/ECS/Components.h"
+#include "../../Runtime/ECS/PhysicsSystem.h"
 #include "../../Runtime/Scripting/ScriptComponent.h"
 #include "../../Runtime/Scripting/LuaState.h"
 #include "../../Runtime/Resources/ResourceManager.h"

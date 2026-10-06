@@ -3,6 +3,8 @@
 
 #include <sol/sol.hpp>
 #include <SFML/System/Vector2.hpp>
+#include <string>
+#include <nlohmann/json.hpp>
 #include "Registry.h"
 #include "Components.h"
 
@@ -47,10 +49,23 @@ public:
 
     static void RegisterLua(sol::state &lua, Registry &registry);
 
+    // Collision Matrix & Channels
+    static constexpr int MAX_CHANNELS = 8;
+    static bool CanCollide(int channelA, int channelB);
+    static void SetCanCollide(int channelA, int channelB, bool canCollide);
+    static const std::string &GetChannelName(int channel);
+    static void SetChannelName(int channel, const std::string &name);
+    static void ResetCollisionMatrix();
+    static void LoadCollisionSettings(const nlohmann::json &j);
+    static void SaveCollisionSettings(nlohmann::json &j);
+
 private:
     static sf::Vector2f s_Gravity;
     static float s_FixedDeltaTime;
     static float s_Accumulator;
+
+    static bool s_CollisionMatrix[MAX_CHANNELS][MAX_CHANNELS];
+    static std::string s_ChannelNames[MAX_CHANNELS];
 };
 
 #endif

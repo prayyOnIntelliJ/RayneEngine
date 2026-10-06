@@ -35,7 +35,8 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
         {"Pentagon", "add_pentagon", "Pentagon primitive", false},
         {"Hexagon", "add_hexagon", "Hexagon primitive", false},
         {"Objects", "", "", true},
-        {"Camera", "add_cam_obj", "In-game camera object", false}
+        {"Camera", "add_cam_obj", "In-game camera object", false},
+        {"Tilemap", "add_tilemap_obj", "Grid-based tilemap system", false}
     };
 
     float dropH = 12.f;
@@ -73,7 +74,8 @@ void EditorScene::DrawAddDropdown(sf::RenderWindow &window)
                              (item.action == "add_triangle" && m_PlacementType == ObjectType::Triangle) ||
                              (item.action == "add_pentagon" && m_PlacementType == ObjectType::Pentagon) ||
                              (item.action == "add_hexagon" && m_PlacementType == ObjectType::Hexagon) ||
-                             (item.action == "add_cam_obj" && m_PlacementType == ObjectType::Camera)));
+                             (item.action == "add_cam_obj" && m_PlacementType == ObjectType::Camera) ||
+                             (item.action == "add_tilemap_obj" && m_PlacementType == ObjectType::Tilemap)));
 
         if (hov)
         {
@@ -713,6 +715,139 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
         y += 8.f;
     }
 
+    if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+    {
+        auto &tm = m_Registry.GetComponent<TilemapComponent>(target->entity);
+        y = DrawSectionHeader(window, "TILEMAP COMPONENT", sf::Color(80, 200, 140), panelX, y);
+
+        std::string brushBtnLabel = m_TileBrushActive ? "Brush: ACTIVE [Shift=Erase]" : "Activate Tile Brush";
+        sf::Color brushColor = m_TileBrushActive ? sf::Color(40, 120, 80) : C_BG_ELEVATED;
+        sf::Color brushBorder = m_TileBrushActive ? sf::Color(80, 220, 140) : C_BORDER_LIGHT;
+        y = DrawActionButton(window, brushBtnLabel, "toggle_tile_brush", panelX, y, brushColor, brushBorder);
+        y += 4.f;
+
+        std::string tilesetDisplay = (m_ActiveField == EditField::TilemapTileset && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TilemapTileset ? "|" : (tm.tilesetPath.empty() ? "(none)" : tm.tilesetPath));
+        y = DrawEditableRow(window, "Tileset", tilesetDisplay, "edit_tilemap_tileset", panelX, y);
+
+        std::string twDisplay = (m_ActiveField == EditField::TilemapTileW && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TilemapTileW ? "|" : std::to_string(tm.tileWidth));
+        y = DrawEditableRow(window, "Tile Width", twDisplay, "edit_tilemap_tilew", panelX, y);
+
+        std::string thDisplay = (m_ActiveField == EditField::TilemapTileH && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TilemapTileH ? "|" : std::to_string(tm.tileHeight));
+        y = DrawEditableRow(window, "Tile Height", thDisplay, "edit_tilemap_tileh", panelX, y);
+
+        std::string mwDisplay = (m_ActiveField == EditField::TilemapMapW && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TilemapMapW ? "|" : std::to_string(tm.mapWidth));
+        y = DrawEditableRow(window, "Map Width", mwDisplay, "edit_tilemap_mapw", panelX, y);
+
+        std::string mhDisplay = (m_ActiveField == EditField::TilemapMapH && !m_ActiveInputText.empty())
+                                      ? m_ActiveInputText + "|"
+                                      : (m_ActiveField == EditField::TilemapMapH ? "|" : std::to_string(tm.mapHeight));
+        y = DrawEditableRow(window, "Map Height", mhDisplay, "edit_tilemap_maph", panelX, y);
+
+        y = DrawCheckboxRow(window, "Collision", tm.generateCollisions, "toggle_tilemap_collision", panelX, y);
+
+        if (tm.generateCollisions)
+        {
+            std::string chDisplay = (m_ActiveField == EditField::TilemapChannel && !m_ActiveInputText.empty())
+                                       ? m_ActiveInputText + "|"
+                                       : (m_ActiveField == EditField::TilemapChannel
+                                              ? "|"
+                                              : std::to_string(tm.collisionChannel) + " (" + PhysicsSystem::GetChannelName(tm.collisionChannel) + ")");
+            y = DrawEditableRow(window, "Channel", chDisplay, "edit_tilemap_channel", panelX, y);
+        }
+
+        std::shared_ptr<sf::Texture> tex = nullptr;
+        if (!tm.tilesetPath.empty())
+        {
+            tex = ResourceManager::Get().GetTexture(tm.tilesetPath);
+            if (!tex)
+            {
+                std::string res = ResourceManager::ResolveAssetPath(tm.tilesetPath);
+                tex = ResourceManager::Get().GetTexture(res);
+            }
+        }
+
+        if (tex && tm.tileWidth > 0 && tm.tileHeight > 0 && tex->getSize().x > 0 && tex->getSize().y > 0)
+        {
+            y += 6.f;
+            sf::Text palLabel("TILESET PALETTE", *m_Font, 10);
+            palLabel.setFillColor(C_TEXT_MUTED);
+            palLabel.setStyle(sf::Text::Bold);
+            palLabel.setPosition(panelX + InspectorPad + 2.f, y);
+            window.draw(palLabel);
+            y += 16.f;
+
+            std::string eraseLabel = (m_TileBrushSelectedTile == -1) ? "[X] Eraser Selected" : "Eraser (Empty Tile)";
+            sf::Color eraseBg = (m_TileBrushSelectedTile == -1) ? sf::Color(140, 45, 45) : C_BG_ELEVATED;
+            y = DrawActionButton(window, eraseLabel, "tilemap_eraser", panelX, y, eraseBg, C_BORDER_LIGHT);
+            y += 6.f;
+
+            int texW = static_cast<int>(tex->getSize().x);
+            int texH = static_cast<int>(tex->getSize().y);
+            int cols = texW / tm.tileWidth;
+            int rows = texH / tm.tileHeight;
+            int totalTiles = cols * rows;
+
+            float paletteAvailW = InspectorWidth - InspectorPad * 2.f;
+            float previewScale = std::min(1.5f, std::max(0.4f, 28.f / static_cast<float>(std::max(tm.tileWidth, tm.tileHeight))));
+            float tileSlotW = static_cast<float>(tm.tileWidth) * previewScale;
+            float tileSlotH = static_cast<float>(tm.tileHeight) * previewScale;
+            int tilesPerRow = std::max(1, static_cast<int>(paletteAvailW / (tileSlotW + 4.f)));
+
+            m_TilePaletteHitboxes.clear();
+            float curX = panelX + InspectorPad;
+            float maxRowH = tileSlotH + 4.f;
+
+            for (int t = 0; t < totalTiles; ++t)
+            {
+                int srcCol = t % cols;
+                int srcRow = t / cols;
+                sf::FloatRect slotRect(curX, y, tileSlotW, tileSlotH);
+                m_TilePaletteHitboxes.push_back({slotRect, t});
+
+                bool isSelected = (m_TileBrushSelectedTile == t);
+                bool isHovered = slotRect.contains(m_MouseScreenPos);
+
+                sf::RectangleShape slotBg({tileSlotW, tileSlotH});
+                slotBg.setPosition(curX, y);
+                slotBg.setFillColor(sf::Color(25, 28, 35));
+                slotBg.setOutlineColor(isSelected ? sf::Color(80, 200, 140) : (isHovered ? C_ACCENT : C_BORDER));
+                slotBg.setOutlineThickness(isSelected ? 2.f : 1.f);
+                window.draw(slotBg);
+
+                sf::Sprite tileSpr(*tex);
+                tileSpr.setTextureRect(sf::IntRect(srcCol * tm.tileWidth, srcRow * tm.tileHeight, tm.tileWidth, tm.tileHeight));
+                tileSpr.setScale(previewScale, previewScale);
+                tileSpr.setPosition(curX, y);
+                window.draw(tileSpr);
+
+                curX += tileSlotW + 4.f;
+                if ((t + 1) % tilesPerRow == 0 || t == totalTiles - 1)
+                {
+                    curX = panelX + InspectorPad;
+                    y += maxRowH;
+                }
+            }
+            y += 6.f;
+        }
+
+        y = DrawActionButton(window, "Clear All Tiles", "clear_tilemap_tiles", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y = DrawActionButton(window, "Remove Tilemap", "remove_tilemap", panelX, y, C_DANGER_DIM, C_DANGER);
+        y += 8.f;
+    }
+    else if (target->entity != 0)
+    {
+        y = DrawActionButton(window, "+ Tilemap Component", "add_tilemap", panelX, y, C_BG_ELEVATED, C_BORDER_LIGHT);
+        y += 8.f;
+    }
+
     if (target->entity != 0 && m_Registry.HasComponent<VelocityComponent>(target->entity))
     {
         auto &vel = m_Registry.GetComponent<VelocityComponent>(target->entity);
@@ -843,7 +978,7 @@ void EditorScene::DrawInspector(sf::RenderWindow &window)
                                       ? m_ActiveInputText + "|"
                                       : (m_ActiveField == EditField::CollisionChannel
                                              ? "|"
-                                             : std::to_string(col.channel));
+                                             : std::to_string(col.channel) + " (" + PhysicsSystem::GetChannelName(col.channel) + ")");
         y = DrawEditableRow(window, "Collision Channel", chanDisplay, "edit_collision_channel", panelX, y);
         y = DrawCheckboxRow(window, "Is Trigger", col.isTrigger, "toggle_collision_trigger", panelX, y);
         std::string shapeLabel = "Collider Shape: " +
@@ -1613,6 +1748,16 @@ float EditorScene::DrawActionButton(sf::RenderWindow &window, const std::string 
             m_ActiveTooltip = "Break template connection and convert this instance into a normal entity";
         else if (action == "open_template" || label == "Open Template")
             m_ActiveTooltip = "Open this template in Template Editor mode";
+        else if (action == "toggle_tile_brush")
+            m_ActiveTooltip = "Toggle the tilemap viewport brush mode to paint/erase tiles directly on the grid";
+        else if (action == "tilemap_eraser")
+            m_ActiveTooltip = "Select eraser tool to remove tiles";
+        else if (action == "clear_tilemap_tiles")
+            m_ActiveTooltip = "Clear all tiles in the map to empty";
+        else if (action == "add_tilemap" || label == "+ Tilemap Component")
+            m_ActiveTooltip = "Attach TilemapComponent to turn this entity into a grid-based tilemap";
+        else if (action == "remove_tilemap" || label == "Remove Tilemap")
+            m_ActiveTooltip = "Remove TilemapComponent from this entity";
         else if (label.find("Add") != std::string::npos || label.find("+ ") != std::string::npos)
             m_ActiveTooltip = "Add new component to this object";
         else if (label.find("Remove") != std::string::npos)
@@ -1818,6 +1963,17 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
     m_IsSelectingText = false;
 
     EditorObject *target = GetInspectedObject();
+
+    for (const auto &ph : m_TilePaletteHitboxes)
+    {
+        if (ph.first.contains(pos))
+        {
+            m_TileBrushSelectedTile = ph.second;
+            m_TileBrushActive = true;
+            UpdateStatusText();
+            return;
+        }
+    }
 
     for (auto &btn: m_InspectorButtons)
     {
@@ -2544,6 +2700,81 @@ void EditorScene::HandleInspectorClick(sf::Vector2f pos)
             m_ActiveField = EditField::AnimClipName;
             if (target->entity != 0 && m_Registry.HasComponent<SpriteAnimationComponent>(target->entity))
                 m_ActiveInputText = m_Registry.GetComponent<SpriteAnimationComponent>(target->entity).currentClip;
+        } else if (btn.action == "add_tilemap" && target)
+        {
+            if (target->entity != 0)
+            {
+                TilemapComponent tm;
+                m_Registry.AddComponent(target->entity, std::move(tm));
+                target->shape.setSize({640.f, 480.f});
+                m_TileBrushActive = true;
+                std::cout << "[INFO] [Inspector] TilemapComponent added to " << target->id << "\n";
+                SetDirty(true);
+            }
+        } else if (btn.action == "remove_tilemap" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+            {
+                m_Registry.RemoveComponent<TilemapComponent>(target->entity);
+                m_TileBrushActive = false;
+                std::cout << "[INFO] [Inspector] TilemapComponent removed from " << target->id << "\n";
+                SetDirty(true);
+            }
+        } else if (btn.action == "toggle_tile_brush" && target)
+        {
+            m_TileBrushActive = !m_TileBrushActive;
+            UpdateStatusText();
+        } else if (btn.action == "toggle_tilemap_collision" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(target->entity);
+                tm.generateCollisions = !tm.generateCollisions;
+                SetDirty(true);
+            }
+        } else if (btn.action == "tilemap_eraser" && target)
+        {
+            m_TileBrushSelectedTile = -1;
+            m_TileBrushActive = true;
+            UpdateStatusText();
+        } else if (btn.action == "clear_tilemap_tiles" && target)
+        {
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(target->entity);
+                tm.Clear();
+                SetDirty(true);
+            }
+        } else if (btn.action == "edit_tilemap_tileset" && target)
+        {
+            m_ActiveField = EditField::TilemapTileset;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = m_Registry.GetComponent<TilemapComponent>(target->entity).tilesetPath;
+        } else if (btn.action == "edit_tilemap_tilew" && target)
+        {
+            m_ActiveField = EditField::TilemapTileW;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<TilemapComponent>(target->entity).tileWidth);
+        } else if (btn.action == "edit_tilemap_tileh" && target)
+        {
+            m_ActiveField = EditField::TilemapTileH;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<TilemapComponent>(target->entity).tileHeight);
+        } else if (btn.action == "edit_tilemap_mapw" && target)
+        {
+            m_ActiveField = EditField::TilemapMapW;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<TilemapComponent>(target->entity).mapWidth);
+        } else if (btn.action == "edit_tilemap_maph" && target)
+        {
+            m_ActiveField = EditField::TilemapMapH;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<TilemapComponent>(target->entity).mapHeight);
+        } else if (btn.action == "edit_tilemap_channel" && target)
+        {
+            m_ActiveField = EditField::TilemapChannel;
+            if (target->entity != 0 && m_Registry.HasComponent<TilemapComponent>(target->entity))
+                m_ActiveInputText = std::to_string(m_Registry.GetComponent<TilemapComponent>(target->entity).collisionChannel);
         } else if (btn.action == "edit_template" && target && !target->templatePath.empty())
         {
             EnterTemplateEditMode(target->templatePath);
@@ -3075,6 +3306,77 @@ void EditorScene::CommitActiveField()
                     anim.Play(m_ActiveInputText);
                 }
             }
+        } else if (m_ActiveField == EditField::TilemapTileset)
+        {
+            if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                tm.tilesetPath = m_ActiveInputText;
+                tm.dirtyVertices = true;
+            }
+        } else if (m_ActiveField == EditField::TilemapTileW)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+                {
+                    auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                    int val = std::max(1, std::stoi(m_ActiveInputText));
+                    tm.tileWidth = val;
+                    tm.dirtyVertices = true;
+                    tm.dirtyColliders = true;
+                    inputTarget->shape.setSize({static_cast<float>(tm.mapWidth * tm.tileWidth), static_cast<float>(tm.mapHeight * tm.tileHeight)});
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::TilemapTileH)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+                {
+                    auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                    int val = std::max(1, std::stoi(m_ActiveInputText));
+                    tm.tileHeight = val;
+                    tm.dirtyVertices = true;
+                    tm.dirtyColliders = true;
+                    inputTarget->shape.setSize({static_cast<float>(tm.mapWidth * tm.tileWidth), static_cast<float>(tm.mapHeight * tm.tileHeight)});
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::TilemapMapW)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+                {
+                    auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                    int val = std::max(1, std::stoi(m_ActiveInputText));
+                    tm.Resize(val, tm.mapHeight);
+                    inputTarget->shape.setSize({static_cast<float>(tm.mapWidth * tm.tileWidth), static_cast<float>(tm.mapHeight * tm.tileHeight)});
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::TilemapMapH)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+                {
+                    auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                    int val = std::max(1, std::stoi(m_ActiveInputText));
+                    tm.Resize(tm.mapWidth, val);
+                    inputTarget->shape.setSize({static_cast<float>(tm.mapWidth * tm.tileWidth), static_cast<float>(tm.mapHeight * tm.tileHeight)});
+                }
+            } catch (...) {}
+        } else if (m_ActiveField == EditField::TilemapChannel)
+        {
+            try
+            {
+                if (inputTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(inputTarget->entity))
+                {
+                    auto &tm = m_Registry.GetComponent<TilemapComponent>(inputTarget->entity);
+                    int val = std::clamp(std::stoi(m_ActiveInputText), 0, 7);
+                    tm.collisionChannel = val;
+                }
+            } catch (...) {}
         }
         SetDirty(true);
     }

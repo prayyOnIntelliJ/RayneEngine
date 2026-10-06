@@ -139,6 +139,7 @@ bool ContentBrowser::IsIgnoredEntry(const std::string &name, const std::string &
 void ContentBrowser::Refresh()
 {
     m_Entries.clear();
+    m_ThumbnailCache.clear();
 
     if (!fs::exists(m_CurrentPath)) return;
 
@@ -1068,7 +1069,14 @@ void ContentBrowser::Render(sf::RenderWindow &window, float x, float y, float wi
                 float iconCY = previewY + previewH / 2.f;
                 float iconSize = 28.f;
 
-                DrawIconForType(window, entry.type, typeColor, iconCX, iconCY, iconSize);
+                if (entry.type == AssetType::Image)
+                {
+                    DrawImageThumbnail(window, entry.fullPath, previewX, previewY, previewW, previewH, typeColor);
+                }
+                else
+                {
+                    DrawIconForType(window, entry.type, typeColor, iconCX, iconCY, iconSize);
+                }
 
                 if (entry.type == AssetType::Folder)
                 {
@@ -1800,8 +1808,30 @@ void ContentBrowser::RenderDragGhost(sf::RenderWindow &window)
         DrawRoundedRect(window, ox, oy, pw, ph, 6.f,
                         C_BG_ELEVATED, accent, 1.5f);
 
-        DrawIconForType(window, m_Drag.type, accent,
-                        ox + 15.f, oy + ph / 2.f, 10.f);
+        if (m_Drag.type == AssetType::Image)
+        {
+            auto tex = GetOrCreateThumbnail(m_Drag.path);
+            if (tex && tex->getSize().x > 0 && tex->getSize().y > 0)
+            {
+                float maxThumb = ph - 6.f;
+                float scale = std::min(maxThumb / static_cast<float>(tex->getSize().x),
+                                       maxThumb / static_cast<float>(tex->getSize().y));
+                sf::Sprite dragSprite(*tex);
+                dragSprite.setScale(scale, scale);
+                float dw = tex->getSize().x * scale;
+                float dh = tex->getSize().y * scale;
+                dragSprite.setPosition(ox + 4.f + (maxThumb - dw) * 0.5f, oy + (ph - dh) * 0.5f);
+                window.draw(dragSprite);
+            }
+            else
+            {
+                DrawIconForType(window, m_Drag.type, accent, ox + 15.f, oy + ph / 2.f, 10.f);
+            }
+        }
+        else
+        {
+            DrawIconForType(window, m_Drag.type, accent, ox + 15.f, oy + ph / 2.f, 10.f);
+        }
 
         sf::Text label;
         label.setFont(m_Font);
@@ -2860,6 +2890,53 @@ void ContentBrowser::DrawImageIcon(sf::RenderWindow &window, sf::Color color,
     sun.setPosition(cx + w / 2.f - size * 0.35f, cy - h / 2.f + size * 0.25f);
     sun.setFillColor(color);
     window.draw(sun);
+}
+
+std::shared_ptr<sf::Texture> ContentBrowser::GetOrCreateThumbnail(const std::string &path) const
+{
+    auto it = m_ThumbnailCache.find(path);
+    if (it != m_ThumbnailCache.end())
+        return it->second;
+
+    auto tex = std::make_shared<sf::Texture>();
+    if (tex->loadFromFile(path))
+    {
+        tex->setSmooth(true);
+        m_ThumbnailCache[path] = tex;
+        return tex;
+    }
+    m_ThumbnailCache[path] = nullptr;
+    return nullptr;
+}
+
+void ContentBrowser::DrawImageThumbnail(sf::RenderWindow &window, const std::string &path,
+                                        float px, float py, float pw, float ph, sf::Color typeColor) const
+{
+    auto tex = GetOrCreateThumbnail(path);
+    if (!tex || tex->getSize().x == 0 || tex->getSize().y == 0)
+    {
+        DrawImageIcon(window, typeColor, px + pw * 0.5f, py + ph * 0.5f, 28.f);
+        return;
+    }
+
+    sf::Vector2u texSize = tex->getSize();
+    float maxW = pw - 6.f;
+    float maxH = ph - 6.f;
+    float scale = std::min(maxW / static_cast<float>(texSize.x), maxH / static_cast<float>(texSize.y));
+    float dw = texSize.x * scale;
+    float dh = texSize.y * scale;
+
+    sf::RectangleShape thumbBg({dw, dh});
+    thumbBg.setPosition(px + (pw - dw) * 0.5f, py + (ph - dh) * 0.5f);
+    thumbBg.setFillColor(sf::Color(12, 14, 18, 180));
+    thumbBg.setOutlineColor(sf::Color(typeColor.r, typeColor.g, typeColor.b, 80));
+    thumbBg.setOutlineThickness(1.f);
+    window.draw(thumbBg);
+
+    sf::Sprite sprite(*tex);
+    sprite.setScale(scale, scale);
+    sprite.setPosition(px + (pw - dw) * 0.5f, py + (ph - dh) * 0.5f);
+    window.draw(sprite);
 }
 
 void ContentBrowser::DrawUnknownIcon(sf::RenderWindow &window, sf::Color color,

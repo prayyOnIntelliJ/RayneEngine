@@ -350,7 +350,13 @@ private:
         CollisionOffsetY,
         CollisionSizeX,
         CollisionSizeY,
-        CollisionRadius
+        CollisionRadius,
+        TilemapTileset,
+        TilemapTileW,
+        TilemapTileH,
+        TilemapMapW,
+        TilemapMapH,
+        TilemapChannel
     };
 
     EditField m_ActiveField = EditField::None;
@@ -469,7 +475,15 @@ private:
         TargetFPS,
         ClearColorHex,
         MasterVolume,
-        MusicVolume
+        MusicVolume,
+        ChannelName0,
+        ChannelName1,
+        ChannelName2,
+        ChannelName3,
+        ChannelName4,
+        ChannelName5,
+        ChannelName6,
+        ChannelName7
     };
 
     ProjectSettingsField m_ActiveProjectSettingsField = ProjectSettingsField::None;
@@ -594,6 +608,14 @@ private:
     sf::Vector2f GetColliderHandlePos(const EditorObject *obj, int handleIndex) const;
     int GetColliderHandle(sf::Vector2f worldPos) const;
     void DrawColliderGizmos(sf::RenderWindow &window);
+
+    bool m_TileBrushActive = false;
+    int m_TileBrushSelectedTile = 0;
+    bool m_TileBrushPainting = false;
+    std::vector<int> m_TilemapPrePaintTiles;
+    float m_TilePaletteScrollY = 0.f;
+    std::vector<std::pair<sf::FloatRect, int>> m_TilePaletteHitboxes;
+    void DrawTileBrushViewport(sf::RenderWindow &window);
 
     void UpdateStatusText();
 

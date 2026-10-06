@@ -12,6 +12,7 @@
 #include "Entity.h"
 #include "SFML/Graphics/Sprite.hpp"
 #include "SFML/Graphics/Texture.hpp"
+#include "SFML/Graphics/VertexArray.hpp"
 #include "../Resources/ResourceManager.h"
 
 struct TransformComponent
@@ -420,6 +421,167 @@ struct ParticleEmitterComponent
 
     std::vector<Particle> particles;
     float spawnAccumulator = 0.0f;
+};
+
+struct TilemapComponent
+{
+    std::string tilesetPath = "";
+    int tileWidth = 32;
+    int tileHeight = 32;
+    int mapWidth = 20;
+    int mapHeight = 15;
+    std::vector<int> tiles;
+    bool generateCollisions = true;
+    int collisionChannel = 0;
+
+    mutable sf::VertexArray vertexArray{sf::Quads};
+    mutable bool dirtyVertices = true;
+    mutable std::vector<sf::FloatRect> cachedColliders;
+    mutable bool dirtyColliders = true;
+
+    TilemapComponent()
+    {
+        tiles.assign(mapWidth * mapHeight, -1);
+    }
+
+    TilemapComponent(int w, int h, int tw = 32, int th = 32, const std::string &path = "")
+        : tilesetPath(path), tileWidth(tw), tileHeight(th), mapWidth(w), mapHeight(h)
+    {
+        tiles.assign(mapWidth * mapHeight, -1);
+    }
+
+    int GetTile(int x, int y) const
+    {
+        if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return -1;
+        return tiles[y * mapWidth + x];
+    }
+
+    void SetTile(int x, int y, int tileId)
+    {
+        if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return;
+        if (tiles[y * mapWidth + x] != tileId)
+        {
+            tiles[y * mapWidth + x] = tileId;
+            dirtyVertices = true;
+            dirtyColliders = true;
+        }
+    }
+
+    void Resize(int newW, int newH)
+    {
+        if (newW <= 0 || newH <= 0 || (newW == mapWidth && newH == mapHeight)) return;
+        std::vector<int> newTiles(newW * newH, -1);
+        for (int y = 0; y < std::min(mapHeight, newH); ++y)
+        {
+            for (int x = 0; x < std::min(mapWidth, newW); ++x)
+            {
+                newTiles[y * newW + x] = GetTile(x, y);
+            }
+        }
+        tiles = std::move(newTiles);
+        mapWidth = newW;
+        mapHeight = newH;
+        dirtyVertices = true;
+        dirtyColliders = true;
+    }
+
+    void Clear()
+    {
+        std::fill(tiles.begin(), tiles.end(), -1);
+        dirtyVertices = true;
+        dirtyColliders = true;
+    }
+
+    void BuildVertices(const sf::Texture &texture) const
+    {
+        if (!dirtyVertices && vertexArray.getVertexCount() > 0) return;
+        vertexArray.clear();
+        vertexArray.setPrimitiveType(sf::Quads);
+
+        if (tileWidth <= 0 || tileHeight <= 0 || texture.getSize().x == 0 || texture.getSize().y == 0)
+        {
+            dirtyVertices = false;
+            return;
+        }
+
+        int tilesetCols = std::max(1u, texture.getSize().x / static_cast<unsigned int>(tileWidth));
+
+        for (int y = 0; y < mapHeight; ++y)
+        {
+            for (int x = 0; x < mapWidth; ++x)
+            {
+                int tid = GetTile(x, y);
+                if (tid < 0) continue;
+
+                int tu = (tid % tilesetCols) * tileWidth;
+                int tv = (tid / tilesetCols) * tileHeight;
+
+                float px = static_cast<float>(x * tileWidth);
+                float py = static_cast<float>(y * tileHeight);
+                float pw = static_cast<float>(tileWidth);
+                float ph = static_cast<float>(tileHeight);
+
+                sf::Vertex v0(sf::Vector2f(px, py), sf::Vector2f(static_cast<float>(tu), static_cast<float>(tv)));
+                sf::Vertex v1(sf::Vector2f(px + pw, py), sf::Vector2f(static_cast<float>(tu + tileWidth), static_cast<float>(tv)));
+                sf::Vertex v2(sf::Vector2f(px + pw, py + ph), sf::Vector2f(static_cast<float>(tu + tileWidth), static_cast<float>(tv + tileHeight)));
+                sf::Vertex v3(sf::Vector2f(px, py + ph), sf::Vector2f(static_cast<float>(tu), static_cast<float>(tv + tileHeight)));
+
+                vertexArray.append(v0);
+                vertexArray.append(v1);
+                vertexArray.append(v2);
+                vertexArray.append(v3);
+            }
+        }
+        dirtyVertices = false;
+    }
+
+    const std::vector<sf::FloatRect> &GetCollisionBoxes() const
+    {
+        if (!dirtyColliders) return cachedColliders;
+        cachedColliders.clear();
+        if (!generateCollisions)
+        {
+            dirtyColliders = false;
+            return cachedColliders;
+        }
+
+        for (int y = 0; y < mapHeight; ++y)
+        {
+            int startX = -1;
+            for (int x = 0; x < mapWidth; ++x)
+            {
+                bool isSolid = (GetTile(x, y) >= 0);
+                if (isSolid)
+                {
+                    if (startX == -1) startX = x;
+                }
+                else
+                {
+                    if (startX != -1)
+                    {
+                        cachedColliders.emplace_back(
+                            static_cast<float>(startX * tileWidth),
+                            static_cast<float>(y * tileHeight),
+                            static_cast<float>((x - startX) * tileWidth),
+                            static_cast<float>(tileHeight)
+                        );
+                        startX = -1;
+                    }
+                }
+            }
+            if (startX != -1)
+            {
+                cachedColliders.emplace_back(
+                    static_cast<float>(startX * tileWidth),
+                    static_cast<float>(y * tileHeight),
+                    static_cast<float>((mapWidth - startX) * tileWidth),
+                    static_cast<float>(tileHeight)
+                );
+            }
+        }
+        dirtyColliders = false;
+        return cachedColliders;
+    }
 };
 
 #endif

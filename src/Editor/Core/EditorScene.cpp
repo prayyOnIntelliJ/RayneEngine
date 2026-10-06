@@ -884,6 +884,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_Preview.setSize({48.f, 48.f});
                 m_Preview.setFillColor(sf::Color(255, 150, 40, 90));
                 m_Preview.setPosition(SnapToGrid(pos));
+            } else if (m_PlacementType == ObjectType::Tilemap)
+            {
+                m_Preview.setSize({640.f, 480.f});
+                m_Preview.setFillColor(sf::Color(80, 200, 140, 80));
+                m_Preview.setPosition(SnapToGrid(pos));
             } else
             {
                 m_Preview.setSize({m_GridSize, m_GridSize});
@@ -915,6 +920,27 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         m_HierarchyDragTargetId = obj->id;
                     }
                     break;
+                }
+            }
+        }
+
+        if (m_TileBrushPainting && m_Selected && m_Selected->entity != 0 && m_Registry.HasComponent<TilemapComponent>(m_Selected->entity))
+        {
+            auto &tm = m_Registry.GetComponent<TilemapComponent>(m_Selected->entity);
+            sf::Transform inv;
+            inv.scale(1.f / std::max(0.001f, m_Selected->scaleX), 1.f / std::max(0.001f, m_Selected->scaleY));
+            inv.rotate(-m_Selected->rotation);
+            inv.translate(-m_Selected->shape.getPosition());
+            sf::Vector2f localPos = inv.transformPoint(MouseWorldPos());
+            int tx = static_cast<int>(std::floor(localPos.x / tm.tileWidth));
+            int ty = static_cast<int>(std::floor(localPos.y / tm.tileHeight));
+            if (tx >= 0 && tx < tm.mapWidth && ty >= 0 && ty < tm.mapHeight)
+            {
+                int tileToSet = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ? -1 : m_TileBrushSelectedTile;
+                if (tm.GetTile(tx, ty) != tileToSet)
+                {
+                    tm.SetTile(tx, ty, tileToSet);
+                    SetDirty(true);
                 }
             }
         }
@@ -1237,6 +1263,18 @@ void EditorScene::HandleEvent(const sf::Event &event)
                     {
                         for (const auto &btn: m_InspectorButtons)
                         {
+                            if (btn.bounds.contains(m_MouseScreenPos) && btn.action == "edit_tilemap_tileset")
+                            {
+                                if (dropTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(dropTarget->entity))
+                                {
+                                    auto &tm = m_Registry.GetComponent<TilemapComponent>(dropTarget->entity);
+                                    tm.tilesetPath = drag.path;
+                                    tm.dirtyVertices = true;
+                                    SetDirty(true);
+                                    droppedOnImageProp = true;
+                                    break;
+                                }
+                            }
                             if (btn.bounds.contains(m_MouseScreenPos) && btn.action.rfind("edit_script_prop_", 0) == 0)
                             {
                                 std::string propName = btn.action.substr(17);
@@ -1254,6 +1292,15 @@ void EditorScene::HandleEvent(const sf::Event &event)
                                     break;
                                 }
                             }
+                        }
+
+                        if (!droppedOnImageProp && dropTarget->entity != 0 && m_Registry.HasComponent<TilemapComponent>(dropTarget->entity))
+                        {
+                            auto &tm = m_Registry.GetComponent<TilemapComponent>(dropTarget->entity);
+                            tm.tilesetPath = drag.path;
+                            tm.dirtyVertices = true;
+                            SetDirty(true);
+                            droppedOnImageProp = true;
                         }
 
                         if (!droppedOnImageProp)
@@ -1281,7 +1328,19 @@ void EditorScene::HandleEvent(const sf::Event &event)
             {
                 EditorObject *hit = ObjectAt(MouseWorldPos());
                 if (hit)
-                    ApplySpriteToObject(*hit, drag.path);
+                {
+                    if (hit->entity != 0 && m_Registry.HasComponent<TilemapComponent>(hit->entity))
+                    {
+                        auto &tm = m_Registry.GetComponent<TilemapComponent>(hit->entity);
+                        tm.tilesetPath = drag.path;
+                        tm.dirtyVertices = true;
+                        SetDirty(true);
+                    }
+                    else
+                    {
+                        ApplySpriteToObject(*hit, drag.path);
+                    }
+                }
                 else
                 {
                     m_Selected = nullptr;
@@ -1765,6 +1824,25 @@ void EditorScene::HandleEvent(const sf::Event &event)
         m_ResizingCollider = false;
         m_ColliderHandle = -1;
 
+        if (m_TileBrushPainting)
+        {
+            m_TileBrushPainting = false;
+            if (m_Selected && m_Selected->entity != 0 && m_Registry.HasComponent<TilemapComponent>(m_Selected->entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(m_Selected->entity);
+                if (tm.tiles != m_TilemapPrePaintTiles)
+                {
+                    json before = SerializeObject(*m_Selected);
+                    before["tilemap"]["tiles"] = m_TilemapPrePaintTiles;
+                    json after = SerializeObject(*m_Selected);
+                    auto cmd = std::make_shared<ObjectStateCommand>(m_Selected->id, before, after);
+                    m_UndoStack.push_back(cmd);
+                    m_RedoStack.clear();
+                    SetDirty(true);
+                }
+            }
+        }
+
         if (m_Rotating && m_Selected &&m_Selected->entity != 0) {
             if (m_Registry.HasComponent<TransformComponent>(m_Selected->entity))
             {
@@ -1900,6 +1978,11 @@ void EditorScene::HandleEvent(const sf::Event &event)
                         if (m_PlacementActive && m_PlacementType == ObjectType::Camera) m_PlacementActive = false;
                         else { m_PlacementActive = true; m_PlacementType = ObjectType::Camera; }
                     }
+                    else if (a == "add_tilemap_obj")
+                    {
+                        if (m_PlacementActive && m_PlacementType == ObjectType::Tilemap) m_PlacementActive = false;
+                        else { m_PlacementActive = true; m_PlacementType = ObjectType::Tilemap; }
+                    }
                     UpdateStatusText();
                     m_AddDropdownOpen = false;
                     return;
@@ -1995,6 +2078,27 @@ void EditorScene::HandleEvent(const sf::Event &event)
 
         if (m_Selected)
         {
+            if (m_TileBrushActive && m_Selected->entity != 0 && m_Registry.HasComponent<TilemapComponent>(m_Selected->entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(m_Selected->entity);
+                sf::Transform inv;
+                inv.scale(1.f / std::max(0.001f, m_Selected->scaleX), 1.f / std::max(0.001f, m_Selected->scaleY));
+                inv.rotate(-m_Selected->rotation);
+                inv.translate(-m_Selected->shape.getPosition());
+                sf::Vector2f localPos = inv.transformPoint(pos);
+                int tx = static_cast<int>(std::floor(localPos.x / tm.tileWidth));
+                int ty = static_cast<int>(std::floor(localPos.y / tm.tileHeight));
+                if (tx >= 0 && tx < tm.mapWidth && ty >= 0 && ty < tm.mapHeight)
+                {
+                    m_TileBrushPainting = true;
+                    m_TilemapPrePaintTiles = tm.tiles;
+                    int tileToSet = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ? -1 : m_TileBrushSelectedTile;
+                    tm.SetTile(tx, ty, tileToSet);
+                    SetDirty(true);
+                    return;
+                }
+            }
+
             if (m_ColliderGizmoActive && m_Selected->entity != 0 && m_Registry.HasComponent<CollisionComponent>(m_Selected->entity))
             {
                 const int colHandle = GetColliderHandle(pos);
@@ -2147,6 +2251,14 @@ void EditorScene::HandleEvent(const sf::Event &event)
                 m_ActiveInputText.clear();
                 m_InputSelectionStart = -1;
                 m_InputSelectionEnd = -1;
+                return;
+            }
+            if (m_TileBrushActive)
+            {
+                m_TileBrushActive = false;
+                m_TileBrushPainting = false;
+                UpdateStatusText();
+                std::cout << "[INFO] [EditorScene] Deactivated Tile Brush\n";
                 return;
             }
             if (m_PlacementActive)
@@ -2564,6 +2676,40 @@ void EditorScene::Render(sf::RenderWindow &window)
                 pc.setFillColor(p.color);
                 window.draw(pc);
             }
+        } else if (obj.objectType == ObjectType::Tilemap || (
+                       obj.entity != 0 && m_Registry.HasComponent<TilemapComponent>(obj.entity)))
+        {
+            obj.shape.setScale(obj.scaleX, obj.scaleY);
+            obj.shape.setRotation(obj.rotation);
+            obj.shape.setFillColor(sf::Color(80, 200, 140, obj.selected ? 20 : 0));
+            obj.shape.setOutlineColor(obj.selected ? m_SelectionOutlineColor : sf::Color(80, 200, 140, 100));
+            obj.shape.setOutlineThickness(obj.selected ? m_SelectionOutlineThickness : 1.f);
+            window.draw(obj.shape);
+
+            if (obj.entity != 0 && m_Registry.HasComponent<TilemapComponent>(obj.entity))
+            {
+                auto &tm = m_Registry.GetComponent<TilemapComponent>(obj.entity);
+                std::shared_ptr<sf::Texture> tex = nullptr;
+                if (!tm.tilesetPath.empty())
+                {
+                    tex = ResourceManager::Get().GetTexture(tm.tilesetPath);
+                    if (!tex)
+                    {
+                        std::string res = ResourceManager::ResolveAssetPath(tm.tilesetPath);
+                        tex = ResourceManager::Get().GetTexture(res);
+                    }
+                }
+                if (tex)
+                {
+                    tm.BuildVertices(*tex);
+                    sf::RenderStates states;
+                    states.transform.translate(obj.shape.getPosition());
+                    states.transform.rotate(obj.rotation);
+                    states.transform.scale(obj.scaleX, obj.scaleY);
+                    states.texture = tex.get();
+                    window.draw(tm.vertexArray, states);
+                }
+            }
         } else
         {
             obj.shape.setScale(obj.scaleX, obj.scaleY);
@@ -2637,6 +2783,30 @@ void EditorScene::Render(sf::RenderWindow &window)
                 colBox.setOutlineColor(colOutline);
                 colBox.setOutlineThickness(obj.selected ? 2.0f : 1.5f);
                 window.draw(colBox);
+            }
+        }
+
+        if ((m_ShowColliderOutlines || obj.selected) && obj.entity != 0 && m_Registry.HasComponent<TilemapComponent>(obj.entity))
+        {
+            const auto &tm = m_Registry.GetComponent<TilemapComponent>(obj.entity);
+            if (tm.generateCollisions)
+            {
+                const auto &boxes = tm.GetCollisionBoxes();
+                sf::Transform tf;
+                tf.translate(obj.shape.getPosition());
+                tf.rotate(obj.rotation);
+                tf.scale(obj.scaleX, obj.scaleY);
+                for (const auto &box : boxes)
+                {
+                    sf::Vector2f p = tf.transformPoint(box.left, box.top);
+                    sf::RectangleShape colBox({box.width * obj.scaleX, box.height * obj.scaleY});
+                    colBox.setPosition(p);
+                    colBox.setRotation(obj.rotation);
+                    colBox.setFillColor(sf::Color(74, 222, 128, obj.selected ? 35 : 12));
+                    colBox.setOutlineColor(sf::Color(74, 222, 128, obj.selected ? 220 : 140));
+                    colBox.setOutlineThickness(obj.selected ? 1.5f : 1.0f);
+                    window.draw(colBox);
+                }
             }
         }
 
@@ -2863,6 +3033,15 @@ void EditorScene::Render(sf::RenderWindow &window)
             core.setPosition(center);
             core.setFillColor(sf::Color(255, 200, 60));
             window.draw(core);
+        } else if (m_PlacementType == ObjectType::Tilemap)
+        {
+            window.draw(m_Preview);
+            sf::Text gText("[TILEMAP 20x15]", *m_Font, 10);
+            gText.setFillColor(sf::Color(80, 200, 140, 200));
+            sf::Vector2f center = m_Preview.getPosition() + sf::Vector2f(
+                                      m_Preview.getSize().x * 0.5f, m_Preview.getSize().y * 0.5f);
+            gText.setPosition(center.x - gText.getLocalBounds().width * 0.5f, center.y - 6.f);
+            window.draw(gText);
         } else { window.draw(m_Preview); }
     }
 
@@ -2880,6 +3059,7 @@ void EditorScene::Render(sf::RenderWindow &window)
     }
 
     DrawGizmos(window);
+    DrawTileBrushViewport(window);
 
     const sf::View uiView(sf::FloatRect(
         0.f, 0.f,
@@ -3205,6 +3385,14 @@ std::string GetInspectorTooltip(const std::string &key)
     if (key == "Font" || key == "Font Path") return "TrueType font (.ttf) file used for text rendering";
     if (key == "Line Spacing") return "Vertical distance factor between text lines";
 
+    // Tilemap Component
+    if (key == "Tileset" || key == "Tileset Image") return "Tileset spritesheet image file path. Drag an image from Content Browser to set";
+    if (key == "Tile Width") return "Pixel width of each individual tile in the tileset (e.g. 16, 32)";
+    if (key == "Tile Height") return "Pixel height of each individual tile in the tileset (e.g. 16, 32)";
+    if (key == "Map Width") return "Number of tile columns in the grid map";
+    if (key == "Map Height") return "Number of tile rows in the grid map";
+    if (key == "Collision") return "Enable automatic run-length collision box generation for solid tiles";
+
     return "";
 }
 
@@ -3500,6 +3688,10 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
     {
         c = sf::Color(255, 150, 40);
         ts = "particle_emitter";
+    } else if (type == ObjectType::Tilemap)
+    {
+        c = sf::Color(80, 200, 140);
+        ts = "tilemap";
     }
 
     sf::Vector2f p = SnapToGrid(pos);
@@ -3647,6 +3839,21 @@ void EditorScene::AddObject(sf::Vector2f pos, ObjectType type)
             {"endColor", {255, 50, 20}},
             {"gravityX", 0.0f},
             {"gravityY", 60.0f}
+        };
+    } else if (type == ObjectType::Tilemap)
+    {
+        j["tag"] = "Tilemap";
+        j["width"] = 640.f;
+        j["height"] = 480.f;
+        j["tilemap"] = {
+            {"tileset", ""},
+            {"tileW", 32},
+            {"tileH", 32},
+            {"mapW", 20},
+            {"mapH", 15},
+            {"collision", true},
+            {"channel", 0},
+            {"tiles", std::vector<int>(20 * 15, -1)}
         };
     } else
     {
@@ -4490,6 +4697,119 @@ void EditorScene::DrawColliderGizmos(sf::RenderWindow &window)
             handle.setOutlineColor(C_COL_OUTL);
             handle.setOutlineThickness(std::max(1.f, hr * 0.25f));
             window.draw(handle);
+        }
+    }
+}
+
+void EditorScene::DrawTileBrushViewport(sf::RenderWindow &window)
+{
+    if (!m_TileBrushActive || !m_Selected || m_Selected->entity == 0 || !m_Registry.HasComponent<TilemapComponent>(m_Selected->entity))
+        return;
+
+    auto &tm = m_Registry.GetComponent<TilemapComponent>(m_Selected->entity);
+    if (tm.mapWidth <= 0 || tm.mapHeight <= 0 || tm.tileWidth <= 0 || tm.tileHeight <= 0)
+        return;
+
+    sf::Transform tf;
+    tf.translate(m_Selected->shape.getPosition());
+    tf.rotate(m_Selected->rotation);
+    tf.scale(m_Selected->scaleX, m_Selected->scaleY);
+
+    float totalW = static_cast<float>(tm.mapWidth * tm.tileWidth);
+    float totalH = static_cast<float>(tm.mapHeight * tm.tileHeight);
+
+    // Draw grid lines
+    sf::VertexArray gridLines(sf::Lines);
+    sf::Color gridCol(80, 200, 140, 90);
+
+    for (int x = 0; x <= tm.mapWidth; ++x)
+    {
+        float gx = static_cast<float>(x * tm.tileWidth);
+        gridLines.append(sf::Vertex(tf.transformPoint(gx, 0.f), gridCol));
+        gridLines.append(sf::Vertex(tf.transformPoint(gx, totalH), gridCol));
+    }
+    for (int y = 0; y <= tm.mapHeight; ++y)
+    {
+        float gy = static_cast<float>(y * tm.tileHeight);
+        gridLines.append(sf::Vertex(tf.transformPoint(0.f, gy), gridCol));
+        gridLines.append(sf::Vertex(tf.transformPoint(totalW, gy), gridCol));
+    }
+    window.draw(gridLines);
+
+    // Calculate tile coordinate under mouse
+    sf::Transform inv;
+    inv.scale(1.f / std::max(0.001f, m_Selected->scaleX), 1.f / std::max(0.001f, m_Selected->scaleY));
+    inv.rotate(-m_Selected->rotation);
+    inv.translate(-m_Selected->shape.getPosition());
+    sf::Vector2f localPos = inv.transformPoint(MouseWorldPos());
+
+    int tx = static_cast<int>(std::floor(localPos.x / tm.tileWidth));
+    int ty = static_cast<int>(std::floor(localPos.y / tm.tileHeight));
+
+    if (tx >= 0 && tx < tm.mapWidth && ty >= 0 && ty < tm.mapHeight)
+    {
+        float cellX = static_cast<float>(tx * tm.tileWidth);
+        float cellY = static_cast<float>(ty * tm.tileHeight);
+        float tw = static_cast<float>(tm.tileWidth);
+        float th = static_cast<float>(tm.tileHeight);
+
+        bool eraseMode = (m_TileBrushSelectedTile < 0 || sf::Keyboard::isKeyPressed(sf::Keyboard::LShift));
+
+        if (eraseMode)
+        {
+            // Red eraser highlight
+            sf::ConvexShape cellRect(4);
+            cellRect.setPoint(0, tf.transformPoint(cellX, cellY));
+            cellRect.setPoint(1, tf.transformPoint(cellX + tw, cellY));
+            cellRect.setPoint(2, tf.transformPoint(cellX + tw, cellY + th));
+            cellRect.setPoint(3, tf.transformPoint(cellX, cellY + th));
+            cellRect.setFillColor(sf::Color(255, 60, 60, 90));
+            cellRect.setOutlineColor(sf::Color(255, 60, 60, 230));
+            cellRect.setOutlineThickness(2.f);
+            window.draw(cellRect);
+        }
+        else
+        {
+            // Selected tile preview
+            std::shared_ptr<sf::Texture> tex = nullptr;
+            if (!tm.tilesetPath.empty())
+            {
+                tex = ResourceManager::Get().GetTexture(tm.tilesetPath);
+                if (!tex)
+                {
+                    std::string res = ResourceManager::ResolveAssetPath(tm.tilesetPath);
+                    tex = ResourceManager::Get().GetTexture(res);
+                }
+            }
+
+            if (tex && tex->getSize().x > 0)
+            {
+                int cols = std::max(1u, tex->getSize().x / static_cast<unsigned int>(tm.tileWidth));
+                int u = (m_TileBrushSelectedTile % cols) * tm.tileWidth;
+                int v = (m_TileBrushSelectedTile / cols) * tm.tileHeight;
+
+                sf::VertexArray ghostQuad(sf::Quads, 4);
+                sf::Color ghostTint(255, 255, 255, 180);
+                ghostQuad[0] = sf::Vertex(tf.transformPoint(cellX, cellY), ghostTint, sf::Vector2f(static_cast<float>(u), static_cast<float>(v)));
+                ghostQuad[1] = sf::Vertex(tf.transformPoint(cellX + tw, cellY), ghostTint, sf::Vector2f(static_cast<float>(u + tw), static_cast<float>(v)));
+                ghostQuad[2] = sf::Vertex(tf.transformPoint(cellX + tw, cellY + th), ghostTint, sf::Vector2f(static_cast<float>(u + tw), static_cast<float>(v + th)));
+                ghostQuad[3] = sf::Vertex(tf.transformPoint(cellX, cellY + th), ghostTint, sf::Vector2f(static_cast<float>(u), static_cast<float>(v + th)));
+
+                sf::RenderStates ghostStates;
+                ghostStates.texture = tex.get();
+                window.draw(ghostQuad, ghostStates);
+            }
+
+            // Cell border
+            sf::ConvexShape cellRect(4);
+            cellRect.setPoint(0, tf.transformPoint(cellX, cellY));
+            cellRect.setPoint(1, tf.transformPoint(cellX + tw, cellY));
+            cellRect.setPoint(2, tf.transformPoint(cellX + tw, cellY + th));
+            cellRect.setPoint(3, tf.transformPoint(cellX, cellY + th));
+            cellRect.setFillColor(sf::Color(80, 200, 140, 40));
+            cellRect.setOutlineColor(sf::Color(80, 255, 160, 240));
+            cellRect.setOutlineThickness(2.f);
+            window.draw(cellRect);
         }
     }
 }

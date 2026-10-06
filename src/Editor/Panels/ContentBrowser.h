@@ -18,6 +18,8 @@
 
 #include <set>
 #include <optional>
+#include <unordered_map>
+#include <memory>
 
 namespace fs = std::filesystem;
 
@@ -225,6 +227,10 @@ private:
     void DrawFontIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
 
     void DrawImageIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
+    void DrawImageThumbnail(sf::RenderWindow &window, const std::string &path,
+                            float px, float py, float pw, float ph, sf::Color typeColor) const;
+    std::shared_ptr<sf::Texture> GetOrCreateThumbnail(const std::string &path) const;
+    mutable std::unordered_map<std::string, std::shared_ptr<sf::Texture> > m_ThumbnailCache;
 
     void DrawUnknownIcon(sf::RenderWindow &window, sf::Color color, float cx, float cy, float size) const;
 

@@ -131,6 +131,7 @@ void EditorScene::LoadFromJson(const std::string &path)
         else if (typeStr == "world_text") obj.objectType = ObjectType::WorldText;
         else if (typeStr == "audio_source") obj.objectType = ObjectType::AudioSource;
         else if (typeStr == "particle_emitter") obj.objectType = ObjectType::ParticleEmitter;
+        else if (typeStr == "tilemap") obj.objectType = ObjectType::Tilemap;
         else obj.objectType = ObjectType::Rectangle;
 
         bool defVisible = !(obj.objectType == ObjectType::SpawnPoint || obj.objectType == ObjectType::AudioSource || obj
@@ -304,6 +305,31 @@ void EditorScene::LoadFromJson(const std::string &path)
                 m_Registry.AddComponent(obj.entity, VelocityComponent{0.f, 0.f});
         }
 
+        if (j.contains("tilemap") && j["tilemap"].is_object())
+        {
+            TilemapComponent tm;
+            tm.tilesetPath = j["tilemap"].value("tileset", "");
+            tm.tileWidth = j["tilemap"].value("tileW", 32);
+            tm.tileHeight = j["tilemap"].value("tileH", 32);
+            tm.mapWidth = j["tilemap"].value("mapW", 20);
+            tm.mapHeight = j["tilemap"].value("mapH", 15);
+            tm.generateCollisions = j["tilemap"].value("collision", true);
+            tm.collisionChannel = j["tilemap"].value("channel", 0);
+            if (j["tilemap"].contains("tiles") && j["tilemap"]["tiles"].is_array())
+            {
+                tm.tiles = j["tilemap"]["tiles"].get<std::vector<int>>();
+                if ((int) tm.tiles.size() != tm.mapWidth * tm.mapHeight)
+                    tm.tiles.resize(tm.mapWidth * tm.mapHeight, -1);
+            }
+            else
+            {
+                tm.tiles.assign(tm.mapWidth * tm.mapHeight, -1);
+            }
+            tm.dirtyVertices = true;
+            tm.dirtyColliders = true;
+            m_Registry.AddComponent(obj.entity, tm);
+        }
+
         m_Registry.AddComponent(obj.entity, HierarchyComponent{});
         m_Objects.push_back(std::move(obj));
     }
@@ -407,6 +433,7 @@ json EditorScene::SerializeObject(const EditorObject &obj) const
     else if (obj.objectType == ObjectType::WorldText) typeStr = "world_text";
     else if (obj.objectType == ObjectType::AudioSource) typeStr = "audio_source";
     else if (obj.objectType == ObjectType::ParticleEmitter) typeStr = "particle_emitter";
+    else if (obj.objectType == ObjectType::Tilemap) typeStr = "tilemap";
     j["type"] = typeStr;
     j["x"] = obj.localPosition.x;
     j["y"] = obj.localPosition.y;
@@ -642,6 +669,21 @@ json EditorScene::SerializeObject(const EditorObject &obj) const
         j["animation"] = aJson;
     }
 
+    if (obj.entity != 0 && m_Registry.HasComponent<TilemapComponent>(obj.entity))
+    {
+        auto &tm = m_Registry.GetComponent<TilemapComponent>(obj.entity);
+        j["tilemap"] = {
+            {"tileset", tm.tilesetPath},
+            {"tileW", tm.tileWidth},
+            {"tileH", tm.tileHeight},
+            {"mapW", tm.mapWidth},
+            {"mapH", tm.mapHeight},
+            {"collision", tm.generateCollisions},
+            {"channel", tm.collisionChannel},
+            {"tiles", tm.tiles}
+        };
+    }
+
     return j;
 }
 
@@ -680,6 +722,7 @@ void EditorScene::DeserializeObject(const json &j)
     else if (typeStr == "world_text") obj.objectType = ObjectType::WorldText;
     else if (typeStr == "audio_source") obj.objectType = ObjectType::AudioSource;
     else if (typeStr == "particle_emitter") obj.objectType = ObjectType::ParticleEmitter;
+    else if (typeStr == "tilemap") obj.objectType = ObjectType::Tilemap;
     else obj.objectType = ObjectType::Rectangle;
 
     bool defVisible = !(obj.objectType == ObjectType::SpawnPoint || obj.objectType == ObjectType::AudioSource || obj.
@@ -972,6 +1015,31 @@ void EditorScene::DeserializeObject(const json &j)
             anim.clips.push_back(AnimationClip{"default", 0, anim.columns * anim.rows, fps, loop});
         }
         m_Registry.AddComponent(obj.entity, anim);
+    }
+
+    if (j.contains("tilemap") && j["tilemap"].is_object())
+    {
+        TilemapComponent tm;
+        tm.tilesetPath = j["tilemap"].value("tileset", "");
+        tm.tileWidth = j["tilemap"].value("tileW", 32);
+        tm.tileHeight = j["tilemap"].value("tileH", 32);
+        tm.mapWidth = j["tilemap"].value("mapW", 20);
+        tm.mapHeight = j["tilemap"].value("mapH", 15);
+        tm.generateCollisions = j["tilemap"].value("collision", true);
+        tm.collisionChannel = j["tilemap"].value("channel", 0);
+        if (j["tilemap"].contains("tiles") && j["tilemap"]["tiles"].is_array())
+        {
+            tm.tiles = j["tilemap"]["tiles"].get<std::vector<int>>();
+            if ((int) tm.tiles.size() != tm.mapWidth * tm.mapHeight)
+                tm.tiles.resize(tm.mapWidth * tm.mapHeight, -1);
+        }
+        else
+        {
+            tm.tiles.assign(tm.mapWidth * tm.mapHeight, -1);
+        }
+        tm.dirtyVertices = true;
+        tm.dirtyColliders = true;
+        m_Registry.AddComponent(obj.entity, tm);
     }
 
     m_Registry.AddComponent(obj.entity, HierarchyComponent{});

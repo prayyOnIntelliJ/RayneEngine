@@ -383,6 +383,26 @@ void LuaState::Init(Registry & registry, std::function < void(const std::string 
         }
     });
 
+    s_Lua.set_function("GetTile", [&](const Entity e, int x, int y) -> int {
+        if (registry.HasComponent<TilemapComponent>(e))
+            return registry.GetComponent<TilemapComponent>(e).GetTile(x, y);
+        return -1;
+    });
+
+    s_Lua.set_function("SetTile", [&](const Entity e, int x, int y, int tileId) {
+        if (registry.HasComponent<TilemapComponent>(e))
+            registry.GetComponent<TilemapComponent>(e).SetTile(x, y, tileId);
+    });
+
+    s_Lua.set_function("ClearTilemap", [&](const Entity e) {
+        if (registry.HasComponent<TilemapComponent>(e))
+            registry.GetComponent<TilemapComponent>(e).Clear();
+    });
+
+    s_Lua.set_function("HasTilemap", [&](const Entity e) -> bool {
+        return registry.HasComponent<TilemapComponent>(e);
+    });
+
     s_Lua.set_function("AddCollision", [&](const Entity e, sol::optional<int> channel) {
         registry.AddComponent(e, CollisionComponent{channel.value_or(0)});
     });
